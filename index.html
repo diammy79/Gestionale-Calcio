@@ -2165,6 +2165,28 @@ const SoccerTeamTracker = () => {
   /**
    * Sincronizza i dati LOCALI → CLOUD (Upload)
    */
+// RIMUOVE TUTTI GLI undefined DA OGGETTI E ARRAY (RICORSIVO)
+const sanitizeForFirestore = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(v => sanitizeForFirestore(v));
+  }
+
+  if (value && typeof value === 'object') {
+    const cleaned = {};
+    Object.entries(value).forEach(([key, val]) => {
+      if (val === undefined) {
+        // saltiamo i campi undefined
+        return;
+      }
+      cleaned[key] = sanitizeForFirestore(val);
+    });
+    return cleaned;
+  }
+
+  // per numeri, stringhe, boolean, null, ecc. ritorna così com’è
+  return value;
+};
+
   const syncToFirestore = async () => {
     if (!user) {
       setSyncError('Devi essere autenticato per sincronizzare');
@@ -2175,20 +2197,24 @@ const SoccerTeamTracker = () => {
       setSyncStatus('syncing');
       setSyncError('');
 
-      const dataToSync = {
-        players,
-        trainings,
-        matches,
-        appTitle,
-        teamLogo,
-        injuries,
-        lastSynced: new Date().toISOString(),
-        userId: user.uid
-      };
+     const rawDataToSync = {
+  players,
+  trainings,
+  matches,
+  appTitle,
+  teamLogo,
+  injuries,
+  lastSynced: new Date().toISOString(),
+  userId: user.uid
+};
 
-      // Salva su Firestore
-      await db.collection('teamData').doc(user.uid).set(dataToSync, { merge: true });
-      
+	// PULIZIA: niente undefined dentro Firestore
+	const dataToSync = sanitizeForFirestore(rawDataToSync);
+
+	// Salva su Firestore
+	await db.collection('teamData').doc(user.uid).set(dataToSync, { merge: true });
+
+
       setLastSynced(new Date());
       setSyncStatus('success');
       
