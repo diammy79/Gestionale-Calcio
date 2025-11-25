@@ -1519,9 +1519,8 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`⚽ Confermi il GOL di ${player.nome} (#${playerNum})?`, () => {
         const newGol = { ...match.golFatti, [playerNum]: (parseInt(match.golFatti[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'golFatti', newGol);
         
-        // CORREZIONE: Salva nella timeline
+        // CORREZIONE: Salva nella timeline nello stesso update
         const timeline = match.timeline || [];
         const newEvent = {
           id: Date.now(),
@@ -1530,7 +1529,13 @@ const SoccerTeamTracker = () => {
           playerNome: player.nome,
           timestamp: new Date().toISOString()
         };
-        updateMatch(matchId, 'timeline', [...timeline, newEvent]);
+        
+        // Update combinato di entrambi i campi
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, golFatti: newGol, timeline: [...timeline, newEvent] }
+            : m
+        ));
       });
     }
   };
@@ -1541,9 +1546,8 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`🎯 Confermi l'ASSIST di ${player.nome} (#${playerNum})?`, () => {
         const newAss = { ...match.assist, [playerNum]: (parseInt(match.assist[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'assist', newAss);
         
-        // CORREZIONE: Salva nella timeline
+        // CORREZIONE: Salva nella timeline nello stesso update
         const timeline = match.timeline || [];
         const newEvent = {
           id: Date.now(),
@@ -1552,7 +1556,16 @@ const SoccerTeamTracker = () => {
           playerNome: player.nome,
           timestamp: new Date().toISOString()
         };
-        updateMatch(matchId, 'timeline', [...timeline, newEvent]);
+        
+        // Update combinato di entrambi i campi
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, assist: newAss, timeline: [...timeline, newEvent] }
+            : m
+        ));
+      });
+    }
+  };
       });
     }
   };
@@ -1563,7 +1576,23 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`⚽ Confermi il GOL SUBITO da ${player.nome} (#${playerNum})?`, () => {
         const newGS = { ...match.golSubiti, [playerNum]: (parseInt(match.golSubiti[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'golSubiti', newGS);
+        
+        // CORREZIONE: Salva nella timeline
+        const timeline = match.timeline || [];
+        const newEvent = {
+          id: Date.now(),
+          tipo: 'golsubito',
+          playerNum: playerNum,
+          playerNome: player.nome,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Update combinato
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, golSubiti: newGS, timeline: [...timeline, newEvent] }
+            : m
+        ));
       });
     }
   };
@@ -1603,15 +1632,6 @@ const SoccerTeamTracker = () => {
     if (!match) return;
     
     if (cardType === 'yellow') {
-      if (type === 'gioco') {
-        const newGG = { ...match.gialli_gioco, [playerNum]: (parseInt(match.gialli_gioco[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'gialli_gioco', newGG);
-      } else {
-        const newGP = { ...match.gialli_protesta, [playerNum]: (parseInt(match.gialli_protesta[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'gialli_protesta', newGP);
-      }
-      
-      // CORREZIONE: Salva nella timeline
       const timeline = match.timeline || [];
       const newEvent = {
         id: Date.now(),
@@ -1621,18 +1641,26 @@ const SoccerTeamTracker = () => {
         playerNome: playerName,
         timestamp: new Date().toISOString()
       };
-      updateMatch(matchId, 'timeline', [...timeline, newEvent]);
       
-    } else if (cardType === 'red') {
       if (type === 'gioco') {
-        const newRG = { ...match.rossi_gioco, [playerNum]: (parseInt(match.rossi_gioco[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'rossi_gioco', newRG);
+        const newGG = { ...match.gialli_gioco, [playerNum]: (parseInt(match.gialli_gioco[playerNum] || 0) + 1).toString() };
+        // Update combinato
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, gialli_gioco: newGG, timeline: [...timeline, newEvent] }
+            : m
+        ));
       } else {
-        const newRP = { ...match.rossi_protesta, [playerNum]: (parseInt(match.rossi_protesta[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'rossi_protesta', newRP);
+        const newGP = { ...match.gialli_protesta, [playerNum]: (parseInt(match.gialli_protesta[playerNum] || 0) + 1).toString() };
+        // Update combinato
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, gialli_protesta: newGP, timeline: [...timeline, newEvent] }
+            : m
+        ));
       }
       
-      // CORREZIONE: Salva nella timeline
+    } else if (cardType === 'red') {
       const timeline = match.timeline || [];
       const newEvent = {
         id: Date.now(),
@@ -1642,7 +1670,24 @@ const SoccerTeamTracker = () => {
         playerNome: playerName,
         timestamp: new Date().toISOString()
       };
-      updateMatch(matchId, 'timeline', [...timeline, newEvent]);
+      
+      if (type === 'gioco') {
+        const newRG = { ...match.rossi_gioco, [playerNum]: (parseInt(match.rossi_gioco[playerNum] || 0) + 1).toString() };
+        // Update combinato
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, rossi_gioco: newRG, timeline: [...timeline, newEvent] }
+            : m
+        ));
+      } else {
+        const newRP = { ...match.rossi_protesta, [playerNum]: (parseInt(match.rossi_protesta[playerNum] || 0) + 1).toString() };
+        // Update combinato
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, rossi_protesta: newRP, timeline: [...timeline, newEvent] }
+            : m
+        ));
+      }
     }
     
     setCardTypeDialog({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '' });
@@ -2165,28 +2210,6 @@ const SoccerTeamTracker = () => {
   /**
    * Sincronizza i dati LOCALI → CLOUD (Upload)
    */
-// RIMUOVE TUTTI GLI undefined DA OGGETTI E ARRAY (RICORSIVO)
-const sanitizeForFirestore = (value) => {
-  if (Array.isArray(value)) {
-    return value.map(v => sanitizeForFirestore(v));
-  }
-
-  if (value && typeof value === 'object') {
-    const cleaned = {};
-    Object.entries(value).forEach(([key, val]) => {
-      if (val === undefined) {
-        // saltiamo i campi undefined
-        return;
-      }
-      cleaned[key] = sanitizeForFirestore(val);
-    });
-    return cleaned;
-  }
-
-  // per numeri, stringhe, boolean, null, ecc. ritorna così com’è
-  return value;
-};
-
   const syncToFirestore = async () => {
     if (!user) {
       setSyncError('Devi essere autenticato per sincronizzare');
@@ -2197,24 +2220,37 @@ const sanitizeForFirestore = (value) => {
       setSyncStatus('syncing');
       setSyncError('');
 
-     const rawDataToSync = {
-  players,
-  trainings,
-  matches,
-  appTitle,
-  teamLogo,
-  injuries,
-  lastSynced: new Date().toISOString(),
-  userId: user.uid
-};
+      // CORREZIONE: Rimuovi campi undefined prima di salvare (Firebase non li accetta)
+      const removeUndefined = (obj) => {
+        if (Array.isArray(obj)) {
+          return obj.map(item => removeUndefined(item));
+        } else if (obj !== null && typeof obj === 'object') {
+          return Object.entries(obj).reduce((acc, [key, value]) => {
+            if (value !== undefined) {
+              acc[key] = removeUndefined(value);
+            }
+            return acc;
+          }, {});
+        }
+        return obj;
+      };
 
-	// PULIZIA: niente undefined dentro Firestore
-	const dataToSync = sanitizeForFirestore(rawDataToSync);
+      const rawData = {
+        players,
+        trainings,
+        matches,
+        appTitle,
+        teamLogo,
+        injuries,
+        lastSynced: new Date().toISOString(),
+        userId: user.uid
+      };
 
-	// Salva su Firestore
-	await db.collection('teamData').doc(user.uid).set(dataToSync, { merge: true });
+      const dataToSync = removeUndefined(rawData);
 
-
+      // Salva su Firestore
+      await db.collection('teamData').doc(user.uid).set(dataToSync, { merge: true });
+      
       setLastSynced(new Date());
       setSyncStatus('success');
       
@@ -5389,9 +5425,102 @@ const sanitizeForFirestore = (value) => {
                             </tbody>
                           </table>
                           </div>
-                          <div className="text-xs text-gray-600 mt-2 px-4 pb-4">
+                          <div className="text-xs text-gray-600 mt-2 px-4 pb-2">
                             💡 Inserisci il numero di maglia nell'ordine della distinta ufficiale (es: 1 per il primo, 12 per il portiere in panchina, ecc.)
                           </div>
+                          
+                          {/* AGGIUNTA: Timeline Eventi Partita */}
+                          {match.timeline && match.timeline.length > 0 && (
+                            <div className="border-t mt-4 pt-4 px-4 pb-4 bg-gradient-to-br from-blue-50 to-blue-100">
+                              <h4 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                <span className="text-2xl">📋</span>
+                                Cronologia Eventi Partita
+                              </h4>
+                              
+                              <div className="space-y-2">
+                                {match.timeline
+                                  .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                                  .map((evento, idx) => {
+                                    const time = new Date(evento.timestamp);
+                                    const orario = time.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+                                    
+                                    let icon = '📌';
+                                    let bgColor = 'bg-gray-100';
+                                    let textColor = 'text-gray-800';
+                                    let label = evento.tipo;
+                                    
+                                    if (evento.tipo === 'gol') {
+                                      icon = '⚽';
+                                      bgColor = 'bg-green-100';
+                                      textColor = 'text-green-800';
+                                      label = 'GOL';
+                                    } else if (evento.tipo === 'golsubito') {
+                                      icon = '🔴';
+                                      bgColor = 'bg-red-100';
+                                      textColor = 'text-red-800';
+                                      label = 'GOL SUBITO';
+                                    } else if (evento.tipo === 'assist') {
+                                      icon = '🎯';
+                                      bgColor = 'bg-blue-100';
+                                      textColor = 'text-blue-800';
+                                      label = 'ASSIST';
+                                    } else if (evento.tipo === 'giallo') {
+                                      icon = '🟨';
+                                      bgColor = 'bg-yellow-100';
+                                      textColor = 'text-yellow-800';
+                                      label = evento.sottotipo === 'gioco' ? 'GIALLO (gioco)' : 'GIALLO (proteste)';
+                                    } else if (evento.tipo === 'rosso') {
+                                      icon = '🟥';
+                                      bgColor = 'bg-red-100';
+                                      textColor = 'text-red-800';
+                                      label = evento.sottotipo === 'gioco' ? 'ROSSO (gioco)' : 'ROSSO (proteste)';
+                                    }
+                                    
+                                    return (
+                                      <div 
+                                        key={evento.id || idx} 
+                                        className={`${bgColor} rounded-lg p-3 flex items-center justify-between animate-fade-in hover:shadow-md transition-shadow`}
+                                      >
+                                        <div className="flex items-center gap-3 flex-1">
+                                          <span className="text-3xl">{icon}</span>
+                                          <div className="flex-1">
+                                            <div className={`font-bold ${textColor} text-sm`}>{label}</div>
+                                            <div className="text-gray-700 font-semibold">
+                                              {evento.playerNome} 
+                                              <span className="text-gray-600 text-xs ml-1">(#{evento.playerNum})</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-gray-600 font-mono text-sm">{orario}</span>
+                                          
+                                          {/* Pulsante Rimuovi Evento */}
+                                          <button
+                                            onClick={() => {
+                                              if (confirm(`Rimuovere evento: ${label} di ${evento.playerNome}?`)) {
+                                                const newTimeline = match.timeline.filter((e, i) => (e.id || i) !== (evento.id || idx));
+                                                updateMatch(match.id, 'timeline', newTimeline);
+                                                showToast('🗑️ Evento rimosso', 'info');
+                                              }
+                                            }}
+                                            className="text-red-600 hover:text-red-800 hover:bg-red-200 p-2 rounded-lg transition-colors"
+                                            title="Rimuovi evento"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                              
+                              <div className="mt-3 text-xs text-gray-600 flex items-center gap-2">
+                                <span>ℹ️</span>
+                                <span>Gli eventi vengono registrati automaticamente quando usi i pulsanti quick-add durante la partita</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
