@@ -3287,7 +3287,7 @@ const SoccerTeamTracker = () => {
     doc.save(`report_stagionale_${new Date().toISOString().split('T')[0]}.pdf`);
   };
   
-  // Export Scheda Singolo Giocatore
+  // Export Scheda Singolo Giocatore - REPORT COMPLETO
   const downloadPlayerCardPDF = (playerNum) => {
     const player = players.find(p => p.numero === playerNum);
     if (!player || !player.nome) {
@@ -3298,101 +3298,278 @@ const SoccerTeamTracker = () => {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
-    let yPos = 20;
+    let yPos = 15;
     
-    // Header
-    doc.setFontSize(20);
+    // ========== HEADER CON FOTO ==========
+    doc.setFontSize(18);
     doc.setFont(undefined, 'bold');
-    doc.text(`SCHEDA GIOCATORE #${player.numero}`, 105, yPos, { align: 'center' });
-    yPos += 15;
+    doc.setTextColor(0, 51, 153);
+    doc.text('⚽ REPORT GIOCATORE', 105, yPos, { align: 'center' });
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(appTitle, 105, yPos, { align: 'center' });
+    yPos += 10;
+    
+    // Box header con foto
+    doc.setDrawColor(0, 51, 153);
+    doc.setLineWidth(0.5);
+    doc.rect(15, yPos, 180, 45);
     
     // Foto se presente
     if (player.foto) {
       try {
-        doc.addImage(player.foto, 'JPEG', 80, yPos, 50, 50);
-        yPos += 55;
+        doc.addImage(player.foto, 'JPEG', 20, yPos + 5, 35, 35);
       } catch (e) {
         console.log('Errore caricamento foto');
       }
+    } else {
+      doc.setFillColor(240, 240, 240);
+      doc.rect(20, yPos + 5, 35, 35, 'F');
+      doc.setFontSize(24);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`#${player.numero}`, 37.5, yPos + 27, { align: 'center' });
     }
     
-    // Dati anagrafici
-    doc.setFontSize(16);
+    // Dati anagrafici a destra della foto
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text(player.nome, 105, yPos, { align: 'center' });
-    yPos += 10;
+    doc.text(player.nome, 60, yPos + 12);
     
-    doc.setFontSize(12);
+    doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
-    doc.text(`Ruolo: ${player.ruolo || 'N/A'}`, 105, yPos, { align: 'center' });
-    yPos += 6;
-    doc.text(`Numero: ${player.numero}`, 105, yPos, { align: 'center' });
-    yPos += 6;
+    doc.text(`Ruolo: ${player.ruolo || 'N/A'}`, 60, yPos + 20);
+    doc.text(`Numero Maglia: ${getNumeroAlfabetico(player.nome)}`, 60, yPos + 26);
+    
     if (player.dataNascita) {
-      doc.text(`Data di nascita: ${player.dataNascita}`, 105, yPos, { align: 'center' });
-      yPos += 6;
+      const age = calculateAge(player.dataNascita);
+      doc.text(`Età: ${age} anni (${player.dataNascita})`, 60, yPos + 32);
     }
     if (player.piede) {
-      doc.text(`Piede: ${player.piede}`, 105, yPos, { align: 'center' });
-      yPos += 6;
+      doc.text(`Piede: ${player.piede}`, 60, yPos + 38);
     }
+    
+    yPos += 50;
+    
+    // ========== STATISTICHE ALLENAMENTI ==========
+    const playerTrainings = trainings.filter(t => {
+      if (!player.dataCreazione) return true;
+      return new Date(t.data) >= new Date(player.dataCreazione);
+    });
+    
+    const presenzeCount = playerTrainings.filter(t => t.presenze && t.presenze[player.numero]).length;
+    const assenzeCount = playerTrainings.filter(t => t.presenze && !t.presenze[player.numero]).length;
+    const totAllenamenti = presenzeCount + assenzeCount;
+    const percPresenze = totAllenamenti > 0 ? ((presenzeCount / totAllenamenti) * 100).toFixed(1) : 0;
+    
+    const infortuniCount = trainings.filter(t => t.infortuni && t.infortuni[player.numero]).length;
+    
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 51, 153);
+    doc.text('🏋️ STATISTICHE ALLENAMENTI', 15, yPos);
+    yPos += 7;
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`• Presenze: ${presenzeCount}/${totAllenamenti}`, 20, yPos);
+    doc.text(`• % Presenze: ${percPresenze}%`, 110, yPos);
+    yPos += 6;
+    doc.text(`• Assenze: ${assenzeCount}`, 20, yPos);
+    doc.text(`• Infortuni: ${infortuniCount}`, 110, yPos);
     yPos += 10;
     
-    // Statistiche
-    const playerMatches = matches.filter(m => 
-      m.formazione && Object.keys(m.formazione).includes(player.numero.toString())
-    ).length;
+    // ========== STATISTICHE PARTITE ==========
+    const playerMatches = matches.filter(m => {
+      if (!player.dataCreazione) return true;
+      return new Date(m.data) >= new Date(player.dataCreazione);
+    });
+    
+    const convocato = playerMatches.filter(m => m.convocati && m.convocati[player.numero]).length;
+    const titolare = playerMatches.filter(m => m.titolari && m.titolari[player.numero]).length;
+    const percConvocazioni = playerMatches.length > 0 ? ((convocato / playerMatches.length) * 100).toFixed(1) : 0;
+    const percTitolarita = playerMatches.length > 0 ? ((titolare / playerMatches.length) * 100).toFixed(1) : 0;
     
     let totalGoals = 0;
     let totalAssists = 0;
-    let yellowCards = 0;
-    let redCards = 0;
+    let totalGolSubiti = 0;
+    let gialliGioco = 0;
+    let gialliProtesta = 0;
+    let rossiGioco = 0;
+    let rossiProtesta = 0;
     let totalMinutes = 0;
     
-    matches.forEach(match => {
-      if (match.golFatti && match.golFatti[player.numero]) {
-        totalGoals += parseInt(match.golFatti[player.numero] || 0);
-      }
-      if (match.assist && match.assist[player.numero]) {
-        totalAssists += parseInt(match.assist[player.numero] || 0);
-      }
-      if (match.cartelliniGialli && match.cartelliniGialli[player.numero]) {
-        yellowCards += parseInt(match.cartelliniGialli[player.numero] || 0);
-      }
-      if (match.cartelliniRossi && match.cartelliniRossi[player.numero]) {
-        redCards += parseInt(match.cartelliniRossi[player.numero] || 0);
-      }
-      if (match.minutiGiocati && match.minutiGiocati[player.numero]) {
-        totalMinutes += parseInt(match.minutiGiocati[player.numero] || 0);
-      }
+    playerMatches.forEach(match => {
+      totalGoals += parseInt(match.golFatti?.[player.numero] || 0);
+      totalAssists += parseInt(match.assist?.[player.numero] || 0);
+      totalGolSubiti += parseInt(match.golSubiti?.[player.numero] || 0);
+      gialliGioco += parseInt(match.gialliGioco?.[player.numero] || 0);
+      gialliProtesta += parseInt(match.gialliProtesta?.[player.numero] || 0);
+      rossiGioco += parseInt(match.rossiGioco?.[player.numero] || 0);
+      rossiProtesta += parseInt(match.rossiProtesta?.[player.numero] || 0);
+      totalMinutes += parseInt(match.minutiGiocati?.[player.numero] || 0);
     });
     
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('STATISTICHE', 15, yPos);
-    yPos += 8;
-    
-    doc.setFontSize(11);
-    doc.setFont(undefined, 'normal');
-    doc.text(`• Partite giocate: ${playerMatches}`, 20, yPos);
-    yPos += 6;
-    doc.text(`• Gol segnati: ${totalGoals}`, 20, yPos);
-    yPos += 6;
-    doc.text(`• Assist: ${totalAssists}`, 20, yPos);
-    yPos += 6;
-    doc.text(`• Minuti giocati: ${totalMinutes}'`, 20, yPos);
-    yPos += 6;
-    doc.text(`• Cartellini gialli: ${yellowCards}`, 20, yPos);
-    yPos += 6;
-    doc.text(`• Cartellini rossi: ${redCards}`, 20, yPos);
-    yPos += 12;
+    doc.setTextColor(0, 51, 153);
+    doc.text('⚽ STATISTICHE PARTITE', 15, yPos);
+    yPos += 7;
     
     doc.setFontSize(10);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Report generato il ${new Date().toLocaleDateString('it-IT')}`, 105, 280, { align: 'center' });
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`• Convocato: ${convocato}/${playerMatches.length}`, 20, yPos);
+    doc.text(`• % Convocazioni: ${percConvocazioni}%`, 110, yPos);
+    yPos += 6;
+    doc.text(`• Titolare: ${titolare}/${playerMatches.length}`, 20, yPos);
+    doc.text(`• % Titolarità: ${percTitolarita}%`, 110, yPos);
+    yPos += 6;
+    doc.text(`• Minuti giocati: ${totalMinutes}'`, 20, yPos);
+    yPos += 10;
     
-    const fileName = `scheda_${player.nome.replace(/\s+/g, '_').toLowerCase()}.pdf`;
+    // ========== STATISTICHE GIOCO ==========
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 51, 153);
+    doc.text('📊 STATISTICHE GIOCO', 15, yPos);
+    yPos += 7;
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(`• Gol: ${totalGoals}`, 20, yPos);
+    doc.text(`• Assist: ${totalAssists}`, 110, yPos);
+    yPos += 6;
+    if (totalGolSubiti > 0) {
+      doc.text(`• Gol Subiti: ${totalGolSubiti}`, 20, yPos);
+      yPos += 6;
+    }
+    
+    // Cartellini
+    if (gialliGioco + gialliProtesta + rossiGioco + rossiProtesta > 0) {
+      doc.text(`• 🟨 Giallo Gioco: ${gialliGioco}`, 20, yPos);
+      doc.text(`• 🟨 Giallo Protesta: ${gialliProtesta}`, 110, yPos);
+      yPos += 6;
+      doc.text(`• 🟥 Rosso Gioco: ${rossiGioco}`, 20, yPos);
+      doc.text(`• 🟥 Rosso Protesta: ${rossiProtesta}`, 110, yPos);
+      yPos += 6;
+    }
+    yPos += 5;
+    
+    // ========== LISTA PARTITE DETTAGLIATA ==========
+    if (yPos > 200) {
+      doc.addPage();
+      yPos = 20;
+    }
+    
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 51, 153);
+    doc.text('📋 PARTITE GIOCATE', 15, yPos);
+    yPos += 7;
+    
+    const matchesWithPlayer = playerMatches.filter(m => 
+      (m.convocati && m.convocati[player.numero]) || 
+      (m.titolari && m.titolari[player.numero]) ||
+      (m.minutiGiocati && m.minutiGiocati[player.numero] > 0)
+    ).sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    if (matchesWithPlayer.length > 0) {
+      const tableData = matchesWithPlayer.slice(0, 15).map(m => {
+        const data = new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+        const isTitolare = m.titolari && m.titolari[player.numero];
+        const minuti = m.minutiGiocati?.[player.numero] || 0;
+        const gol = m.golFatti?.[player.numero] || 0;
+        const assist = m.assist?.[player.numero] || 0;
+        const risultato = m.risultato || '-';
+        
+        return [
+          data,
+          m.avversario || 'N/A',
+          risultato,
+          isTitolare ? '✓' : '-',
+          minuti + "'",
+          gol > 0 ? gol : '-',
+          assist > 0 ? assist : '-'
+        ];
+      });
+      
+      doc.autoTable({
+        startY: yPos,
+        head: [['Data', 'Avversario', 'Ris.', 'Tit.', 'Min', 'G', 'A']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { 
+          fillColor: [0, 51, 153],
+          fontSize: 8,
+          fontStyle: 'bold',
+          halign: 'center'
+        },
+        bodyStyles: { 
+          fontSize: 7,
+          cellPadding: 1.5
+        },
+        columnStyles: {
+          0: { cellWidth: 18 },
+          1: { cellWidth: 50 },
+          2: { cellWidth: 18, halign: 'center' },
+          3: { cellWidth: 12, halign: 'center' },
+          4: { cellWidth: 15, halign: 'center' },
+          5: { cellWidth: 10, halign: 'center' },
+          6: { cellWidth: 10, halign: 'center' }
+        },
+        margin: { left: 15, right: 15 }
+      });
+      
+      yPos = doc.lastAutoTable.finalY + 10;
+      
+      if (matchesWithPlayer.length > 15) {
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`(Mostrate le ultime 15 partite su ${matchesWithPlayer.length} totali)`, 15, yPos);
+        yPos += 5;
+      }
+    } else {
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont(undefined, 'italic');
+      doc.text('Nessuna partita giocata', 20, yPos);
+      yPos += 10;
+    }
+    
+    // ========== MVP ==========
+    const mvpCount = matches.filter(m => m.mvp === player.numero).length;
+    if (mvpCount > 0) {
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(218, 165, 32);
+      doc.text(`🏆 MVP: ${mvpCount} ${mvpCount === 1 ? 'volta' : 'volte'}`, 15, yPos);
+      yPos += 8;
+    }
+    
+    // ========== INFORTUNI ==========
+    if (infortuniCount > 0) {
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(200, 0, 0);
+      doc.text(`🤕 Infortuni: ${infortuniCount}`, 15, yPos);
+      yPos += 8;
+    }
+    
+    // ========== FOOTER ==========
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont(undefined, 'italic');
+    doc.text(`Report generato il ${new Date().toLocaleDateString('it-IT')} - ${appTitle}`, 105, 285, { align: 'center' });
+    
+    const fileName = `report_${player.nome.replace(/\s+/g, '_').toLowerCase()}.pdf`;
     doc.save(fileName);
+    showToast(`📄 Report PDF di ${player.nome} scaricato!`, 'success');
   };
   
   // Download Backup JSON
@@ -6575,9 +6752,20 @@ const SoccerTeamTracker = () => {
                             </button>
                           </>
                         ) : (
-                          <button onClick={() => setEditingPlayer(player.numero)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
-                            Modifica
-                          </button>
+                          <>
+                            <button onClick={() => setEditingPlayer(player.numero)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                              Modifica
+                            </button>
+                            {player.nome && (
+                              <button 
+                                onClick={() => downloadPlayerCardPDF(player.numero)} 
+                                className="px-3 py-2 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 flex items-center justify-center gap-1"
+                                title="Genera Report PDF"
+                              >
+                                📄 Report
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
