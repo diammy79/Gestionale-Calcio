@@ -858,7 +858,7 @@ const SoccerTeamTracker = () => {
   const [showManualImport, setShowManualImport] = useState(false);
   const [manualImportData, setManualImportData] = useState('');
   const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null });
-  const [cardTypeDialog, setCardTypeDialog] = useState({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '' });
+  const [cardTypeDialog, setCardTypeDialog] = useState({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '', minuto: null });
   
   // State per Divisione Squadre
   const [numSquadre, setNumSquadre] = useState(2);
@@ -1484,7 +1484,7 @@ const SoccerTeamTracker = () => {
     }
   };
 
-  const quickAddGoal = (matchId, playerNum) => {
+  const quickAddGoal = (matchId, playerNum, minuto = null) => {
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -1498,7 +1498,8 @@ const SoccerTeamTracker = () => {
           tipo: 'gol',
           playerNum: playerNum,
           playerNome: player.nome,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          minuto: minuto  // STEP 3: Aggiungi minuto
         };
         
         // Update atomico - aggiorna tutto insieme
@@ -1511,7 +1512,7 @@ const SoccerTeamTracker = () => {
     }
   };
 
-  const quickAddAssist = (matchId, playerNum) => {
+  const quickAddAssist = (matchId, playerNum, minuto = null) => {
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -1525,7 +1526,8 @@ const SoccerTeamTracker = () => {
           tipo: 'assist',
           playerNum: playerNum,
           playerNome: player.nome,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          minuto: minuto  // STEP 3: Aggiungi minuto
         };
         
         // Update atomico
@@ -1538,7 +1540,7 @@ const SoccerTeamTracker = () => {
     }
   };
 
-  const quickAddGoalConceded = (matchId, playerNum) => {
+  const quickAddGoalConceded = (matchId, playerNum, minuto = null) => {
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -1552,7 +1554,8 @@ const SoccerTeamTracker = () => {
           tipo: 'golsubito',
           playerNum: playerNum,
           playerNome: player.nome,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          minuto: minuto  // STEP 3: Aggiungi minuto
         };
         
         // Update atomico
@@ -1565,7 +1568,7 @@ const SoccerTeamTracker = () => {
     }
   };
 
-  const quickAddYellowCard = (matchId, playerNum) => {
+  const quickAddYellowCard = (matchId, playerNum, minuto = null) => {
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -1574,12 +1577,13 @@ const SoccerTeamTracker = () => {
         cardType: 'yellow',
         playerNum: playerNum,
         matchId: matchId,
-        playerName: player.nome
+        playerName: player.nome,
+        minuto: minuto  // STEP 3: Aggiungi minuto
       });
     }
   };
 
-  const quickAddRedCard = (matchId, playerNum) => {
+  const quickAddRedCard = (matchId, playerNum, minuto = null) => {
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -1588,13 +1592,14 @@ const SoccerTeamTracker = () => {
         cardType: 'red',
         playerNum: playerNum,
         matchId: matchId,
-        playerName: player.nome
+        playerName: player.nome,
+        minuto: minuto  // STEP 3: Aggiungi minuto
       });
     }
   };
   
   const assignCard = (type) => {
-    const { cardType, playerNum, matchId, playerName } = cardTypeDialog;
+    const { cardType, playerNum, matchId, playerName, minuto } = cardTypeDialog;
     const match = matches.find(m => m.id === matchId);
     
     if (!match) return;
@@ -1607,7 +1612,8 @@ const SoccerTeamTracker = () => {
         sottotipo: type,
         playerNum: playerNum,
         playerNome: playerName,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        minuto: minuto  // STEP 3: Aggiungi minuto
       };
       
       if (type === 'gioco') {
@@ -1636,7 +1642,8 @@ const SoccerTeamTracker = () => {
         sottotipo: type,
         playerNum: playerNum,
         playerNome: playerName,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        minuto: minuto  // STEP 3: Aggiungi minuto
       };
       
       if (type === 'gioco') {
@@ -1658,7 +1665,7 @@ const SoccerTeamTracker = () => {
       }
     }
     
-    setCardTypeDialog({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '' });
+    setCardTypeDialog({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '', minuto: null });
   };
 
   const toggleTraining = (id) => {
@@ -5327,6 +5334,11 @@ const SoccerTeamTracker = () => {
                                     const time = new Date(evento.timestamp);
                                     const orario = time.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
                                     
+                                    // STEP 3: Mostra minuto se disponibile, altrimenti orario
+                                    const displayTime = evento.minuto !== null && evento.minuto !== undefined 
+                                      ? `${evento.minuto}'` 
+                                      : orario;
+                                    
                                     let icon = '📌';
                                     let bgColor = 'bg-gray-100';
                                     let textColor = 'text-gray-800';
@@ -5376,7 +5388,7 @@ const SoccerTeamTracker = () => {
                                         </div>
                                         
                                         <div className="flex items-center gap-3">
-                                          <span className="text-gray-600 font-mono text-sm">{orario}</span>
+                                          <span className="text-gray-600 font-mono text-sm">{displayTime}</span>
                                           
                                           {/* Pulsante Rimuovi Evento */}
                                           <button
@@ -7473,18 +7485,18 @@ const SoccerTeamTracker = () => {
                                     <div className="flex gap-2 flex-wrap relative z-20">
                                       {player.ruolo === 'Portiere' ? (
                                         <>
-                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero)} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">
+                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">
                                             ⚽ GOL SUBITO
                                           </button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero)} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero)} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
                                         </>
                                       ) : (
                                         <>
-                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero)} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm">⚽ GOL</button>
-                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero)} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm">🎯 ASSIST</button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero)} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero)} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm">⚽ GOL</button>
+                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm">🎯 ASSIST</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
                                         </>
                                       )}
                                     </div>
@@ -7576,16 +7588,16 @@ const SoccerTeamTracker = () => {
                                     <div className="flex gap-2 flex-wrap mt-2 relative z-20">
                                       {player.ruolo === 'Portiere' ? (
                                         <>
-                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero)} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">⚽ GOL SUBITO</button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero)} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero)} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">⚽ GOL SUBITO</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
                                         </>
                                       ) : (
                                         <>
-                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero)} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm">⚽ GOL</button>
-                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero)} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm">🎯 ASSIST</button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero)} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero)} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm">⚽ GOL</button>
+                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm">🎯 ASSIST</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
                                         </>
                                       )}
                                     </div>
@@ -8718,7 +8730,7 @@ const SoccerTeamTracker = () => {
                   🗣️ Per PROTESTA
                 </button>
                 <button
-                  onClick={() => setCardTypeDialog({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '' })}
+                  onClick={() => setCardTypeDialog({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '', minuto: null })}
                   className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold"
                 >
                   Annulla
