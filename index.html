@@ -7175,15 +7175,15 @@ const SoccerTeamTracker = () => {
                         </div>
 
                         {/* ========== TIMELINE EVENTI PARTITA ========== */}
-                        <div className="p-4 bg-white border-b-2 border-gray-200">
-                          <h4 className="text-lg font-bold text-gray-800 mb-3">⏱️ Timeline Eventi</h4>
+                        <div className="p-2 bg-white border-b border-gray-200">
+                          <h4 className="text-sm font-bold text-gray-800 mb-1">⏱️ Timeline Eventi</h4>
                           <div className="relative">
                             {/* Linea temporale */}
                             <div className="absolute left-0 right-0 top-4 h-1 bg-gray-300 rounded"></div>
                             <div className="absolute left-0 top-4 h-1 bg-green-500 rounded" style={{ width: `${(matchTimer / 5400) * 100}%` }}></div>
                             
                             {/* Eventi sulla timeline */}
-                            <div className="relative pt-8 min-h-[60px]">
+                            <div className="relative pt-4 min-h-[120px]">
                               {/* Marker inizio e fine */}
                               <div className="absolute left-0 top-0 flex flex-col items-center">
                                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -7208,6 +7208,15 @@ const SoccerTeamTracker = () => {
                                   const eventIndex = allEvents.findIndex(e => e.id === evento.id);
                                   position = ((eventIndex + 1) / (allEvents.length + 1)) * 100;
                                 }
+                                
+                                // FIX: Calcola offset verticale per eventi allo stesso minuto
+                                const eventsAtSameMinute = (match.timeline || []).filter((e, i) => {
+                                  if (evento.minuto !== null && evento.minuto !== undefined) {
+                                    return e.minuto === evento.minuto && i <= idx;
+                                  }
+                                  return false;
+                                });
+                                const verticalOffset = (eventsAtSameMinute.length - 1) * 28; // 28px di offset per ogni evento
                                 
                                 // Determina icona e colore
                                 let icon = '📌';
@@ -7235,8 +7244,11 @@ const SoccerTeamTracker = () => {
                                 return (
                                   <div 
                                     key={evento.id || `evento-${idx}`}
-                                    className="absolute top-0 flex flex-col items-center"
-                                    style={{ left: `${Math.min(position, 95)}%` }}
+                                    className="absolute flex flex-col items-center"
+                                    style={{ 
+                                      left: `${Math.min(position, 95)}%`,
+                                      top: `${verticalOffset}px`
+                                    }}
                                     title={`${evento.playerNome} (${evento.tipo})`}
                                   >
                                     <div className={`w-4 h-4 ${bgColor} rounded-full flex items-center justify-center text-white text-xs font-bold`}>
@@ -7273,7 +7285,7 @@ const SoccerTeamTracker = () => {
                           </div>
                           
                           {/* Legenda Timeline */}
-                          <div className="flex items-center gap-4 justify-center mt-4 text-xs flex-wrap">
+                          <div className="flex items-center gap-3 justify-center mt-2 text-xs flex-wrap">
                             <div className="flex items-center gap-1">
                               <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                               <span>Gol</span>
@@ -7301,20 +7313,20 @@ const SoccerTeamTracker = () => {
                           </div>
                         </div>
 
-                        <div className="p-4 bg-gray-900 text-white shadow-xl border-b-2 border-gray-700">
-                        <div className="flex items-center justify-center gap-6">
-                          <div className="flex items-center gap-4">
-                            <div className="flex flex-col items-center gap-2">
-                              <div className="flex items-center gap-3">
-                                <div className={`px-4 py-2 rounded-lg font-bold ${halfTime === 1 ? 'bg-green-600' : 'bg-gray-600'}`}>
+                        <div className="p-2 bg-gray-900 text-white shadow-xl border-b border-gray-700">
+                        <div className="flex items-center justify-center gap-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex flex-col items-center gap-1">
+                              <div className="flex items-center gap-2">
+                                <div className={`px-3 py-1 rounded-lg font-bold text-sm ${halfTime === 1 ? 'bg-green-600' : 'bg-gray-600'}`}>
                                   1° TEMPO
                                 </div>
-                                <div className={`px-4 py-2 rounded-lg font-bold ${halfTime === 2 ? 'bg-green-600' : 'bg-gray-600'}`}>
+                                <div className={`px-3 py-1 rounded-lg font-bold text-sm ${halfTime === 2 ? 'bg-green-600' : 'bg-gray-600'}`}>
                                   2° TEMPO
                                 </div>
                               </div>
-                              <div className="text-sm font-semibold opacity-70">TEMPO REGOLAMENTARE</div>
-                              <div className="text-6xl font-bold font-mono">{formatTime(matchTimer)}</div>
+                              <div className="text-xs font-semibold opacity-70">TEMPO REGOLAMENTARE</div>
+                              <div className="text-4xl font-bold font-mono">{formatTime(matchTimer)}</div>
                               {!matchEnded && (
                                 <div className="flex gap-2">
                                   {!isTimerRunning ? (
