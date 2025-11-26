@@ -5094,7 +5094,7 @@ const SoccerTeamTracker = () => {
                                 <>
                                   <span>🏆</span>
                                   <span className="hidden sm:inline">
-                                    MVP: {players.find(p => p.numero === match.mvp)?.nome.split(' ').pop() || `#${match.mvp}`}
+                                    MVP: {players.find(p => p.numero === match.mvp)?.nome.split(' ')[0] || `#${match.mvp}`}
                                   </span>
                                 </>
                               ) : (
@@ -7373,7 +7373,7 @@ const SoccerTeamTracker = () => {
                                       {icon}
                                     </div>
                                     <div className="text-xs text-gray-800 mt-1 whitespace-nowrap font-semibold">
-                                      {evento.playerNome.split(' ')[0]}
+                                      {evento.playerNome.split(' ').pop()}
                                     </div>
                                   </div>
                                 );
@@ -7395,8 +7395,8 @@ const SoccerTeamTracker = () => {
                                 if (!playerOut || !playerIn) return null;
                                 
                                 // Estrai cognomi
-                                const cognomeOut = playerOut.nome.split(' ').pop();
-                                const cognomeIn = playerIn.nome.split(' ').pop();
+                                const cognomeOut = playerOut.nome.split(' ')[0];
+                                const cognomeIn = playerIn.nome.split(' ')[0];
                                 
                                 return (
                                   <div 
@@ -8234,7 +8234,7 @@ const SoccerTeamTracker = () => {
                                   
                                   <div className="text-center">
                                     <p className="font-bold text-sm text-gray-800 mb-1">
-                                      {player.nome.split(' ').pop()}
+                                      {player.nome.split(' ')[0]}
                                     </p>
                                     <p className="text-xs text-gray-600 mb-2 line-clamp-2">
                                       {player.nome}
