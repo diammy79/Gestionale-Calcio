@@ -1490,7 +1490,23 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`⚽ Confermi il GOL di ${player.nome} (#${playerNum})?`, () => {
         const newGol = { ...match.golFatti, [playerNum]: (parseInt(match.golFatti[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'golFatti', newGol);
+        
+        // Salva evento in timeline
+        const timeline = match.timeline || [];
+        const newEvent = {
+          id: Date.now(),
+          tipo: 'gol',
+          playerNum: playerNum,
+          playerNome: player.nome,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Update atomico - aggiorna tutto insieme
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, golFatti: newGol, timeline: [...timeline, newEvent] }
+            : m
+        ));
       });
     }
   };
@@ -1501,7 +1517,23 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`🎯 Confermi l'ASSIST di ${player.nome} (#${playerNum})?`, () => {
         const newAss = { ...match.assist, [playerNum]: (parseInt(match.assist[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'assist', newAss);
+        
+        // Salva evento in timeline
+        const timeline = match.timeline || [];
+        const newEvent = {
+          id: Date.now(),
+          tipo: 'assist',
+          playerNum: playerNum,
+          playerNome: player.nome,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Update atomico
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, assist: newAss, timeline: [...timeline, newEvent] }
+            : m
+        ));
       });
     }
   };
@@ -1512,7 +1544,23 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`⚽ Confermi il GOL SUBITO da ${player.nome} (#${playerNum})?`, () => {
         const newGS = { ...match.golSubiti, [playerNum]: (parseInt(match.golSubiti[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'golSubiti', newGS);
+        
+        // Salva evento in timeline
+        const timeline = match.timeline || [];
+        const newEvent = {
+          id: Date.now(),
+          tipo: 'golsubito',
+          playerNum: playerNum,
+          playerNome: player.nome,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Update atomico
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, golSubiti: newGS, timeline: [...timeline, newEvent] }
+            : m
+        ));
       });
     }
   };
@@ -1546,26 +1594,67 @@ const SoccerTeamTracker = () => {
   };
   
   const assignCard = (type) => {
-    const { cardType, playerNum, matchId } = cardTypeDialog;
+    const { cardType, playerNum, matchId, playerName } = cardTypeDialog;
     const match = matches.find(m => m.id === matchId);
     
     if (!match) return;
     
     if (cardType === 'yellow') {
+      const timeline = match.timeline || [];
+      const newEvent = {
+        id: Date.now(),
+        tipo: 'giallo',
+        sottotipo: type,
+        playerNum: playerNum,
+        playerNome: playerName,
+        timestamp: new Date().toISOString()
+      };
+      
       if (type === 'gioco') {
         const newGG = { ...match.gialli_gioco, [playerNum]: (parseInt(match.gialli_gioco[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'gialli_gioco', newGG);
+        // Update atomico
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, gialli_gioco: newGG, timeline: [...timeline, newEvent] }
+            : m
+        ));
       } else {
         const newGP = { ...match.gialli_protesta, [playerNum]: (parseInt(match.gialli_protesta[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'gialli_protesta', newGP);
+        // Update atomico
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, gialli_protesta: newGP, timeline: [...timeline, newEvent] }
+            : m
+        ));
       }
+      
     } else if (cardType === 'red') {
+      const timeline = match.timeline || [];
+      const newEvent = {
+        id: Date.now(),
+        tipo: 'rosso',
+        sottotipo: type,
+        playerNum: playerNum,
+        playerNome: playerName,
+        timestamp: new Date().toISOString()
+      };
+      
       if (type === 'gioco') {
         const newRG = { ...match.rossi_gioco, [playerNum]: (parseInt(match.rossi_gioco[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'rossi_gioco', newRG);
+        // Update atomico
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, rossi_gioco: newRG, timeline: [...timeline, newEvent] }
+            : m
+        ));
       } else {
         const newRP = { ...match.rossi_protesta, [playerNum]: (parseInt(match.rossi_protesta[playerNum] || 0) + 1).toString() };
-        updateMatch(matchId, 'rossi_protesta', newRP);
+        // Update atomico
+        setMatches(matches.map(m => 
+          m.id === matchId 
+            ? { ...m, rossi_protesta: newRP, timeline: [...timeline, newEvent] }
+            : m
+        ));
       }
     }
     
