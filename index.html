@@ -848,7 +848,6 @@ const SoccerTeamTracker = () => {
   const [showModuloModal, setShowModuloModal] = useState(null);
   const [moduloTattico, setModuloTattico] = useState({});
   const [playerSelectionModal, setPlayerSelectionModal] = useState(null);
-  const [draggedPlayer, setDraggedPlayer] = useState(null);
   const [matchEnded, setMatchEnded] = useState(false);
   const [appTitle, setAppTitle] = useState('Moreschi Roberto - Gestione squadra Real DOR Under 18');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -5446,7 +5445,8 @@ const SoccerTeamTracker = () => {
           '3-4-3': { nome: '3-4-3', posizioni: ['P', 'DC1', 'DC2', 'DC3', 'ED', 'CC1', 'CC2', 'ES', 'AD', 'PC', 'AS'] },
           '5-3-2': { nome: '5-3-2', posizioni: ['P', 'TD', 'DC1', 'DC2', 'DC3', 'TS', 'MC1', 'CC', 'MC2', 'PC1', 'PC2'] },
           '4-1-4-1': { nome: '4-1-4-1', posizioni: ['P', 'TD', 'DC1', 'DC2', 'TS', 'MD', 'ED', 'CC1', 'CC2', 'ES', 'PC'] },
-          '4-3-1-2': { nome: '4-3-1-2', posizioni: ['P', 'TD', 'DC1', 'DC2', 'TS', 'MC1', 'CC', 'MC2', 'TQ', 'PC1', 'PC2'] }
+          '4-3-1-2': { nome: '4-3-1-2', posizioni: ['P', 'TD', 'DC1', 'DC2', 'TS', 'MC1', 'CC', 'MC2', 'TQ', 'PC1', 'PC2'] },
+          '4-1-2-2-1': { nome: '4-1-2-2-1', posizioni: ['P', 'TD', 'DC1', 'DC2', 'TS', 'MD', 'CC1', 'CC2', 'AE', 'AD', 'PC'] }
         };
         
         const layoutPosizioni = {
@@ -5553,6 +5553,19 @@ const SoccerTeamTracker = () => {
             { pos: 'TQ', top: '35%', left: '50%' },
             { pos: 'PC1', top: '15%', left: '60%' },
             { pos: 'PC2', top: '15%', left: '40%' }
+          ],
+          '4-1-2-2-1': [
+            { pos: 'P', top: '90%', left: '50%' },
+            { pos: 'TD', top: '75%', left: '85%' },
+            { pos: 'DC1', top: '75%', left: '60%' },
+            { pos: 'DC2', top: '75%', left: '40%' },
+            { pos: 'TS', top: '75%', left: '15%' },
+            { pos: 'MD', top: '60%', left: '50%' },
+            { pos: 'CC1', top: '45%', left: '60%' },
+            { pos: 'CC2', top: '45%', left: '40%' },
+            { pos: 'AE', top: '25%', left: '75%' },
+            { pos: 'AD', top: '25%', left: '25%' },
+            { pos: 'PC', top: '10%', left: '50%' }
           ]
         };
         
@@ -5666,66 +5679,27 @@ const SoccerTeamTracker = () => {
                       const giocatoreAssegnato = currentModulo.posizioni[pos.pos];
                       const giocatore = giocatoreAssegnato ? players.find(p => p.numero === giocatoreAssegnato) : null;
                       
+                      // Ottieni offset salvato per questa posizione
+                      const matchModulo = moduloTattico[match.id] || { moduloCorrente: '4-4-2', moduli: {} };
+                      const moduloCorrente = matchModulo.moduloCorrente || '4-4-2';
+                      const offsets = matchModulo.moduli?.[moduloCorrente]?.offsets || {};
+                      const offset = offsets[pos.pos] || { x: 0, y: 0 };
+                      
+                      // Calcola posizione finale con offset
+                      const finalTop = `calc(${pos.top} + ${offset.y}px)`;
+                      const finalLeft = `calc(${pos.left} + ${offset.x}px)`;
+                      
                       return (
                         <div
                           key={pos.pos}
                           className="absolute"
                           style={{ 
-                            top: pos.top, 
-                            left: pos.left, 
+                            top: finalTop, 
+                            left: finalLeft, 
                             transform: 'translate(-50%, -50%)'
                           }}
                           onDragOver={(e) => {
                             e.preventDefault();
-                            e.stopPropagation();
-                            if (draggedPlayer && draggedPlayer.matchId === match.id) {
-                              e.dataTransfer.dropEffect = 'move';
-                            }
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            
-                            if (!draggedPlayer || draggedPlayer.matchId !== match.id) return;
-                            
-                            const fromPos = draggedPlayer.fromPos;
-                            const toPos = pos.pos;
-                            const playerNum = draggedPlayer.playerNum;
-                            
-                            if (fromPos === toPos) {
-                              setDraggedPlayer(null);
-                              return;
-                            }
-                            
-                            const matchModulo = moduloTattico[match.id] || { moduloCorrente: '4-4-2', moduli: {} };
-                            const moduloCorrente = matchModulo.moduloCorrente || '4-4-2';
-                            const moduliAggiornati = { ...matchModulo.moduli };
-                            const currentPosizioni = { ...(moduliAggiornati[moduloCorrente]?.posizioni || {}) };
-                            
-                            const playerInTarget = currentPosizioni[toPos];
-                            
-                            currentPosizioni[toPos] = playerNum;
-                            
-                            if (playerInTarget) {
-                              currentPosizioni[fromPos] = playerInTarget;
-                            } else {
-                              delete currentPosizioni[fromPos];
-                            }
-                            
-                            moduliAggiornati[moduloCorrente] = {
-                              ...moduliAggiornati[moduloCorrente],
-                              posizioni: currentPosizioni
-                            };
-                            
-                            setModuloTattico({
-                              ...moduloTattico,
-                              [match.id]: {
-                                moduloCorrente: moduloCorrente,
-                                moduli: moduliAggiornati
-                              }
-                            });
-                            
-                            setDraggedPlayer(null);
                           }}
                         >
                           {giocatore ? (
@@ -5733,16 +5707,65 @@ const SoccerTeamTracker = () => {
                               className="relative group" 
                               draggable="true"
                               onDragStart={(e) => {
-                                e.stopPropagation();
-                                setDraggedPlayer({
+                                const rect = e.currentTarget.parentElement.getBoundingClientRect();
+                                const campoRect = e.currentTarget.closest('.relative.w-full').getBoundingClientRect();
+                                e.dataTransfer.setData('text/plain', JSON.stringify({
                                   matchId: match.id,
-                                  fromPos: pos.pos,
-                                  playerNum: giocatore.numero
-                                });
+                                  pos: pos.pos,
+                                  startX: e.clientX - rect.left,
+                                  startY: e.clientY - rect.top,
+                                  campoWidth: campoRect.width,
+                                  campoHeight: campoRect.height,
+                                  campoLeft: campoRect.left,
+                                  campoTop: campoRect.top
+                                }));
                                 e.dataTransfer.effectAllowed = 'move';
                               }}
-                              onDragEnd={() => {
-                                setDraggedPlayer(null);
+                              onDragEnd={(e) => {
+                                const data = e.dataTransfer.getData('text/plain');
+                                if (!data) return;
+                                
+                                const dragData = JSON.parse(data);
+                                const campoRect = e.currentTarget.closest('.relative.w-full').getBoundingClientRect();
+                                
+                                // Calcola nuova posizione in percentuale relativa al campo
+                                const newX = e.clientX - campoRect.left;
+                                const newY = e.clientY - campoRect.top;
+                                
+                                // Posizione base in pixel
+                                const baseTopPercent = parseFloat(pos.top);
+                                const baseLeftPercent = parseFloat(pos.left);
+                                const baseTopPx = (baseTopPercent / 100) * campoRect.height;
+                                const baseLeftPx = (baseLeftPercent / 100) * campoRect.width;
+                                
+                                // Calcola offset in pixel
+                                const offsetX = newX - baseLeftPx;
+                                const offsetY = newY - baseTopPx;
+                                
+                                // Salva offset
+                                const matchModulo = moduloTattico[match.id] || { moduloCorrente: '4-4-2', moduli: {} };
+                                const moduloCorrente = matchModulo.moduloCorrente || '4-4-2';
+                                const moduliAggiornati = { ...matchModulo.moduli };
+                                
+                                if (!moduliAggiornati[moduloCorrente]) {
+                                  moduliAggiornati[moduloCorrente] = { posizioni: {}, offsets: {} };
+                                }
+                                
+                                const currentOffsets = { ...(moduliAggiornati[moduloCorrente].offsets || {}) };
+                                currentOffsets[pos.pos] = { x: Math.round(offsetX), y: Math.round(offsetY) };
+                                
+                                moduliAggiornati[moduloCorrente] = {
+                                  ...moduliAggiornati[moduloCorrente],
+                                  offsets: currentOffsets
+                                };
+                                
+                                setModuloTattico({
+                                  ...moduloTattico,
+                                  [match.id]: {
+                                    moduloCorrente: moduloCorrente,
+                                    moduli: moduliAggiornati
+                                  }
+                                });
                               }}
                               style={{ cursor: 'move' }}
                             >
@@ -5807,6 +5830,38 @@ const SoccerTeamTracker = () => {
                               >
                                 ✕
                               </button>
+                              
+                              {offset.x !== 0 || offset.y !== 0 ? (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const matchModulo = moduloTattico[match.id] || { moduloCorrente: '4-4-2', moduli: {} };
+                                    const moduloCorrente = matchModulo.moduloCorrente || '4-4-2';
+                                    const moduliAggiornati = { ...matchModulo.moduli };
+                                    
+                                    const currentOffsets = { ...(moduliAggiornati[moduloCorrente]?.offsets || {}) };
+                                    delete currentOffsets[pos.pos];
+                                    
+                                    moduliAggiornati[moduloCorrente] = {
+                                      ...moduliAggiornati[moduloCorrente],
+                                      offsets: currentOffsets
+                                    };
+                                    
+                                    setModuloTattico({
+                                      ...moduloTattico,
+                                      [match.id]: {
+                                        moduloCorrente: moduloCorrente,
+                                        moduli: moduliAggiornati
+                                      }
+                                    });
+                                  }}
+                                  className="absolute -top-1 -left-1 w-3 h-3 bg-blue-500 text-white rounded-full font-normal hover:bg-blue-600 shadow-sm opacity-40 hover:opacity-100"
+                                  style={{ zIndex: 10, fontSize: '6px' }}
+                                  title="Reset posizione"
+                                >
+                                  ↺
+                                </button>
+                              ) : null}
                             </div>
                           ) : (
                             <button
