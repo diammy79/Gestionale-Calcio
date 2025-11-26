@@ -637,7 +637,7 @@ const LoginScreen = ({ onLogin }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none transition-colors"
-                placeholder="admin@realdor.it"
+                placeholder="example@domain.com"
                 required
                 disabled={loading}
               />
@@ -671,13 +671,6 @@ const LoginScreen = ({ onLogin }) => {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-            <p className="text-xs font-semibold text-blue-900 mb-2">📋 Credenziali di accesso:</p>
-            <div className="text-xs text-blue-800 space-y-1">
-              <p><strong>Admin:</strong> admin@realdor.it / admin123</p>
-              <p><strong>User:</strong> user@realdor.it / user123</p>
-            </div>
-          </div>
         </div>
 
         <div className="text-center mt-6">
