@@ -848,6 +848,7 @@ const SoccerTeamTracker = () => {
   const [showModuloModal, setShowModuloModal] = useState(null);
   const [moduloTattico, setModuloTattico] = useState({});
   const [playerSelectionModal, setPlayerSelectionModal] = useState(null);
+  const [dragState, setDragState] = useState(null); // Per tracciare drag offset
   const [matchEnded, setMatchEnded] = useState(false);
   const [appTitle, setAppTitle] = useState('Moreschi Roberto - Gestione squadra Real DOR Under 18');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -5707,40 +5708,39 @@ const SoccerTeamTracker = () => {
                               className="relative group" 
                               draggable="true"
                               onDragStart={(e) => {
-                                const rect = e.currentTarget.parentElement.getBoundingClientRect();
+                                const rect = e.currentTarget.getBoundingClientRect();
                                 const campoRect = e.currentTarget.closest('.relative.w-full').getBoundingClientRect();
-                                e.dataTransfer.setData('text/plain', JSON.stringify({
+                                
+                                setDragState({
                                   matchId: match.id,
                                   pos: pos.pos,
-                                  startX: e.clientX - rect.left,
-                                  startY: e.clientY - rect.top,
-                                  campoWidth: campoRect.width,
-                                  campoHeight: campoRect.height,
-                                  campoLeft: campoRect.left,
-                                  campoTop: campoRect.top
-                                }));
+                                  startX: e.clientX,
+                                  startY: e.clientY,
+                                  campoRect: {
+                                    width: campoRect.width,
+                                    height: campoRect.height,
+                                    left: campoRect.left,
+                                    top: campoRect.top
+                                  }
+                                });
+                                
                                 e.dataTransfer.effectAllowed = 'move';
                               }}
                               onDragEnd={(e) => {
-                                const data = e.dataTransfer.getData('text/plain');
-                                if (!data) return;
+                                if (!dragState || dragState.matchId !== match.id || dragState.pos !== pos.pos) {
+                                  setDragState(null);
+                                  return;
+                                }
                                 
-                                const dragData = JSON.parse(data);
-                                const campoRect = e.currentTarget.closest('.relative.w-full').getBoundingClientRect();
+                                // Calcola quanto è stato trascinato
+                                const deltaX = e.clientX - dragState.startX;
+                                const deltaY = e.clientY - dragState.startY;
                                 
-                                // Calcola nuova posizione in percentuale relativa al campo
-                                const newX = e.clientX - campoRect.left;
-                                const newY = e.clientY - campoRect.top;
-                                
-                                // Posizione base in pixel
-                                const baseTopPercent = parseFloat(pos.top);
-                                const baseLeftPercent = parseFloat(pos.left);
-                                const baseTopPx = (baseTopPercent / 100) * campoRect.height;
-                                const baseLeftPx = (baseLeftPercent / 100) * campoRect.width;
-                                
-                                // Calcola offset in pixel
-                                const offsetX = newX - baseLeftPx;
-                                const offsetY = newY - baseTopPx;
+                                // Se movimento minimo, ignora (click accidentale)
+                                if (Math.abs(deltaX) < 5 && Math.abs(deltaY) < 5) {
+                                  setDragState(null);
+                                  return;
+                                }
                                 
                                 // Salva offset
                                 const matchModulo = moduloTattico[match.id] || { moduloCorrente: '4-4-2', moduli: {} };
@@ -5752,7 +5752,13 @@ const SoccerTeamTracker = () => {
                                 }
                                 
                                 const currentOffsets = { ...(moduliAggiornati[moduloCorrente].offsets || {}) };
-                                currentOffsets[pos.pos] = { x: Math.round(offsetX), y: Math.round(offsetY) };
+                                const existingOffset = currentOffsets[pos.pos] || { x: 0, y: 0 };
+                                
+                                // Aggiungi il nuovo offset a quello esistente
+                                currentOffsets[pos.pos] = { 
+                                  x: Math.round(existingOffset.x + deltaX), 
+                                  y: Math.round(existingOffset.y + deltaY) 
+                                };
                                 
                                 moduliAggiornati[moduloCorrente] = {
                                   ...moduliAggiornati[moduloCorrente],
@@ -5766,6 +5772,8 @@ const SoccerTeamTracker = () => {
                                     moduli: moduliAggiornati
                                   }
                                 });
+                                
+                                setDragState(null);
                               }}
                               style={{ cursor: 'move' }}
                             >
