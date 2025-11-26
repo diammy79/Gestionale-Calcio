@@ -210,30 +210,6 @@
           display: none;
         }
       }
-      
-      /* CORREZIONE: Gradiente per indicare scrollabilità su mobile */
-      .tab-wrapper {
-        position: relative;
-      }
-      
-      .tab-wrapper::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        width: 40px;
-        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.95));
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.3s;
-      }
-      
-      @media (max-width: 768px) {
-        .tab-wrapper::after {
-          opacity: 1;
-        }
-      }
     }
     
     /* Solo mobile piccolo */
@@ -1463,12 +1439,7 @@ const SoccerTeamTracker = () => {
   };
   
   const getEventsForDate = (date) => {
-    // CORREZIONE: Usa formato locale invece di UTC per evitare problemi timezone
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const dateStr = `${year}-${month}-${day}`;
-    
+    const dateStr = date.toISOString().split('T')[0];
     const dayTrainings = trainings.filter(t => t.data === dateStr);
     const dayMatches = matches.filter(m => m.data === dateStr);
     return { trainings: dayTrainings, matches: dayMatches };
@@ -1519,23 +1490,7 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`⚽ Confermi il GOL di ${player.nome} (#${playerNum})?`, () => {
         const newGol = { ...match.golFatti, [playerNum]: (parseInt(match.golFatti[playerNum] || 0) + 1).toString() };
-        
-        // CORREZIONE: Salva nella timeline nello stesso update
-        const timeline = match.timeline || [];
-        const newEvent = {
-          id: Date.now(),
-          tipo: 'gol',
-          playerNum: playerNum,
-          playerNome: player.nome,
-          timestamp: new Date().toISOString()
-        };
-        
-        // Update combinato di entrambi i campi
-        setMatches(matches.map(m => 
-          m.id === matchId 
-            ? { ...m, golFatti: newGol, timeline: [...timeline, newEvent] }
-            : m
-        ));
+        updateMatch(matchId, 'golFatti', newGol);
       });
     }
   };
@@ -1546,26 +1501,7 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`🎯 Confermi l'ASSIST di ${player.nome} (#${playerNum})?`, () => {
         const newAss = { ...match.assist, [playerNum]: (parseInt(match.assist[playerNum] || 0) + 1).toString() };
-        
-        // CORREZIONE: Salva nella timeline nello stesso update
-        const timeline = match.timeline || [];
-        const newEvent = {
-          id: Date.now(),
-          tipo: 'assist',
-          playerNum: playerNum,
-          playerNome: player.nome,
-          timestamp: new Date().toISOString()
-        };
-        
-        // Update combinato di entrambi i campi
-        setMatches(matches.map(m => 
-          m.id === matchId 
-            ? { ...m, assist: newAss, timeline: [...timeline, newEvent] }
-            : m
-        ));
-      });
-    }
-  };
+        updateMatch(matchId, 'assist', newAss);
       });
     }
   };
@@ -1576,23 +1512,7 @@ const SoccerTeamTracker = () => {
     if (match && player) {
       showConfirm(`⚽ Confermi il GOL SUBITO da ${player.nome} (#${playerNum})?`, () => {
         const newGS = { ...match.golSubiti, [playerNum]: (parseInt(match.golSubiti[playerNum] || 0) + 1).toString() };
-        
-        // CORREZIONE: Salva nella timeline
-        const timeline = match.timeline || [];
-        const newEvent = {
-          id: Date.now(),
-          tipo: 'golsubito',
-          playerNum: playerNum,
-          playerNome: player.nome,
-          timestamp: new Date().toISOString()
-        };
-        
-        // Update combinato
-        setMatches(matches.map(m => 
-          m.id === matchId 
-            ? { ...m, golSubiti: newGS, timeline: [...timeline, newEvent] }
-            : m
-        ));
+        updateMatch(matchId, 'golSubiti', newGS);
       });
     }
   };
@@ -1626,67 +1546,26 @@ const SoccerTeamTracker = () => {
   };
   
   const assignCard = (type) => {
-    const { cardType, playerNum, matchId, playerName } = cardTypeDialog;
+    const { cardType, playerNum, matchId } = cardTypeDialog;
     const match = matches.find(m => m.id === matchId);
     
     if (!match) return;
     
     if (cardType === 'yellow') {
-      const timeline = match.timeline || [];
-      const newEvent = {
-        id: Date.now(),
-        tipo: 'giallo',
-        sottotipo: type,
-        playerNum: playerNum,
-        playerNome: playerName,
-        timestamp: new Date().toISOString()
-      };
-      
       if (type === 'gioco') {
         const newGG = { ...match.gialli_gioco, [playerNum]: (parseInt(match.gialli_gioco[playerNum] || 0) + 1).toString() };
-        // Update combinato
-        setMatches(matches.map(m => 
-          m.id === matchId 
-            ? { ...m, gialli_gioco: newGG, timeline: [...timeline, newEvent] }
-            : m
-        ));
+        updateMatch(matchId, 'gialli_gioco', newGG);
       } else {
         const newGP = { ...match.gialli_protesta, [playerNum]: (parseInt(match.gialli_protesta[playerNum] || 0) + 1).toString() };
-        // Update combinato
-        setMatches(matches.map(m => 
-          m.id === matchId 
-            ? { ...m, gialli_protesta: newGP, timeline: [...timeline, newEvent] }
-            : m
-        ));
+        updateMatch(matchId, 'gialli_protesta', newGP);
       }
-      
     } else if (cardType === 'red') {
-      const timeline = match.timeline || [];
-      const newEvent = {
-        id: Date.now(),
-        tipo: 'rosso',
-        sottotipo: type,
-        playerNum: playerNum,
-        playerNome: playerName,
-        timestamp: new Date().toISOString()
-      };
-      
       if (type === 'gioco') {
         const newRG = { ...match.rossi_gioco, [playerNum]: (parseInt(match.rossi_gioco[playerNum] || 0) + 1).toString() };
-        // Update combinato
-        setMatches(matches.map(m => 
-          m.id === matchId 
-            ? { ...m, rossi_gioco: newRG, timeline: [...timeline, newEvent] }
-            : m
-        ));
+        updateMatch(matchId, 'rossi_gioco', newRG);
       } else {
         const newRP = { ...match.rossi_protesta, [playerNum]: (parseInt(match.rossi_protesta[playerNum] || 0) + 1).toString() };
-        // Update combinato
-        setMatches(matches.map(m => 
-          m.id === matchId 
-            ? { ...m, rossi_protesta: newRP, timeline: [...timeline, newEvent] }
-            : m
-        ));
+        updateMatch(matchId, 'rossi_protesta', newRP);
       }
     }
     
@@ -1919,8 +1798,7 @@ const SoccerTeamTracker = () => {
       rossi_gioco: {},
       rossi_protesta: {},
       ordineDistinta: {},
-      mvp: null, // Numero del giocatore MVP
-      timeline: [] // CORREZIONE: Array per salvare tutti gli eventi temporizzati
+      mvp: null // Numero del giocatore MVP
     };
     setMatches([...matches, newMatch]);
   };
@@ -1981,12 +1859,6 @@ const SoccerTeamTracker = () => {
     // Verifica che il giocatore fosse convocato
     if (!match.convocati[playerNum]) {
       showToast('⚠️ Il giocatore non era convocato per questa partita', 'warning');
-      return;
-    }
-    
-    // CORREZIONE: Controlla se questo giocatore è già MVP per evitare doppio voto
-    if (match.mvp === playerNum) {
-      showToast(`⚠️ ${player.nome} è già stato nominato MVP per questa partita!`, 'warning');
       return;
     }
     
@@ -2060,10 +1932,7 @@ const SoccerTeamTracker = () => {
     
     const link = document.createElement('a');
     link.href = url;
-    // CORREZIONE: Aggiungo ora al nome file per evitare sovrascritture
-    const now = new Date();
-    const timestamp = `${now.toISOString().split('T')[0]}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-    link.download = `real-dor-backup-${timestamp}.json`;
+    link.download = `real-dor-backup-${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2220,22 +2089,7 @@ const SoccerTeamTracker = () => {
       setSyncStatus('syncing');
       setSyncError('');
 
-      // CORREZIONE: Rimuovi campi undefined prima di salvare (Firebase non li accetta)
-      const removeUndefined = (obj) => {
-        if (Array.isArray(obj)) {
-          return obj.map(item => removeUndefined(item));
-        } else if (obj !== null && typeof obj === 'object') {
-          return Object.entries(obj).reduce((acc, [key, value]) => {
-            if (value !== undefined) {
-              acc[key] = removeUndefined(value);
-            }
-            return acc;
-          }, {});
-        }
-        return obj;
-      };
-
-      const rawData = {
+      const dataToSync = {
         players,
         trainings,
         matches,
@@ -2245,8 +2099,6 @@ const SoccerTeamTracker = () => {
         lastSynced: new Date().toISOString(),
         userId: user.uid
       };
-
-      const dataToSync = removeUndefined(rawData);
 
       // Salva su Firestore
       await db.collection('teamData').doc(user.uid).set(dataToSync, { merge: true });
@@ -3180,10 +3032,7 @@ const SoccerTeamTracker = () => {
     doc.text(`Tot: ${giocatoriOrdinati.length}`, 105, finalY + 5, { align: 'center' });
     doc.text(`${new Date().toLocaleDateString('it-IT')}`, 195, finalY + 5, { align: 'right' });
 
-    // CORREZIONE: Aggiungo ora al nome file
-    const now = new Date();
-    const timestamp = `${now.toISOString().split('T')[0]}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-    doc.save(`lista_presenze_${timestamp}.pdf`);
+    doc.save(`lista_presenze_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   // ========== NUOVE FUNZIONI ESPORTAZIONE AVANZATE ==========
@@ -3349,10 +3198,7 @@ const SoccerTeamTracker = () => {
       }
     });
     
-    // CORREZIONE: Aggiungo ora al nome file
-    const now = new Date();
-    const timestamp = `${now.toISOString().split('T')[0]}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-    doc.save(`report_stagionale_${timestamp}.pdf`);
+    doc.save(`report_stagionale_${new Date().toISOString().split('T')[0]}.pdf`);
   };
   
   // Export Scheda Singolo Giocatore
@@ -3482,10 +3328,7 @@ const SoccerTeamTracker = () => {
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    // CORREZIONE: Aggiungo ora al nome file
-    const now = new Date();
-    const timestamp = `${now.toISOString().split('T')[0]}-${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
-    link.download = `backup_gestionale_${timestamp}.json`;
+    link.download = `backup_gestionale_${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
     
@@ -4590,9 +4433,7 @@ const SoccerTeamTracker = () => {
         </div>
 
         <div className="bg-white rounded-lg shadow-xl p-6 mb-6 animate-fade-in card-modern">
-          {/* CORREZIONE: Wrapper per gradiente scrollabilità mobile */}
-          <div className="tab-wrapper">
-            <div className="flex gap-2 mb-6 border-b overflow-x-auto tab-container">
+          <div className="flex gap-2 mb-6 border-b overflow-x-auto tab-container">
             {['dashboard', 'trainings', 'divisione', 'matches', 'tattica', 'convocazioni', 'stats', 'top', 'roster', 'injuries', 'calendar', 'export', 'sync'].map(tab => (
               <button
                 key={tab}
@@ -4683,8 +4524,6 @@ const SoccerTeamTracker = () => {
                 )}
               </button>
             ))}
-          </div>
-          {/* CORREZIONE: Chiusura wrapper */}
           </div>
 
           {/* ============================================ */}
@@ -4935,42 +4774,6 @@ const SoccerTeamTracker = () => {
                     </div>
                   );
                 })()}
-              </div>
-              
-              {/* CORREZIONE: Legenda Come Vengono Calcolate le Statistiche */}
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mt-6">
-                <div className="flex items-start gap-3">
-                  <span className="text-3xl">ℹ️</span>
-                  <div className="flex-1">
-                    <h4 className="font-bold text-gray-800 text-lg mb-3">Come vengono calcolate le statistiche</h4>
-                    <ul className="space-y-2 text-sm text-gray-700">
-                      <li className="flex items-start gap-2">
-                        <span className="font-bold text-blue-600 mt-0.5">🏃</span>
-                        <div><strong>Presenze Allenamenti:</strong> Incrementate automaticamente quando si marca la presenza di un giocatore in un allenamento</div>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="font-bold text-green-600 mt-0.5">⚽</span>
-                        <div><strong>Partite Giocate:</strong> Contano i giocatori convocati e che hanno giocato minuti in una partita</div>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="font-bold text-yellow-600 mt-0.5">🎯</span>
-                        <div><strong>Gol e Assist:</strong> Registrati durante la partita tramite i pulsanti quick-add o nella sezione statistiche partita</div>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="font-bold text-purple-600 mt-0.5">🏆</span>
-                        <div><strong>MVP (Man of the Match):</strong> Assegnati tramite votazione nella sezione partite. Un solo giocatore per partita</div>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="font-bold text-orange-600 mt-0.5">🌟</span>
-                        <div><strong>Classifica MVP Stagionale:</strong> Mostra i giocatori con più premi MVP nella stagione corrente</div>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <span className="font-bold text-red-600 mt-0.5">🟨🟥</span>
-                        <div><strong>Cartellini:</strong> Registrati durante la partita, distinguendo tra cartellini per gioco e per proteste</div>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -5303,16 +5106,7 @@ const SoccerTeamTracker = () => {
                                     <input
                                       type="checkbox"
                                       checked={match.convocati[player.numero] || false}
-                                      onChange={(e) => {
-                                        // CORREZIONE: Controlla se il giocatore è infortunato
-                                        const injury = getPlayerInjury(player.numero);
-                                        if (e.target.checked && injury) {
-                                          if (!confirm(`⚠️ ATTENZIONE! ${player.nome} è attualmente infortunato (${injury.type}).\n\nVuoi convocarlo comunque?`)) {
-                                            return;
-                                          }
-                                        }
-                                        updateMatch(match.id, 'convocati', { ...match.convocati, [player.numero]: e.target.checked });
-                                      }}
+                                      onChange={(e) => updateMatch(match.id, 'convocati', { ...match.convocati, [player.numero]: e.target.checked })}
                                       className="w-4 h-4"
                                     />
                                   </td>
@@ -5425,102 +5219,9 @@ const SoccerTeamTracker = () => {
                             </tbody>
                           </table>
                           </div>
-                          <div className="text-xs text-gray-600 mt-2 px-4 pb-2">
+                          <div className="text-xs text-gray-600 mt-2 px-4 pb-4">
                             💡 Inserisci il numero di maglia nell'ordine della distinta ufficiale (es: 1 per il primo, 12 per il portiere in panchina, ecc.)
                           </div>
-                          
-                          {/* AGGIUNTA: Timeline Eventi Partita */}
-                          {match.timeline && match.timeline.length > 0 && (
-                            <div className="border-t mt-4 pt-4 px-4 pb-4 bg-gradient-to-br from-blue-50 to-blue-100">
-                              <h4 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
-                                <span className="text-2xl">📋</span>
-                                Cronologia Eventi Partita
-                              </h4>
-                              
-                              <div className="space-y-2">
-                                {match.timeline
-                                  .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-                                  .map((evento, idx) => {
-                                    const time = new Date(evento.timestamp);
-                                    const orario = time.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-                                    
-                                    let icon = '📌';
-                                    let bgColor = 'bg-gray-100';
-                                    let textColor = 'text-gray-800';
-                                    let label = evento.tipo;
-                                    
-                                    if (evento.tipo === 'gol') {
-                                      icon = '⚽';
-                                      bgColor = 'bg-green-100';
-                                      textColor = 'text-green-800';
-                                      label = 'GOL';
-                                    } else if (evento.tipo === 'golsubito') {
-                                      icon = '🔴';
-                                      bgColor = 'bg-red-100';
-                                      textColor = 'text-red-800';
-                                      label = 'GOL SUBITO';
-                                    } else if (evento.tipo === 'assist') {
-                                      icon = '🎯';
-                                      bgColor = 'bg-blue-100';
-                                      textColor = 'text-blue-800';
-                                      label = 'ASSIST';
-                                    } else if (evento.tipo === 'giallo') {
-                                      icon = '🟨';
-                                      bgColor = 'bg-yellow-100';
-                                      textColor = 'text-yellow-800';
-                                      label = evento.sottotipo === 'gioco' ? 'GIALLO (gioco)' : 'GIALLO (proteste)';
-                                    } else if (evento.tipo === 'rosso') {
-                                      icon = '🟥';
-                                      bgColor = 'bg-red-100';
-                                      textColor = 'text-red-800';
-                                      label = evento.sottotipo === 'gioco' ? 'ROSSO (gioco)' : 'ROSSO (proteste)';
-                                    }
-                                    
-                                    return (
-                                      <div 
-                                        key={evento.id || idx} 
-                                        className={`${bgColor} rounded-lg p-3 flex items-center justify-between animate-fade-in hover:shadow-md transition-shadow`}
-                                      >
-                                        <div className="flex items-center gap-3 flex-1">
-                                          <span className="text-3xl">{icon}</span>
-                                          <div className="flex-1">
-                                            <div className={`font-bold ${textColor} text-sm`}>{label}</div>
-                                            <div className="text-gray-700 font-semibold">
-                                              {evento.playerNome} 
-                                              <span className="text-gray-600 text-xs ml-1">(#{evento.playerNum})</span>
-                                            </div>
-                                          </div>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-3">
-                                          <span className="text-gray-600 font-mono text-sm">{orario}</span>
-                                          
-                                          {/* Pulsante Rimuovi Evento */}
-                                          <button
-                                            onClick={() => {
-                                              if (confirm(`Rimuovere evento: ${label} di ${evento.playerNome}?`)) {
-                                                const newTimeline = match.timeline.filter((e, i) => (e.id || i) !== (evento.id || idx));
-                                                updateMatch(match.id, 'timeline', newTimeline);
-                                                showToast('🗑️ Evento rimosso', 'info');
-                                              }
-                                            }}
-                                            className="text-red-600 hover:text-red-800 hover:bg-red-200 p-2 rounded-lg transition-colors"
-                                            title="Rimuovi evento"
-                                          >
-                                            🗑️
-                                          </button>
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                              </div>
-                              
-                              <div className="mt-3 text-xs text-gray-600 flex items-center gap-2">
-                                <span>ℹ️</span>
-                                <span>Gli eventi vengono registrati automaticamente quando usi i pulsanti quick-add durante la partita</span>
-                              </div>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -7774,14 +7475,8 @@ const SoccerTeamTracker = () => {
                   </div>
                 ))}
                 
-                {/* Giorni vuoti iniziali - CORRETTO per settimana italiana (Lun-Dom) */}
-                {Array.from({ length: (() => {
-                  const firstDay = getFirstDayOfMonth(selectedMonth, selectedYear);
-                  // getDay() restituisce: 0=Dom, 1=Lun, 2=Mar, 3=Mer, 4=Gio, 5=Ven, 6=Sab
-                  // Nel calendario italiano: L M M G V S D (Lun=0, Dom=6)
-                  // Quindi: Dom(0)→6 spazi, Lun(1)→0 spazi, Mar(2)→1 spazio, etc.
-                  return firstDay === 0 ? 6 : firstDay - 1;
-                })() }).map((_, idx) => (
+                {/* Giorni vuoti iniziali */}
+                {Array.from({ length: getFirstDayOfMonth(selectedMonth, selectedYear) === 0 ? 6 : getFirstDayOfMonth(selectedMonth, selectedYear) - 1 }).map((_, idx) => (
                   <div key={`empty-${idx}`} className="calendar-day opacity-0"></div>
                 ))}
                 
