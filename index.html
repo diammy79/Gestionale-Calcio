@@ -2401,11 +2401,7 @@ const SoccerTeamTracker = () => {
           
           const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
           const golFatti = matches.map(m => Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0));
-          const golSubiti = matches.map(m => {
-            const result = m.risultato || '0-0';
-            const parts = result.split('-');
-            return parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
-          });
+          const golSubiti = matches.map(m => Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0));
           
           new Chart(goalsCtx, {
             type: 'line',
@@ -3163,13 +3159,13 @@ const SoccerTeamTracker = () => {
     
     const victories = matches.filter(m => {
       const our = parseInt(m.golFatti ? Object.values(m.golFatti).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0) : 0);
-      const their = parseInt(m.golSubiti || 0);
+      const their = Object.values(m.golSubiti || {}).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0);
       return our > their;
     }).length;
     
     const draws = matches.filter(m => {
       const our = parseInt(m.golFatti ? Object.values(m.golFatti).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0) : 0);
-      const their = parseInt(m.golSubiti || 0);
+      const their = Object.values(m.golSubiti || {}).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0);
       return our === their;
     }).length;
     
