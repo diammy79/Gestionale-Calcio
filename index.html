@@ -5308,9 +5308,102 @@ const SoccerTeamTracker = () => {
                             </tbody>
                           </table>
                           </div>
-                          <div className="text-xs text-gray-600 mt-2 px-4 pb-4">
+                          <div className="text-xs text-gray-600 mt-2 px-4 pb-2">
                             💡 Inserisci il numero di maglia nell'ordine della distinta ufficiale (es: 1 per il primo, 12 per il portiere in panchina, ecc.)
                           </div>
+                          
+                          {/* STEP 2: Cronologia Eventi Partita */}
+                          {match.timeline && match.timeline.length > 0 && (
+                            <div className="border-t mt-4 pt-4 px-4 pb-4 bg-gradient-to-br from-blue-50 to-blue-100">
+                              <h4 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                <span className="text-2xl">📋</span>
+                                Cronologia Eventi Partita
+                              </h4>
+                              
+                              <div className="space-y-2">
+                                {match.timeline
+                                  .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                                  .map((evento, idx) => {
+                                    const time = new Date(evento.timestamp);
+                                    const orario = time.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+                                    
+                                    let icon = '📌';
+                                    let bgColor = 'bg-gray-100';
+                                    let textColor = 'text-gray-800';
+                                    let label = evento.tipo;
+                                    
+                                    if (evento.tipo === 'gol') {
+                                      icon = '⚽';
+                                      bgColor = 'bg-green-100';
+                                      textColor = 'text-green-800';
+                                      label = 'GOL';
+                                    } else if (evento.tipo === 'golsubito') {
+                                      icon = '🔴';
+                                      bgColor = 'bg-red-100';
+                                      textColor = 'text-red-800';
+                                      label = 'GOL SUBITO';
+                                    } else if (evento.tipo === 'assist') {
+                                      icon = '🎯';
+                                      bgColor = 'bg-blue-100';
+                                      textColor = 'text-blue-800';
+                                      label = 'ASSIST';
+                                    } else if (evento.tipo === 'giallo') {
+                                      icon = '🟨';
+                                      bgColor = 'bg-yellow-100';
+                                      textColor = 'text-yellow-800';
+                                      label = evento.sottotipo === 'gioco' ? 'GIALLO (gioco)' : 'GIALLO (proteste)';
+                                    } else if (evento.tipo === 'rosso') {
+                                      icon = '🟥';
+                                      bgColor = 'bg-red-100';
+                                      textColor = 'text-red-800';
+                                      label = evento.sottotipo === 'gioco' ? 'ROSSO (gioco)' : 'ROSSO (proteste)';
+                                    }
+                                    
+                                    return (
+                                      <div 
+                                        key={evento.id || idx} 
+                                        className={`${bgColor} rounded-lg p-3 flex items-center justify-between animate-fade-in hover:shadow-md transition-shadow`}
+                                      >
+                                        <div className="flex items-center gap-3 flex-1">
+                                          <span className="text-3xl">{icon}</span>
+                                          <div className="flex-1">
+                                            <div className={`font-bold ${textColor} text-sm`}>{label}</div>
+                                            <div className="text-gray-700 font-semibold">
+                                              {evento.playerNome} 
+                                              <span className="text-gray-600 text-xs ml-1">(#{evento.playerNum})</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-gray-600 font-mono text-sm">{orario}</span>
+                                          
+                                          {/* Pulsante Rimuovi Evento */}
+                                          <button
+                                            onClick={() => {
+                                              if (confirm(`Rimuovere evento: ${label} di ${evento.playerNome}?`)) {
+                                                const newTimeline = match.timeline.filter((e, i) => (e.id || i) !== (evento.id || idx));
+                                                updateMatch(match.id, 'timeline', newTimeline);
+                                                showToast('🗑️ Evento rimosso', 'info');
+                                              }
+                                            }}
+                                            className="text-red-600 hover:text-red-800 hover:bg-red-200 p-2 rounded-lg transition-colors"
+                                            title="Rimuovi evento"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                              
+                              <div className="mt-3 text-xs text-gray-600 flex items-center gap-2">
+                                <span>ℹ️</span>
+                                <span>Gli eventi vengono registrati automaticamente quando usi i pulsanti quick-add durante la partita</span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
