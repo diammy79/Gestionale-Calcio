@@ -848,6 +848,7 @@ const SoccerTeamTracker = () => {
   const [showModuloModal, setShowModuloModal] = useState(null);
   const [moduloTattico, setModuloTattico] = useState({});
   const [playerSelectionModal, setPlayerSelectionModal] = useState(null);
+  const [draggedPlayer, setDraggedPlayer] = useState(null);
   const [matchEnded, setMatchEnded] = useState(false);
   const [appTitle, setAppTitle] = useState('Moreschi Roberto - Gestione squadra Real DOR Under 18');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -5674,10 +5675,78 @@ const SoccerTeamTracker = () => {
                             left: pos.left, 
                             transform: 'translate(-50%, -50%)'
                           }}
+                          onDragOver={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (draggedPlayer && draggedPlayer.matchId === match.id) {
+                              e.dataTransfer.dropEffect = 'move';
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            if (!draggedPlayer || draggedPlayer.matchId !== match.id) return;
+                            
+                            const fromPos = draggedPlayer.fromPos;
+                            const toPos = pos.pos;
+                            const playerNum = draggedPlayer.playerNum;
+                            
+                            if (fromPos === toPos) {
+                              setDraggedPlayer(null);
+                              return;
+                            }
+                            
+                            const matchModulo = moduloTattico[match.id] || { moduloCorrente: '4-4-2', moduli: {} };
+                            const moduloCorrente = matchModulo.moduloCorrente || '4-4-2';
+                            const moduliAggiornati = { ...matchModulo.moduli };
+                            const currentPosizioni = { ...(moduliAggiornati[moduloCorrente]?.posizioni || {}) };
+                            
+                            const playerInTarget = currentPosizioni[toPos];
+                            
+                            currentPosizioni[toPos] = playerNum;
+                            
+                            if (playerInTarget) {
+                              currentPosizioni[fromPos] = playerInTarget;
+                            } else {
+                              delete currentPosizioni[fromPos];
+                            }
+                            
+                            moduliAggiornati[moduloCorrente] = {
+                              ...moduliAggiornati[moduloCorrente],
+                              posizioni: currentPosizioni
+                            };
+                            
+                            setModuloTattico({
+                              ...moduloTattico,
+                              [match.id]: {
+                                moduloCorrente: moduloCorrente,
+                                moduli: moduliAggiornati
+                              }
+                            });
+                            
+                            setDraggedPlayer(null);
+                          }}
                         >
                           {giocatore ? (
-                            <div className="relative group">
-                              <div className="relative cursor-pointer" style={{ width: '39px', height: '49px' }}>
+                            <div 
+                              className="relative group" 
+                              draggable="true"
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                setDraggedPlayer({
+                                  matchId: match.id,
+                                  fromPos: pos.pos,
+                                  playerNum: giocatore.numero
+                                });
+                                e.dataTransfer.effectAllowed = 'move';
+                              }}
+                              onDragEnd={() => {
+                                setDraggedPlayer(null);
+                              }}
+                              style={{ cursor: 'move' }}
+                            >
+                              <div className="relative" style={{ width: '39px', height: '49px' }}>
                                 <div className="absolute -bottom-1 left-1/2 w-12 h-2.5 bg-black opacity-30 rounded-full blur-sm" style={{ transform: 'translateX(-50%)' }}></div>
                                 
                                 <svg viewBox="0 0 40 50" className="w-full h-full drop-shadow-md">
