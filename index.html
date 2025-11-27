@@ -2307,20 +2307,79 @@ const SoccerTeamTracker = () => {
       setSyncStatus('syncing');
       setSyncError('');
 
+      // PROTEZIONE: Conta dati locali
+      const localPlayersCount = players.filter(p => p.nome).length;
+      const localTrainingsCount = trainings.length;
+      const localMatchesCount = matches.length;
+      const hasLocalData = localPlayersCount > 0 || localTrainingsCount > 0 || localMatchesCount > 0;
+
       // Recupera dati dal cloud
       const docRef = db.collection('teamData').doc(user.uid);
       const doc = await docRef.get();
 
       if (!doc.exists) {
-        // Nessun dato nel cloud, fai upload
-        return await syncToFirestore();
+        // Nessun dato nel cloud
+        if (hasLocalData) {
+          // Abbiamo dati locali, possiamo uploadare
+          return await syncToFirestore();
+        } else {
+          // Nessun dato né locale né cloud
+          setSyncError('Nessun dato disponibile. Inizia inserendo giocatori o partite.');
+          setSyncStatus('error');
+          return false;
+        }
       }
 
       const cloudData = doc.data();
+      const cloudPlayersCount = (cloudData.players || []).filter(p => p.nome).length;
+      const cloudTrainingsCount = (cloudData.trainings || []).length;
+      const cloudMatchesCount = (cloudData.matches || []).length;
+      const hasCloudData = cloudPlayersCount > 0 || cloudTrainingsCount > 0 || cloudMatchesCount > 0;
+
+      // PROTEZIONE CRITICA: Non sovrascrivere MAI cloud pieno con locale vuoto!
+      if (hasCloudData && !hasLocalData) {
+        console.log('⚠️ PROTEZIONE: Database locale vuoto, scarico da cloud invece di sovrascrivere!');
+        showToast('⬇️ Database locale vuoto, scaricando da cloud...', 'info');
+        return await syncFromFirestore(true); // Force download
+      }
+
       const cloudLastSynced = cloudData.lastSynced ? new Date(cloudData.lastSynced) : new Date(0);
       const localLastSaved = lastSaved ? new Date(lastSaved) : new Date(0);
 
-      // Confronta timestamp
+      // PROTEZIONE: Se locale vuoto ma cloud pieno, SEMPRE scarica
+      if (!hasLocalData && hasCloudData) {
+        console.log('⬇️ Database locale vuoto, scarico da cloud');
+        return await syncFromFirestore(true);
+      }
+
+      // PROTEZIONE: Se dati molto diversi, chiedi conferma
+      const dataDifferenceThreshold = 5; // Se differenza > 5 elementi, chiedi conferma
+      const playersDiff = Math.abs(localPlayersCount - cloudPlayersCount);
+      const trainingsDiff = Math.abs(localTrainingsCount - cloudTrainingsCount);
+      const matchesDiff = Math.abs(localMatchesCount - cloudMatchesCount);
+      
+      if (playersDiff > dataDifferenceThreshold || trainingsDiff > dataDifferenceThreshold || matchesDiff > dataDifferenceThreshold) {
+        // Grande differenza nei dati - mostra modal conflitto
+        setSyncConflicts({
+          local: { 
+            players: players.filter(p => p.nome), 
+            trainings, 
+            matches, 
+            lastSaved: localLastSaved 
+          },
+          cloud: { 
+            players: cloudData.players || [], 
+            trainings: cloudData.trainings || [], 
+            matches: cloudData.matches || [], 
+            lastSynced: cloudLastSynced 
+          }
+        });
+        setShowConflictModal(true);
+        setSyncStatus('idle');
+        return false;
+      }
+
+      // Confronta timestamp (solo se dati simili)
       if (localLastSaved > cloudLastSynced) {
         // Locale più recente → Upload
         return await syncToFirestore();
@@ -2372,13 +2431,9 @@ const SoccerTeamTracker = () => {
     return () => clearInterval(interval);
   }, [autoSyncEnabled, user, players, trainings, matches, appTitle, teamLogo]);
 
-  // Sync al login
-  useEffect(() => {
-    if (user && !authLoading) {
-      console.log('🔄 Sincronizzazione iniziale al login...');
-      setTimeout(() => smartSync(), 2000); // Aspetta 2 secondi dopo il login
-    }
-  }, [user, authLoading]);
+  // NOTA: Sync al login RIMOSSO per sicurezza!
+  // Era pericoloso perché poteva sovrascrivere cloud con database vuoto
+  // Ora l'utente deve fare sync manuale cliccando "Scarica da Cloud"
 
   // ========== USE EFFECT PER GRAFICI DASHBOARD ==========
   useEffect(() => {
@@ -9385,6 +9440,12 @@ const SoccerTeamTracker = () => {
                       Scegliendo una versione, l'altra verrà <strong>completamente sovrascritta</strong>. 
                       Assicurati di scegliere la versione con i dati più aggiornati e completi.
                     </p>
+                    {(syncConflicts.local.players.filter(p => p.nome).length === 0 || 
+                      syncConflicts.cloud.players.filter(p => p.nome).length === 0) && (
+                      <p className="text-sm font-bold text-red-600 mt-2">
+                        🚨 ATTENZIONE: Una delle versioni è VUOTA! Non sovrascrivere dati pieni con dati vuoti!
+                      </p>
+                    )}
                     <p className="text-sm text-gray-700 mt-2">
                       <strong>💡 Suggerimento:</strong> Se non sei sicuro, esporta prima un backup JSON dal tab Esportazioni!
                     </p>
