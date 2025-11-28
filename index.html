@@ -883,6 +883,17 @@ const SoccerTeamTracker = () => {
   const [syncConflicts, setSyncConflicts] = useState(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   
+  // ========== STATE PER GESTIONE UTENTI ADMIN ==========
+  const [allUsers, setAllUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('user');
+  const [userActionLoading, setUserActionLoading] = useState(false);
+  
   // ========== STATE PER NUOVE FEATURE ==========
   // Toast Notifications
   const [toasts, setToasts] = useState([]);
@@ -2415,6 +2426,211 @@ const SoccerTeamTracker = () => {
     
     setSyncConflicts(null);
     setShowConflictModal(false);
+  };
+
+  // ========== GESTIONE UTENTI ADMIN ==========
+  
+  /**
+   * Carica lista utenti da Firebase Auth e Firestore
+   */
+  const loadAllUsers = async () => {
+    if (userRole !== 'admin') {
+      showToast('⛔ Solo gli admin possono gestire utenti', 'error');
+      return;
+    }
+
+    setLoadingUsers(true);
+    try {
+      // Carica utenti da Firestore (contiene ruoli)
+      const usersSnapshot = await db.collection('users').get();
+      const usersData = [];
+      
+      usersSnapshot.forEach(doc => {
+        usersData.push({
+          uid: doc.id,
+          ...doc.data()
+        });
+      });
+
+      // Ordina per email
+      usersData.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
+      
+      setAllUsers(usersData);
+      showToast(`✅ Caricati ${usersData.length} utenti`, 'success');
+    } catch (error) {
+      console.error('Errore caricamento utenti:', error);
+      showToast('❌ Errore caricamento utenti: ' + error.message, 'error');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  /**
+   * Crea nuovo utente
+   * NOTA: Questa operazione fa logout dell'admin temporaneamente
+   */
+  const createNewUser = async () => {
+    if (!newUserEmail || !newUserPassword) {
+      showToast('⚠️ Email e password sono obbligatori', 'error');
+      return;
+    }
+
+    if (newUserPassword.length < 6) {
+      showToast('⚠️ Password deve essere almeno 6 caratteri', 'error');
+      return;
+    }
+
+    if (!window.confirm(`Creare nuovo utente?\n\nEmail: ${newUserEmail}\nRuolo: ${newUserRole}\n\n⚠️ ATTENZIONE: Questa operazione ti farà logout temporaneamente. Dovrai rifare login come admin dopo.`)) {
+      return;
+    }
+
+    setUserActionLoading(true);
+    
+    try {
+      // Salva dati admin corrente
+      const currentAdminEmail = user.email;
+      
+      // Crea nuovo utente (questo fa logout dell'admin!)
+      const userCredential = await auth.createUserWithEmailAndPassword(newUserEmail, newUserPassword);
+      const newUser = userCredential.user;
+
+      // Salva ruolo in Firestore
+      await db.collection('users').doc(newUser.uid).set({
+        email: newUserEmail,
+        role: newUserRole,
+        createdAt: new Date().toISOString(),
+        createdBy: user.uid
+      });
+
+      showToast('✅ Utente creato! Rifai login come admin...', 'success');
+      
+      // Logout del nuovo utente
+      await auth.signOut();
+      
+      // Chiudi modal
+      setShowCreateUserModal(false);
+      setNewUserEmail('');
+      setNewUserPassword('');
+      setNewUserRole('user');
+      
+      // L'admin dovrà rifare login manualmente
+      
+    } catch (error) {
+      console.error('Errore creazione utente:', error);
+      let errorMsg = 'Errore creazione utente';
+      if (error.code === 'auth/email-already-in-use') {
+        errorMsg = 'Email già in uso';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMsg = 'Email non valida';
+      } else if (error.code === 'auth/weak-password') {
+        errorMsg = 'Password troppo debole';
+      }
+      showToast('❌ ' + errorMsg, 'error');
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  /**
+   * Cambia ruolo utente
+   */
+  const changeUserRole = async (userId, newRole) => {
+    if (userRole !== 'admin') {
+      showToast('⛔ Solo gli admin possono cambiare ruoli', 'error');
+      return;
+    }
+
+    if (userId === user.uid) {
+      showToast('⚠️ Non puoi cambiare il tuo stesso ruolo', 'error');
+      return;
+    }
+
+    if (!window.confirm(`Cambiare ruolo a ${newRole}?`)) {
+      return;
+    }
+
+    setUserActionLoading(true);
+    try {
+      await db.collection('users').doc(userId).update({
+        role: newRole,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid
+      });
+
+      showToast('✅ Ruolo aggiornato!', 'success');
+      
+      // Ricarica lista utenti
+      await loadAllUsers();
+      
+    } catch (error) {
+      console.error('Errore cambio ruolo:', error);
+      showToast('❌ Errore cambio ruolo: ' + error.message, 'error');
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  /**
+   * Invia email reset password a utente
+   */
+  const sendPasswordReset = async (userEmail) => {
+    if (userRole !== 'admin') {
+      showToast('⛔ Solo gli admin possono resettare password', 'error');
+      return;
+    }
+
+    if (!window.confirm(`Inviare email di reset password a:\n${userEmail}?`)) {
+      return;
+    }
+
+    setUserActionLoading(true);
+    try {
+      await auth.sendPasswordResetEmail(userEmail);
+      showToast(`✅ Email inviata a ${userEmail}`, 'success');
+    } catch (error) {
+      console.error('Errore invio email:', error);
+      showToast('❌ Errore invio email: ' + error.message, 'error');
+    } finally {
+      setUserActionLoading(false);
+    }
+  };
+
+  /**
+   * Elimina utente
+   * NOTA: Elimina solo da Firestore, non da Authentication
+   * Per eliminare completamente serve Firebase Admin SDK (backend)
+   */
+  const deleteUser = async (userId, userEmail) => {
+    if (userRole !== 'admin') {
+      showToast('⛔ Solo gli admin possono eliminare utenti', 'error');
+      return;
+    }
+
+    if (userId === user.uid) {
+      showToast('⚠️ Non puoi eliminare te stesso!', 'error');
+      return;
+    }
+
+    if (!window.confirm(`⚠️ ATTENZIONE!\n\nEliminare utente?\nEmail: ${userEmail}\n\nQuesta azione rimuoverà il ruolo da Firestore.\nPer eliminare completamente l'account, vai su Firebase Console → Authentication.`)) {
+      return;
+    }
+
+    setUserActionLoading(true);
+    try {
+      // Elimina documento da Firestore
+      await db.collection('users').doc(userId).delete();
+
+      showToast('✅ Utente rimosso da Firestore', 'success');
+      
+      // Ricarica lista
+      await loadAllUsers();
+      
+    } catch (error) {
+      console.error('Errore eliminazione utente:', error);
+      showToast('❌ Errore: ' + error.message, 'error');
+    } finally {
+      setUserActionLoading(false);
+    }
   };
 
   // ========== SINCRONIZZAZIONE AUTOMATICA ==========
@@ -4752,7 +4968,7 @@ const SoccerTeamTracker = () => {
 
         <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern">
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
-            {['dashboard', 'trainings', 'divisione', 'matches', 'tattica', 'convocazioni', 'stats', 'top', 'roster', 'injuries', 'calendar', 'export', 'sync'].map(tab => (
+            {['dashboard', 'trainings', 'divisione', 'matches', 'tattica', 'convocazioni', 'stats', 'top', 'roster', 'injuries', 'calendar', 'export', 'sync', ...(userRole === 'admin' ? ['admin'] : [])].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -4838,6 +5054,12 @@ const SoccerTeamTracker = () => {
                   <>
                     <span className="hidden sm:inline">☁️ Sincronizzazione</span>
                     <span className="sm:hidden">☁️</span>
+                  </>
+                )}
+                {tab === 'admin' && (
+                  <>
+                    <span className="hidden sm:inline">👑 Gestione Utenti</span>
+                    <span className="sm:hidden">👑</span>
                   </>
                 )}
               </button>
@@ -9198,6 +9420,249 @@ const SoccerTeamTracker = () => {
                     <strong>💡 Consiglio:</strong> Usa la sincronizzazione cloud per l'accesso multi-dispositivo quotidiano, e l'export JSON per backup di sicurezza periodici!
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================ */}
+        {/* TAB GESTIONE UTENTI ADMIN */}
+        {/* ============================================ */}
+        {activeTab === 'admin' && userRole === 'admin' && (
+          <div className="animate-fade-in">
+            <div className="mb-6">
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">👑 Gestione Utenti</h2>
+              <p className="text-gray-600">Gestisci account utenti e permessi (Solo Admin)</p>
+            </div>
+
+            {/* Azioni Rapide */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={loadAllUsers}
+                disabled={loadingUsers}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {loadingUsers ? (
+                  <>
+                    <div className="spinner"></div>
+                    <span>Caricamento...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-2xl">🔄</span>
+                    <span>Carica Lista Utenti</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => setShowCreateUserModal(true)}
+                className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <span className="text-2xl">➕</span>
+                <span>Crea Nuovo Utente</span>
+              </button>
+            </div>
+
+            {/* Avviso Importante */}
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <h4 className="font-bold text-gray-800 mb-2">Note Importanti</h4>
+                  <ul className="text-sm text-gray-700 space-y-1">
+                    <li>• <strong>Crea Utente:</strong> Ti farà logout temporaneamente. Dovrai rifare login come admin.</li>
+                    <li>• <strong>Reset Password:</strong> Invia email all'utente con link per cambiare password.</li>
+                    <li>• <strong>Elimina Utente:</strong> Rimuove solo da Firestore. Per eliminare completamente, usa Firebase Console.</li>
+                    <li>• <strong>Cambio Email:</strong> Per cambiare email, usa Firebase Console → Authentication → Edit user.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Lista Utenti */}
+            {allUsers.length > 0 && (
+              <div className="bg-white border-2 border-gray-200 rounded-lg overflow-hidden">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4">
+                  <h3 className="text-xl font-bold text-white">📋 Utenti Registrati ({allUsers.length})</h3>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">Email</th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">Ruolo</th>
+                        <th className="px-4 py-3 text-left text-sm font-bold text-gray-700">Creato</th>
+                        <th className="px-4 py-3 text-center text-sm font-bold text-gray-700">Azioni</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allUsers.map((usr, index) => (
+                        <tr key={usr.uid} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{usr.role === 'admin' ? '👑' : '👁️'}</span>
+                              <span className="font-medium">{usr.email || usr.uid}</span>
+                              {usr.uid === user.uid && (
+                                <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded">TU</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={usr.role || 'user'}
+                              onChange={(e) => changeUserRole(usr.uid, e.target.value)}
+                              disabled={usr.uid === user.uid || userActionLoading}
+                              className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                                usr.role === 'admin'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-blue-100 text-blue-800'
+                              } disabled:opacity-50`}
+                            >
+                              <option value="admin">👑 Admin</option>
+                              <option value="user">👁️ User</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {usr.createdAt ? new Date(usr.createdAt).toLocaleDateString('it-IT') : 'N/A'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                onClick={() => sendPasswordReset(usr.email)}
+                                disabled={userActionLoading || !usr.email}
+                                className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Invia email reset password"
+                              >
+                                🔑 Reset
+                              </button>
+                              <button
+                                onClick={() => deleteUser(usr.uid, usr.email)}
+                                disabled={usr.uid === user.uid || userActionLoading}
+                                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Elimina utente"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {allUsers.length === 0 && !loadingUsers && (
+              <div className="bg-gray-50 border-2 border-gray-200 rounded-lg p-12 text-center">
+                <div className="text-6xl mb-4">👥</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Nessun Utente Caricato</h3>
+                <p className="text-gray-600 mb-4">Clicca "Carica Lista Utenti" per vedere tutti gli account</p>
+              </div>
+            )}
+
+            {/* Guida Firebase Console */}
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mt-6">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">💡</span>
+                <div>
+                  <h4 className="font-bold text-gray-800 mb-2">Per Gestione Avanzata: Firebase Console</h4>
+                  <p className="text-sm text-gray-700 mb-2">
+                    Per operazioni avanzate come cambio email, vai su Firebase Console:
+                  </p>
+                  <ol className="text-sm text-gray-700 space-y-1 ml-4 list-decimal">
+                    <li>Vai su <strong>console.firebase.google.com</strong></li>
+                    <li>Seleziona il progetto</li>
+                    <li>Menu → <strong>Authentication</strong> → Tab <strong>Users</strong></li>
+                    <li>Click <strong>⋮</strong> sull'utente → <strong>Edit user</strong></li>
+                    <li>Modifica email, disabilita account, o elimina completamente</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Crea Nuovo Utente */}
+        {showCreateUserModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[110] p-4 animate-fade-in">
+            <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 animate-scale-up">
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-3">➕</div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Crea Nuovo Utente</h2>
+              </div>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={newUserEmail}
+                    onChange={(e) => setNewUserEmail(e.target.value)}
+                    placeholder="utente@example.com"
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    disabled={userActionLoading}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Password</label>
+                  <input
+                    type="password"
+                    value={newUserPassword}
+                    onChange={(e) => setNewUserPassword(e.target.value)}
+                    placeholder="Minimo 6 caratteri"
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    disabled={userActionLoading}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Minimo 6 caratteri</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">Ruolo</label>
+                  <select
+                    value={newUserRole}
+                    onChange={(e) => setNewUserRole(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                    disabled={userActionLoading}
+                  >
+                    <option value="user">👁️ Visualizzatore (User)</option>
+                    <option value="admin">👑 Amministratore (Admin)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 mb-6">
+                <div className="flex items-start gap-2">
+                  <span className="text-xl">⚠️</span>
+                  <p className="text-sm text-gray-700">
+                    <strong>ATTENZIONE:</strong> Questa operazione ti farà logout temporaneamente. Dovrai rifare login come admin dopo la creazione.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowCreateUserModal(false);
+                    setNewUserEmail('');
+                    setNewUserPassword('');
+                    setNewUserRole('user');
+                  }}
+                  disabled={userActionLoading}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  Annulla
+                </button>
+                <button
+                  onClick={createNewUser}
+                  disabled={userActionLoading || !newUserEmail || !newUserPassword}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {userActionLoading ? 'Creazione...' : '✅ Crea'}
+                </button>
               </div>
             </div>
           </div>
