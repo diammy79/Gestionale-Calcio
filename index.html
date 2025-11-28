@@ -8660,7 +8660,13 @@ const SoccerTeamTracker = () => {
             <div className="mb-6">
               <button
                 onClick={() => setShowInjuryModal(true)}
-                className="flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-semibold"
+                disabled={userRole !== 'admin'}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-colors font-semibold ${
+                  userRole === 'admin'
+                    ? 'bg-red-600 text-white hover:bg-red-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                title={userRole !== 'admin' ? 'Solo Admin può registrare infortuni' : ''}
               >
                 <Plus size={20} />
                 Registra Nuovo Infortunio
@@ -8722,7 +8728,10 @@ const SoccerTeamTracker = () => {
                               {injury.notes && <div><strong>Note:</strong> {injury.notes}</div>}
                             </div>
                           </div>
-                          <div className="flex gap-2">
+                          <div 
+                            className="flex gap-2"
+                            style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.5} : {}}
+                          >
                             <button
                               onClick={() => updateInjuryStatus(injury.id, 'recovering')}
                               className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600 text-sm"
