@@ -5067,6 +5067,24 @@ const SoccerTeamTracker = () => {
           </div>
 
           {/* ============================================ */}
+          {/* BANNER MODALITÀ SOLA LETTURA (Solo User) */}
+          {/* ============================================ */}
+          {userRole === 'user' && (
+            <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 mb-6 animate-fade-in">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">👁️</span>
+                <div className="flex-1">
+                  <h3 className="font-bold text-blue-900 text-lg mb-1">Modalità Sola Lettura</h3>
+                  <p className="text-sm text-blue-800">
+                    Stai visualizzando come <strong>Visualizzatore</strong>. Puoi vedere tutti i dati ma non puoi modificare niente. 
+                    Per modifiche, contatta un amministratore.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================ */}
           {/* TAB DASHBOARD - NUOVO */}
           {/* ============================================ */}
           {activeTab === 'dashboard' && (
@@ -5332,7 +5350,13 @@ const SoccerTeamTracker = () => {
                   </button>
                   <button
                     onClick={addTraining}
-                    className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                    disabled={userRole !== 'admin'}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                      userRole === 'admin'
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                    title={userRole !== 'admin' ? 'Solo Admin può aggiungere' : ''}
                   >
                     <Plus size={20} />
                     Aggiungi Nuovo Allenamento
@@ -5379,16 +5403,25 @@ const SoccerTeamTracker = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteTraining(training.id);
+                            if (userRole === 'admin') deleteTraining(training.id);
                           }}
-                          className="text-red-600 hover:text-red-700 p-2"
+                          disabled={userRole !== 'admin'}
+                          className={`p-2 ${
+                            userRole === 'admin'
+                              ? 'text-red-600 hover:text-red-700'
+                              : 'text-gray-400 cursor-not-allowed'
+                          }`}
+                          title={userRole !== 'admin' ? 'Solo Admin può eliminare' : ''}
                         >
                           <Trash2 size={20} />
                         </button>
                       </div>
 
                       {expandedTrainings[training.id] && (
-                        <div className="p-4 border-t">
+                        <div 
+                          className="p-4 border-t"
+                          style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.7} : {}}
+                        >
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {players.filter(p => {
                               if (!p.nome) return false;
@@ -5452,7 +5485,13 @@ const SoccerTeamTracker = () => {
                 <h2 className="text-2xl font-bold text-gray-800">Partite</h2>
                 <button
                   onClick={addMatch}
-                  className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  disabled={userRole !== 'admin'}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                    userRole === 'admin'
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                  title={userRole !== 'admin' ? 'Solo Admin può aggiungere' : ''}
                 >
                   <Plus size={20} />
                   Aggiungi Nuova Partita
@@ -5570,9 +5609,15 @@ const SoccerTeamTracker = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteMatch(match.id);
+                              if (userRole === 'admin') deleteMatch(match.id);
                             }}
-                            className="text-red-600 hover:text-red-700 p-2"
+                            disabled={userRole !== 'admin'}
+                            className={`p-2 ${
+                              userRole === 'admin'
+                                ? 'text-red-600 hover:text-red-700'
+                                : 'text-gray-400 cursor-not-allowed'
+                            }`}
+                            title={userRole !== 'admin' ? 'Solo Admin può eliminare' : ''}
                           >
                             <Trash2 size={20} />
                           </button>
@@ -5580,7 +5625,10 @@ const SoccerTeamTracker = () => {
                       </div>
 
                       {expandedMatches[match.id] && (
-                        <div className="border-t">
+                        <div 
+                          className="border-t"
+                          style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.7} : {}}
+                        >
                           {/* Hint mobile */}
                           <div className="md:hidden bg-blue-50 p-2 text-xs text-center text-blue-700 border-b">
                             👈 Scorri a destra per vedere tutte le colonne →
@@ -7030,7 +7078,16 @@ const SoccerTeamTracker = () => {
                           </>
                         ) : (
                           <>
-                            <button onClick={() => setEditingPlayer(player.numero)} className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">
+                            <button 
+                              onClick={() => setEditingPlayer(player.numero)} 
+                              disabled={userRole !== 'admin'}
+                              className={`px-3 py-2 rounded text-sm ${
+                                userRole === 'admin'
+                                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              }`}
+                              title={userRole !== 'admin' ? 'Solo Admin può modificare' : ''}
+                            >
                               Modifica
                             </button>
                             {player.nome && (
@@ -7479,7 +7536,10 @@ const SoccerTeamTracker = () => {
                 </div>
               </div>
 
-              <div className="mb-6 bg-white border rounded-lg p-4">
+              <div 
+                className="mb-6 bg-white border rounded-lg p-4"
+                style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.7} : {}}
+              >
                 <h3 className="font-bold text-gray-800 mb-4">Informazioni Partita</h3>
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
@@ -7533,6 +7593,7 @@ const SoccerTeamTracker = () => {
                 </div>
               </div>
 
+              <div style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.7} : {}}>
               {['Portieri', 'Difensori', 'Centrocampisti', 'Attaccanti', 'Altri'].map(categoria => {
                 const giocatori = players.filter(p => 
                   p.nome && mappaRuolo(p.ruolo) === categoria
@@ -7579,6 +7640,7 @@ const SoccerTeamTracker = () => {
                   </div>
                 );
               })}
+              </div>
 
               <div className="sticky bottom-0 bg-white border-t-2 border-gray-200 p-4 -mx-6 -mb-6 mt-6">
                 <div className="flex justify-between items-center">
