@@ -857,6 +857,7 @@ const SoccerTeamTracker = () => {
   // State per Divisione Squadre
   const [numSquadre, setNumSquadre] = useState(2);
   const [includiPortieri, setIncludiPortieri] = useState(true);
+  const [selectedTrainingForDivision, setSelectedTrainingForDivision] = useState('');
   const [showDivisioneResults, setShowDivisioneResults] = useState(false);
   const [infortunati, setInfortunati] = useState(new Set());
   const [regenerateKey, setRegenerateKey] = useState(0);
@@ -7369,6 +7370,103 @@ const SoccerTeamTracker = () => {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* ========== IMPORTA PRESENTI DA ALLENAMENTO ========== */}
+              <div className="mb-6 bg-gradient-to-r from-green-50 to-green-100 border-2 border-green-300 rounded-lg p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="text-green-600 text-3xl">📋</div>
+                  <div>
+                    <h3 className="font-bold text-green-900 text-lg mb-1">Importa Presenti da Allenamento</h3>
+                    <p className="text-sm text-green-800">
+                      Seleziona un allenamento per caricare automaticamente solo i giocatori presenti
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Seleziona Allenamento
+                    </label>
+                    <select
+                      value={selectedTrainingForDivision}
+                      onChange={(e) => setSelectedTrainingForDivision(e.target.value)}
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white"
+                    >
+                      <option value="">-- Seleziona un allenamento --</option>
+                      {trainings
+                        .filter(t => Object.values(t.presenze).some(p => p === true))
+                        .sort((a, b) => new Date(b.data) - new Date(a.data))
+                        .map(training => {
+                          const presentiCount = Object.values(training.presenze).filter(p => p === true).length;
+                          return (
+                            <option key={training.id} value={training.id}>
+                              {new Date(training.data).toLocaleDateString('it-IT')} - {presentiCount} presenti
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        if (!selectedTrainingForDivision) {
+                          alert('⚠️ Seleziona prima un allenamento');
+                          return;
+                        }
+                        
+                        const training = trainings.find(t => t.id === selectedTrainingForDivision);
+                        if (!training) return;
+                        
+                        // Trova giocatori presenti
+                        const presentiNomi = Object.entries(training.presenze)
+                          .filter(([_, presente]) => presente === true)
+                          .map(([nome, _]) => nome);
+                        
+                        // Seleziona solo giocatori presenti
+                        const nuoviSelezionati = new Set();
+                        players.forEach(player => {
+                          if (player.nome && presentiNomi.includes(player.nome)) {
+                            nuoviSelezionati.add(player.nome);
+                          }
+                        });
+                        
+                        setGiocatoriSelezionati(nuoviSelezionati);
+                        
+                        // Toast feedback
+                        showToast(`✅ Caricati ${nuoviSelezionati.size} giocatori presenti!`, 'success');
+                      }}
+                      disabled={!selectedTrainingForDivision || userRole !== 'admin'}
+                      className={`w-full px-6 py-3 rounded-lg font-bold transition-colors ${
+                        selectedTrainingForDivision && userRole === 'admin'
+                          ? 'bg-green-600 text-white hover:bg-green-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      ⬇️ Carica Presenti
+                    </button>
+                  </div>
+                </div>
+
+                {selectedTrainingForDivision && (() => {
+                  const training = trainings.find(t => t.id === selectedTrainingForDivision);
+                  if (!training) return null;
+                  
+                  const presentiCount = Object.values(training.presenze).filter(p => p === true).length;
+                  const assentiCount = Object.values(training.presenze).filter(p => p === false).length;
+                  
+                  return (
+                    <div className="mt-4 p-3 bg-white border-2 border-green-200 rounded-lg">
+                      <div className="text-sm text-gray-700">
+                        <strong>Allenamento del {new Date(training.data).toLocaleDateString('it-IT')}:</strong>
+                        <span className="ml-2">✅ {presentiCount} presenti</span>
+                        <span className="ml-2">❌ {assentiCount} assenti</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="grid md:grid-cols-2 gap-6 mb-6">
