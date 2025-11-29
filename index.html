@@ -2488,19 +2488,23 @@ const SoccerTeamTracker = () => {
     setUserActionLoading(true);
     
     try {
-      // Salva dati admin corrente
+      // IMPORTANTE: Salva UID admin PRIMA che cambi
+      const currentAdminUid = user.uid;
       const currentAdminEmail = user.email;
       
-      // Crea nuovo utente (questo fa logout dell'admin!)
+      // Crea nuovo utente (questo fa logout dell'admin e login del nuovo utente!)
       const userCredential = await auth.createUserWithEmailAndPassword(newUserEmail, newUserPassword);
       const newUser = userCredential.user;
 
+      // CRITICO: Ora sei loggato come il NUOVO utente, non più come admin!
+      // Ma possiamo comunque scrivere perché usiamo l'UID che abbiamo appena creato
+      
       // Salva ruolo in Firestore
       await db.collection('users').doc(newUser.uid).set({
         email: newUserEmail,
         role: newUserRole,
         createdAt: new Date().toISOString(),
-        createdBy: user.uid
+        createdBy: currentAdminUid  // ← Usa UID admin salvato prima!
       });
 
       showToast('✅ Utente creato! Rifai login come admin...', 'success');
@@ -2525,6 +2529,8 @@ const SoccerTeamTracker = () => {
         errorMsg = 'Email non valida';
       } else if (error.code === 'auth/weak-password') {
         errorMsg = 'Password troppo debole';
+      } else if (error.code === 'permission-denied') {
+        errorMsg = 'Errore permessi Firestore. Controlla le regole!';
       }
       showToast('❌ ' + errorMsg, 'error');
     } finally {
