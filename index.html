@@ -7669,13 +7669,13 @@ const SoccerTeamTracker = () => {
                     >
                       <option value="">-- Seleziona una partita --</option>
                       {matches
-                        .filter(m => m.convocati && m.convocati.length > 0)
+                        .filter(m => m.convocati && Object.keys(m.convocati).some(key => m.convocati[key] === true))
                         .sort((a, b) => new Date(b.data) - new Date(a.data))
                         .map(match => {
-                          const convocatiCount = match.convocati ? match.convocati.length : 0;
+                          const convocatiCount = Object.values(match.convocati).filter(v => v === true).length;
                           return (
                             <option key={match.id} value={match.id}>
-                              {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario} - {convocatiCount} convocati
+                              {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario || match.squadraTrasferta || 'Avversario'} - {convocatiCount} convocati
                             </option>
                           );
                         })}
@@ -7693,14 +7693,18 @@ const SoccerTeamTracker = () => {
                         const match = matches.find(m => m.id === selectedMatchForConvocazioni);
                         if (!match) return;
                         
-                        // Carica convocati dalla partita
-                        const nuoviConvocati = new Set(match.convocati || []);
+                        // Carica convocati dalla partita (oggetto → Set di nomi)
+                        const convocatiNomi = Object.entries(match.convocati || {})
+                          .filter(([_, convocato]) => convocato === true)
+                          .map(([nome, _]) => nome);
+                        
+                        const nuoviConvocati = new Set(convocatiNomi);
                         setConvocati(nuoviConvocati);
                         
                         // Carica anche le info partita
                         setInfoPartita({
                           squadra1: match.squadraCasa || 'Real DOR',
-                          squadra2: match.avversario || '',
+                          squadra2: match.avversario || match.squadraTrasferta || '',
                           dataPartita: match.data || '',
                           oraRitrovo: match.oraRitrovo || '',
                           indirizzoCompo: match.campo || ''
@@ -7725,12 +7729,12 @@ const SoccerTeamTracker = () => {
                   const match = matches.find(m => m.id === selectedMatchForConvocazioni);
                   if (!match) return null;
                   
-                  const convocatiCount = match.convocati ? match.convocati.length : 0;
+                  const convocatiCount = Object.values(match.convocati || {}).filter(v => v === true).length;
                   
                   return (
                     <div className="mt-4 p-3 bg-white border-2 border-purple-200 rounded-lg">
                       <div className="text-sm text-gray-700">
-                        <strong>Partita del {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario}:</strong>
+                        <strong>Partita del {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario || match.squadraTrasferta || 'Avversario'}:</strong>
                         <span className="ml-2">👥 {convocatiCount} convocati</span>
                         <span className="ml-2">📍 {match.campo || 'Campo non specificato'}</span>
                       </div>
