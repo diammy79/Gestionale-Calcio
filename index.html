@@ -7675,7 +7675,7 @@ const SoccerTeamTracker = () => {
                           const convocatiCount = Object.values(match.convocati).filter(v => v === true).length;
                           return (
                             <option key={match.id} value={match.id}>
-                              {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario || match.squadraTrasferta || 'Avversario'} - {convocatiCount} convocati
+                              {new Date(match.data).toLocaleDateString('it-IT')} - {match.squadraCasa || 'Casa'} vs {match.avversario || match.squadraTrasferta || 'Trasferta'} - {convocatiCount} convocati
                             </option>
                           );
                         })}
@@ -7734,7 +7734,7 @@ const SoccerTeamTracker = () => {
                   return (
                     <div className="mt-4 p-3 bg-white border-2 border-purple-200 rounded-lg">
                       <div className="text-sm text-gray-700">
-                        <strong>Partita del {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario || match.squadraTrasferta || 'Avversario'}:</strong>
+                        <strong>Partita del {new Date(match.data).toLocaleDateString('it-IT')} - {match.squadraCasa || 'Casa'} vs {match.avversario || match.squadraTrasferta || 'Trasferta'}:</strong>
                         <span className="ml-2">👥 {convocatiCount} convocati</span>
                         <span className="ml-2">📍 {match.campo || 'Campo non specificato'}</span>
                       </div>
