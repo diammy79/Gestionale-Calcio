@@ -865,6 +865,7 @@ const SoccerTeamTracker = () => {
   // State per Convocazioni
   const [convocati, setConvocati] = useState(new Set());
   const [showConvocazioniModal, setShowConvocazioniModal] = useState(false);
+  const [selectedMatchForConvocazioni, setSelectedMatchForConvocazioni] = useState('');
   const [infoPartita, setInfoPartita] = useState({
     squadra1: '',
     squadra2: '',
@@ -7642,6 +7643,100 @@ const SoccerTeamTracker = () => {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* ========== IMPORTA CONVOCATI DA PARTITA ========== */}
+              <div className="mb-6 bg-gradient-to-r from-purple-50 to-purple-100 border-2 border-purple-300 rounded-lg p-6">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="text-purple-600 text-3xl">⚽</div>
+                  <div>
+                    <h3 className="font-bold text-purple-900 text-lg mb-1">Importa Convocati da Partita</h3>
+                    <p className="text-sm text-purple-800">
+                      Seleziona una partita per caricare automaticamente i convocati già registrati
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Seleziona Partita
+                    </label>
+                    <select
+                      value={selectedMatchForConvocazioni}
+                      onChange={(e) => setSelectedMatchForConvocazioni(e.target.value)}
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white"
+                    >
+                      <option value="">-- Seleziona una partita --</option>
+                      {matches
+                        .filter(m => m.convocati && m.convocati.length > 0)
+                        .sort((a, b) => new Date(b.data) - new Date(a.data))
+                        .map(match => {
+                          const convocatiCount = match.convocati ? match.convocati.length : 0;
+                          return (
+                            <option key={match.id} value={match.id}>
+                              {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario} - {convocatiCount} convocati
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      onClick={() => {
+                        if (!selectedMatchForConvocazioni) {
+                          alert('⚠️ Seleziona prima una partita');
+                          return;
+                        }
+                        
+                        const match = matches.find(m => m.id === selectedMatchForConvocazioni);
+                        if (!match) return;
+                        
+                        // Carica convocati dalla partita
+                        const nuoviConvocati = new Set(match.convocati || []);
+                        setConvocati(nuoviConvocati);
+                        
+                        // Carica anche le info partita
+                        setInfoPartita({
+                          squadra1: match.squadraCasa || 'Real DOR',
+                          squadra2: match.avversario || '',
+                          dataPartita: match.data || '',
+                          oraRitrovo: match.oraRitrovo || '',
+                          indirizzoCompo: match.campo || ''
+                        });
+                        
+                        // Toast feedback
+                        showToast(`✅ Caricati ${nuoviConvocati.size} convocati e info partita!`, 'success');
+                      }}
+                      disabled={!selectedMatchForConvocazioni || userRole !== 'admin'}
+                      className={`w-full px-6 py-3 rounded-lg font-bold transition-colors ${
+                        selectedMatchForConvocazioni && userRole === 'admin'
+                          ? 'bg-purple-600 text-white hover:bg-purple-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      ⬇️ Carica Convocati
+                    </button>
+                  </div>
+                </div>
+
+                {selectedMatchForConvocazioni && (() => {
+                  const match = matches.find(m => m.id === selectedMatchForConvocazioni);
+                  if (!match) return null;
+                  
+                  const convocatiCount = match.convocati ? match.convocati.length : 0;
+                  
+                  return (
+                    <div className="mt-4 p-3 bg-white border-2 border-purple-200 rounded-lg">
+                      <div className="text-sm text-gray-700">
+                        <strong>Partita del {new Date(match.data).toLocaleDateString('it-IT')} vs {match.avversario}:</strong>
+                        <span className="ml-2">👥 {convocatiCount} convocati</span>
+                        <span className="ml-2">📍 {match.campo || 'Campo non specificato'}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
 
               <div 
