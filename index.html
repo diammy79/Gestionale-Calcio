@@ -528,29 +528,77 @@
       font-weight: bold;
     }
     
-    .calendar-day.has-event {
-      background: #fef3c7;
+    /* Allenamenti - Azzurro */
+    .calendar-day.has-training {
+      background: #dbeafe;
+      border-color: #60a5fa;
     }
     
-    .calendar-day.has-event::after {
-      content: '';
+    .calendar-day.has-training::after {
+      content: '🏃';
       position: absolute;
-      bottom: 2px;
+      bottom: 1px;
       left: 50%;
       transform: translateX(-50%);
-      width: 4px;
-      height: 4px;
-      background: #f59e0b;
-      border-radius: 50%;
+      font-size: 12px;
+      line-height: 1;
     }
     
     @media (min-width: 640px) {
-      .calendar-day.has-event::after {
-        bottom: 4px;
-        width: 5px;
-        height: 5px;
+      .calendar-day.has-training::after {
+        bottom: 2px;
+        font-size: 14px;
       }
     }
+    
+    /* Partite - Verde */
+    .calendar-day.has-match {
+      background: #d1fae5;
+      border-color: #34d399;
+    }
+    
+    .calendar-day.has-match::after {
+      content: '⚽';
+      position: absolute;
+      bottom: 1px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      line-height: 1;
+    }
+    
+    @media (min-width: 640px) {
+      .calendar-day.has-match::after {
+        bottom: 2px;
+        font-size: 14px;
+      }
+    }
+    
+    /* Entrambi - Combinato */
+    .calendar-day.has-both {
+      background: linear-gradient(135deg, #dbeafe 50%, #d1fae5 50%);
+      border-color: #60a5fa;
+    }
+    
+    .calendar-day.has-both::after {
+      content: '🏃⚽';
+      position: absolute;
+      bottom: 1px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 10px;
+      line-height: 1;
+      letter-spacing: -2px;
+    }
+    
+    @media (min-width: 640px) {
+      .calendar-day.has-both::after {
+        bottom: 2px;
+        font-size: 12px;
+      }
+    }
+    
+    /* Rimuovo vecchio stile has-event */
     
     /* ========== INJURY STATUS BADGES ========== */
     
@@ -9164,12 +9212,24 @@ const SoccerTeamTracker = () => {
                   const dateStr = date.toISOString().split('T')[0];
                   const events = getEventsForDate(date);
                   const isToday = new Date().toDateString() === date.toDateString();
-                  const hasEvents = events.trainings.length > 0 || events.matches.length > 0;
+                  const hasTrainings = events.trainings.length > 0;
+                  const hasMatches = events.matches.length > 0;
+                  const hasEvents = hasTrainings || hasMatches;
+                  
+                  // Determina classe evento
+                  let eventClass = '';
+                  if (hasTrainings && hasMatches) {
+                    eventClass = 'has-both';
+                  } else if (hasTrainings) {
+                    eventClass = 'has-training';
+                  } else if (hasMatches) {
+                    eventClass = 'has-match';
+                  }
                   
                   return (
                     <div
                       key={day}
-                      className={`calendar-day ${isToday ? 'today' : ''} ${hasEvents ? 'has-event' : ''}`}
+                      className={`calendar-day ${isToday ? 'today' : ''} ${eventClass}`}
                       onClick={() => {
                         if (hasEvents) {
                           setSelectedDate(date);
@@ -9274,11 +9334,44 @@ const SoccerTeamTracker = () => {
                       {events.trainings.length > 0 && (
                         <div>
                           <h4 className="text-lg font-bold text-gray-800 mb-3">🏃 Allenamenti ({events.trainings.length})</h4>
-                          {events.trainings.map(t => (
-                            <div key={t.id} className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-2">
-                              <div className="font-semibold text-gray-800 mb-2">Presenze: {Object.values(t.presenze).filter(p => p).length}/{players.filter(p => p.nome).length}</div>
-                            </div>
-                          ))}
+                          {events.trainings.map(t => {
+                            const presenti = players.filter(p => p.nome && t.presenze && t.presenze[p.nome] === true);
+                            const assenti = players.filter(p => p.nome && t.presenze && t.presenze[p.nome] === false);
+                            
+                            return (
+                              <div key={t.id} className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-3">
+                                <div className="font-semibold text-gray-800 mb-3">
+                                  Presenze: {presenti.length}/{players.filter(p => p.nome).length}
+                                </div>
+                                
+                                {presenti.length > 0 && (
+                                  <div className="mb-3">
+                                    <div className="text-sm font-bold text-green-700 mb-1">✅ Presenti ({presenti.length}):</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {presenti.map(p => (
+                                        <span key={p.nome} className="inline-block bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                                          {p.nome}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                                
+                                {assenti.length > 0 && (
+                                  <div>
+                                    <div className="text-sm font-bold text-red-700 mb-1">❌ Assenti ({assenti.length}):</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {assenti.map(p => (
+                                        <span key={p.nome} className="inline-block bg-red-100 text-red-800 px-2 py-1 rounded text-xs font-medium">
+                                          {p.nome}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                       
@@ -9286,12 +9379,19 @@ const SoccerTeamTracker = () => {
                         <div>
                           <h4 className="text-lg font-bold text-gray-800 mb-3">⚽ Partite ({events.matches.length})</h4>
                           {events.matches.map(m => (
-                            <div key={m.id} className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-2">
-                              <div className="font-bold text-lg text-gray-800 mb-2">
-                                {m.squadraCasa} vs {m.squadraTrasferta}
+                            <div key={m.id} className="bg-green-50 border-2 border-green-200 rounded-lg p-4 mb-3">
+                              <div className="font-bold text-xl text-gray-800 mb-2 text-center">
+                                {m.squadraCasa || 'Casa'} vs {m.squadraTrasferta || m.avversario || 'Trasferta'}
                               </div>
-                              {m.risultato && (
-                                <div className="text-2xl font-bold text-green-600">{m.risultato}</div>
+                              {m.risultato ? (
+                                <div className="text-center">
+                                  <div className="text-3xl font-bold text-green-600 mb-1">{m.risultato}</div>
+                                  <div className="text-sm text-gray-600">Risultato Finale</div>
+                                </div>
+                              ) : (
+                                <div className="text-center text-gray-500 text-sm">
+                                  Partita da giocare
+                                </div>
                               )}
                             </div>
                           ))}
