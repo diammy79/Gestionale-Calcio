@@ -413,6 +413,21 @@
       }
     }
     
+    /* ========== PULSE VELOCE PER CONVOCATI ========== */
+    
+    @keyframes pulse-fast {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+    
+    .animate-pulse-fast {
+      animation: pulse-fast 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    
     /* ========== LOADING SPINNER ENHANCED ========== */
     
     .loading-overlay {
@@ -6178,8 +6193,10 @@ const SoccerTeamTracker = () => {
                                         }
                                       }}
                                       className={`w-12 px-2 py-1 border rounded text-center font-bold transition-colors ${
-                                        match.convocati[player.numero] && !(match.ordineDistinta || {})[player.numero]
-                                          ? 'bg-orange-200 border-orange-400 animate-pulse'
+                                        match.convocati[player.numero] && (match.ordineDistinta || {})[player.numero]
+                                          ? 'bg-green-100 border-green-400'
+                                          : match.convocati[player.numero] && !(match.ordineDistinta || {})[player.numero]
+                                          ? 'bg-orange-200 border-orange-400 animate-pulse-fast'
                                           : ''
                                       }`}
                                       placeholder={player.numero}
