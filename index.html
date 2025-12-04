@@ -2012,7 +2012,7 @@ const SoccerTeamTracker = () => {
     // Pre-compila presenze: tutti true TRANNE gli infortunati
     const presenzePrecompilate = {};
     players.forEach(p => {
-      presenzePrecompilati[p.numero] = !infortuniPrecompilati[p.numero]; // false se infortunato, true altrimenti
+      presenzePrecompilate[p.numero] = !infortuniPrecompilati[p.numero]; // false se infortunato, true altrimenti
     });
     
     const newTraining = {
