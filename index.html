@@ -2655,7 +2655,13 @@ const SoccerTeamTracker = () => {
    * Carica i dati CLOUD → LOCALE (Download)
    */
   const syncFromFirestore = async (forceOverwrite = false) => {
+    console.log('🔽 SCARICA DA CLOUD - Inizio');
+    console.log('   User:', user?.email);
+    console.log('   User UID:', user?.uid);
+    console.log('   Force Overwrite:', forceOverwrite);
+    
     if (!user) {
+      console.log('❌ ERRORE: Nessun user autenticato');
       setSyncError('Devi essere autenticato per sincronizzare');
       return false;
     }
@@ -2663,28 +2669,47 @@ const SoccerTeamTracker = () => {
     try {
       setSyncStatus('syncing');
       setSyncError('');
-
+      
+      console.log('📡 Connessione a Firestore...');
       const docRef = db.collection('teamData').doc(user.uid);
       const doc = await docRef.get();
+      
+      console.log('📄 Documento esistente?', doc.exists);
 
       if (!doc.exists) {
+        console.log('❌ ERRORE: Nessun dato nel cloud');
         setSyncError('Nessun dato trovato nel cloud. Effettua prima un upload.');
         setSyncStatus('error');
         return false;
     }
 
       const cloudData = doc.data();
+      console.log('☁️ Dati cloud ricevuti:', {
+        hasPlayers: !!cloudData.players,
+        playersCount: cloudData.players?.length,
+        hasTrainings: !!cloudData.trainings,
+        trainingsCount: cloudData.trainings?.length,
+        hasMatches: !!cloudData.matches,
+        matchesCount: cloudData.matches?.length,
+        lastSynced: cloudData.lastSynced
+      });
       
       // Verifica conflitti se non è un overwrite forzato
       if (!forceOverwrite) {
+        console.log('🔍 Controllo conflitti (forceOverwrite=false)...');
         const hasLocalData = players.some(p => p.nome) || trainings.length > 0 || matches.length > 0;
         
         if (hasLocalData) {
+          console.log('📁 Dati locali presenti, confronto date...');
           // Controlla se i dati locali sono più recenti
           const localLastSaved = lastSaved ? new Date(lastSaved) : new Date(0);
           const cloudLastSynced = cloudData.lastSynced ? new Date(cloudData.lastSynced) : new Date(0);
           
+          console.log('   Locale:', localLastSaved);
+          console.log('   Cloud:', cloudLastSynced);
+          
           if (localLastSaved > cloudLastSynced) {
+            console.log('⚠️ CONFLITTO: Dati locali più recenti! Mostro modal...');
             // Dati locali più recenti - mostra dialogo conflitto
             setSyncConflicts({
               local: { players, trainings, matches, lastSaved: localLastSaved },
@@ -2700,18 +2725,35 @@ const SoccerTeamTracker = () => {
             return false;
           }
         }
+      } else {
+        console.log('⚡ Overwrite forzato, skip controllo conflitti');
       }
 
       // Carica i dati dal cloud
-      if (cloudData.players) setPlayers(cloudData.players);
-      if (cloudData.trainings) setTrainings(cloudData.trainings);
-      if (cloudData.matches) setMatches(cloudData.matches);
+      console.log('📥 Caricamento dati dal cloud in stato React...');
+      if (cloudData.players) {
+        console.log('   ✅ Carico Players:', cloudData.players.length);
+        setPlayers(cloudData.players);
+      }
+      if (cloudData.trainings) {
+        console.log('   ✅ Carico Trainings:', cloudData.trainings.length);
+        setTrainings(cloudData.trainings);
+      }
+      if (cloudData.matches) {
+        console.log('   ✅ Carico Matches:', cloudData.matches.length);
+        setMatches(cloudData.matches);
+      }
       if (cloudData.appTitle) setAppTitle(cloudData.appTitle);
       if (cloudData.teamLogo) setTeamLogo(cloudData.teamLogo);
-      if (cloudData.injuries) setInjuries(cloudData.injuries);
+      if (cloudData.injuries) {
+        console.log('   ✅ Carico Injuries:', cloudData.injuries.length);
+        setInjuries(cloudData.injuries);
+      }
       
       setLastSynced(new Date(cloudData.lastSynced));
       setSyncStatus('success');
+      
+      console.log('✅ SCARICA COMPLETATO con successo!');
       
       // Salva anche in locale
       const dataToSave = {
@@ -10385,8 +10427,17 @@ const SoccerTeamTracker = () => {
                 </p>
                 <button
                   onClick={() => {
+                    alert('🔘 Click rilevato! Controlla console per dettagli.');
+                    console.log('🔘 BOTTONE SCARICA CLICCATO!');
+                    console.log('   User:', user?.email);
+                    console.log('   syncStatus:', syncStatus);
+                    console.log('   disabled:', syncStatus === 'syncing');
+                    
                     if (window.confirm('⚠️ Questa operazione sovrascriverà i dati locali con quelli del cloud.\n\nSei sicuro?')) {
+                      console.log('✅ Confermato! Chiamo syncFromFirestore(true)...');
                       syncFromFirestore(true);
+                    } else {
+                      console.log('❌ Annullato dall\'utente');
                     }
                   }}
                   disabled={syncStatus === 'syncing'}
