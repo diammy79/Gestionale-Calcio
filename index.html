@@ -7958,11 +7958,7 @@ const SoccerTeamTracker = () => {
                     >
                       <option value="">-- Seleziona un allenamento --</option>
                       {trainings
-                        .filter(t => {
-                          const hasPresentations = Object.values(t.presenze).some(p => p === true);
-                          console.log('🔍 Training:', t.data, 'Ha presenti?', hasPresentations);
-                          return hasPresentations;
-                        })
+                        .filter(t => Object.values(t.presenze).some(p => p === true))
                         .sort((a, b) => new Date(b.data) - new Date(a.data))
                         .map(training => {
                           const presentiCount = Object.values(training.presenze).filter(p => p === true).length;
@@ -7987,8 +7983,17 @@ const SoccerTeamTracker = () => {
                           return;
                         }
                         
-                        const training = trainings.find(t => t.id === selectedTrainingForDivision);
-                        if (!training) return;
+                        // Converti in numero per il confronto
+                        const trainingId = parseInt(selectedTrainingForDivision);
+                        console.log('   🔍 Cerco training con ID:', trainingId);
+                        
+                        const training = trainings.find(t => t.id === trainingId);
+                        console.log('   🔍 Training trovato?', training ? 'SÌ' : 'NO');
+                        
+                        if (!training) {
+                          alert('❌ Allenamento non trovato!');
+                          return;
+                        }
                         
                         // Le presenze sono salvate per NUMERO, non per nome
                         // training.presenze = { 1: true, 2: false, 3: true, ... }
