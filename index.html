@@ -2001,11 +2001,25 @@ const SoccerTeamTracker = () => {
   };
 
   const addTraining = () => {
+    // Pre-compila infortuni dai giocatori con injury attivo
+    const infortuniPrecompilati = {};
+    injuries.forEach(injury => {
+      if (injury.status === 'active') {
+        infortuniPrecompilati[injury.playerNum] = true;
+      }
+    });
+    
+    // Pre-compila presenze: tutti true TRANNE gli infortunati
+    const presenzePrecompilate = {};
+    players.forEach(p => {
+      presenzePrecompilati[p.numero] = !infortuniPrecompilati[p.numero]; // false se infortunato, true altrimenti
+    });
+    
     const newTraining = {
       id: Date.now(),
       data: new Date().toISOString().split('T')[0],
-      presenze: players.reduce((acc, p) => ({ ...acc, [p.numero]: true }), {}),
-      infortuni: {}
+      presenze: presenzePrecompilate,
+      infortuni: infortuniPrecompilati
     };
     setTrainings([...trainings, newTraining]);
   };
@@ -5509,7 +5523,7 @@ const SoccerTeamTracker = () => {
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
             {[
               'dashboard', 'trainings', 'divisione', 'matches', 'tattica', 'convocazioni', 
-              'stats', 'top', 'roster', 'injuries', 'calendar',
+              'injuries', 'stats', 'top', 'roster', 'calendar',
               ...(userRole === 'admin' ? ['export', 'sync', 'admin'] : [])
             ].map(tab => (
               <button
@@ -5962,7 +5976,19 @@ const SoccerTeamTracker = () => {
                                     checked={training.presenze[player.numero] === true}
                                     onChange={(e) => {
                                       const newPresenze = { ...training.presenze, [player.numero]: e.target.checked ? true : undefined };
-                                      updateTraining(training.id, 'presenze', newPresenze);
+                                      const newInfortuni = { ...training.infortuni };
+                                      
+                                      // Se spunta presente, togli automaticamente infortunato
+                                      if (e.target.checked) {
+                                        newInfortuni[player.numero] = false;
+                                      }
+                                      
+                                      // Aggiorna entrambi
+                                      setTrainings(trainings.map(t => 
+                                        t.id === training.id 
+                                          ? { ...t, presenze: newPresenze, infortuni: newInfortuni }
+                                          : t
+                                      ));
                                     }}
                                     className="w-4 h-4"
                                   />
@@ -5986,7 +6012,19 @@ const SoccerTeamTracker = () => {
                                     checked={training.infortuni[player.numero] || false}
                                     onChange={(e) => {
                                       const newInfortuni = { ...training.infortuni, [player.numero]: e.target.checked };
-                                      updateTraining(training.id, 'infortuni', newInfortuni);
+                                      const newPresenze = { ...training.presenze };
+                                      
+                                      // Se spunta infortunato, togli automaticamente presente
+                                      if (e.target.checked) {
+                                        newPresenze[player.numero] = false;
+                                      }
+                                      
+                                      // Aggiorna entrambi
+                                      setTrainings(trainings.map(t => 
+                                        t.id === training.id 
+                                          ? { ...t, infortuni: newInfortuni, presenze: newPresenze }
+                                          : t
+                                      ));
                                     }}
                                     className="w-4 h-4"
                                   />
