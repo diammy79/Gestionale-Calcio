@@ -10281,7 +10281,7 @@ const SoccerTeamTracker = () => {
               <p className="text-gray-600">Gestisci la sincronizzazione dei dati tra dispositivo locale e cloud Firebase</p>
             </div>
 
-            {/* ========== CARD STATO DISPOSITIVO (NUOVO) ========== */}
+            {/* ========== CARD STATO DISPOSITIVO ========== */}
             {deviceRole && (
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-indigo-300">
                 <div className="flex items-center justify-between mb-4">
@@ -10294,7 +10294,7 @@ const SoccerTeamTracker = () => {
                   </button>
                 </div>
                 
-                <div className="grid md:grid-cols-3 gap-4 mb-4">
+                <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
                     <div className="text-sm text-gray-600 mb-1">Tipo Dispositivo</div>
                     <div className="text-lg font-bold text-gray-800">{getDeviceName()}</div>
@@ -10304,34 +10304,6 @@ const SoccerTeamTracker = () => {
                     <div className="text-sm text-gray-600 mb-1">Ruolo</div>
                     <div className="text-lg font-bold text-gray-800">
                       {deviceRole === 'primary' ? '👑 Principale' : '📱 Secondario'}
-                    </div>
-                  </div>
-                  
-                  <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
-                    <div className="text-sm text-gray-600 mb-1">Auto-Sync Dispositivo</div>
-                    <div className="text-lg font-bold text-gray-800">
-                      {deviceRole === 'primary' ? '✅ Attivo (2 min)' : '❌ Disattivato'}
-                    </div>
-                  </div>
-                </div>
-                
-                {lastSyncInfo && (
-                  <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
-                    <div className="text-sm text-gray-600 mb-2">Ultimo Auto-Sync Dispositivo</div>
-                    <div className="text-sm text-gray-700">
-                      <strong>Quando:</strong> {new Date(lastSyncInfo.timestamp).toLocaleString('it-IT')}<br/>
-                      <strong>Tipo:</strong> {lastSyncInfo.type === 'auto' ? '🔄 Automatico' : '👆 Manuale'}<br/>
-                      <strong>Da:</strong> {lastSyncInfo.deviceName}
-                    </div>
-                  </div>
-                )}
-
-                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mt-4">
-                  <div className="flex gap-3">
-                    <div className="text-blue-600 text-xl">ℹ️</div>
-                    <div className="text-sm text-blue-800">
-                      <strong>Come funziona:</strong> Se questo è il dispositivo Principale, i dati vengono salvati 
-                      automaticamente su cloud ogni 2 minuti. I bottoni qui sotto permettono sincronizzazioni manuali aggiuntive.
                     </div>
                   </div>
                 </div>
@@ -10353,7 +10325,7 @@ const SoccerTeamTracker = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div className="bg-white rounded-lg p-4 shadow">
                   <div className="text-sm text-gray-600 mb-1">Ultimo Salvataggio Locale</div>
                   <div className="text-lg font-bold text-gray-800">
@@ -10364,16 +10336,6 @@ const SoccerTeamTracker = () => {
                   <div className="text-sm text-gray-600 mb-1">Ultima Sincronizzazione Cloud</div>
                   <div className="text-lg font-bold text-gray-800">
                     {lastSynced ? lastSynced.toLocaleString('it-IT') : 'Mai sincronizzato'}
-                  </div>
-                </div>
-                <div className="bg-white rounded-lg p-4 shadow">
-                  <div className="text-sm text-gray-600 mb-1">Sync Automatico</div>
-                  <div className="text-lg font-bold">
-                    {autoSyncEnabled ? (
-                      <span className="text-green-600">✅ Attivo</span>
-                    ) : (
-                      <span className="text-gray-500">⏸️ Disattivo</span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -10389,46 +10351,11 @@ const SoccerTeamTracker = () => {
                   </div>
                 </div>
               )}
-
-              <div className="flex items-center justify-between bg-white rounded-lg p-4 shadow">
-                <div>
-                  <div className="font-bold text-gray-800">Sincronizzazione Automatica</div>
-                  <div className="text-sm text-gray-600">
-                    {autoSyncEnabled ? 'Sincronizza ogni 5 minuti automaticamente' : 'Sincronizzazione manuale'}
-                  </div>
-                </div>
-                <button
-                  onClick={toggleAutoSync}
-                  className={`px-6 py-3 rounded-lg font-bold transition-all ${
-                    autoSyncEnabled 
-                      ? 'bg-green-600 hover:bg-green-700 text-white' 
-                      : 'bg-gray-400 hover:bg-gray-500 text-white'
-                  }`}
-                >
-                  {autoSyncEnabled ? '✅ Attivo' : '⏸️ Disattivo'}
-                </button>
-              </div>
             </div>
 
             {/* Azioni di Sincronizzazione */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               
-              {/* Sync Intelligente */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-lg p-6 border-2 border-blue-200">
-                <div className="text-4xl mb-4">🔄</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">Sincronizzazione Intelligente</h3>
-                <p className="text-gray-600 text-sm mb-4">
-                  Sincronizza automaticamente scegliendo la versione più recente tra locale e cloud
-                </p>
-                <button
-                  onClick={smartSync}
-                  disabled={syncStatus === 'syncing'}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {syncStatus === 'syncing' ? '⏳ Sincronizzazione...' : '🔄 Sincronizza Ora'}
-                </button>
-              </div>
-
               {/* Upload Cloud */}
               <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-lg p-6 border-2 border-green-200">
                 <div className="text-4xl mb-4">☁️↑</div>
@@ -10504,19 +10431,16 @@ const SoccerTeamTracker = () => {
                   <h4 className="font-bold text-gray-800 mb-2">Come Funziona la Sincronizzazione</h4>
                   <ul className="text-sm text-gray-700 space-y-2">
                     <li>
-                      <strong>🔄 Sincronizzazione Intelligente:</strong> Confronta le date di modifica e sceglie automaticamente la versione più recente. Ideale per l'uso quotidiano.
+                      <strong>☁️↑ Carica su Cloud:</strong> Salva i dati locali sul cloud Firebase. Usa questa opzione quando hai fatto modifiche importanti che vuoi conservare nel cloud come backup.
                     </li>
                     <li>
-                      <strong>☁️↑ Carica su Cloud:</strong> Forza il caricamento dei dati locali sul cloud. Usa questa opzione se hai fatto modifiche importanti in locale che vuoi salvare nel cloud.
+                      <strong>☁️↓ Scarica da Cloud:</strong> Scarica i dati dal cloud e sostituisce quelli locali. Usa questa opzione quando hai modificato i dati da un altro dispositivo e vuoi aggiornarli su questo dispositivo.
                     </li>
                     <li>
-                      <strong>☁️↓ Scarica da Cloud:</strong> Forza il download dei dati dal cloud in locale. Usa questa opzione se hai modificato i dati da un altro dispositivo e vuoi aggiornarli qui.
+                      <strong>💾 Backup Locale:</strong> I dati sono SEMPRE salvati automaticamente in locale (IndexedDB) ad ogni modifica. La sincronizzazione cloud è un backup aggiuntivo che devi gestire manualmente.
                     </li>
                     <li>
-                      <strong>✅ Sincronizzazione Automatica:</strong> Se attiva, i dati vengono sincronizzati automaticamente ogni 5 minuti e al login. I dati locali sono sempre salvati immediatamente in IndexedDB.
-                    </li>
-                    <li>
-                      <strong>💾 Backup Locale:</strong> I dati sono SEMPRE salvati in locale (IndexedDB). La sincronizzazione cloud è un backup aggiuntivo, non sostituisce il salvataggio locale.
+                      <strong>⚠️ Attenzione:</strong> Le operazioni di carica/scarica SOVRASCRIVONO i dati. Usa sempre la conferma per evitare perdite accidentali. In caso di dubbio, esporta prima un backup JSON dalla sezione Esportazioni.
                     </li>
                     <li>
                       <strong>🔒 Privacy:</strong> I tuoi dati sono privati. Solo tu puoi accedere ai dati del tuo account. Ogni utente ha il suo spazio cloud separato.
