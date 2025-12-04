@@ -7949,12 +7949,20 @@ const SoccerTeamTracker = () => {
                     </label>
                     <select
                       value={selectedTrainingForDivision}
-                      onChange={(e) => setSelectedTrainingForDivision(e.target.value)}
+                      onChange={(e) => {
+                        console.log('🔍 Dropdown onChange:', e.target.value);
+                        setSelectedTrainingForDivision(e.target.value);
+                        console.log('✅ selectedTrainingForDivision settato a:', e.target.value);
+                      }}
                       className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 bg-white"
                     >
                       <option value="">-- Seleziona un allenamento --</option>
                       {trainings
-                        .filter(t => Object.values(t.presenze).some(p => p === true))
+                        .filter(t => {
+                          const hasPresentations = Object.values(t.presenze).some(p => p === true);
+                          console.log('🔍 Training:', t.data, 'Ha presenti?', hasPresentations);
+                          return hasPresentations;
+                        })
                         .sort((a, b) => new Date(b.data) - new Date(a.data))
                         .map(training => {
                           const presentiCount = Object.values(training.presenze).filter(p => p === true).length;
@@ -7970,6 +7978,10 @@ const SoccerTeamTracker = () => {
                   <div className="flex items-end gap-2">
                     <button
                       onClick={() => {
+                        console.log('🔘 BOTTONE CLICCATO!');
+                        console.log('   selectedTrainingForDivision:', selectedTrainingForDivision);
+                        console.log('   userRole:', userRole);
+                        
                         if (!selectedTrainingForDivision) {
                           alert('⚠️ Seleziona prima un allenamento');
                           return;
