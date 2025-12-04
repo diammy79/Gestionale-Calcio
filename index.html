@@ -7956,18 +7956,24 @@ const SoccerTeamTracker = () => {
                         const training = trainings.find(t => t.id === selectedTrainingForDivision);
                         if (!training) return;
                         
-                        // Trova giocatori presenti
-                        const presentiNomi = Object.entries(training.presenze)
+                        // Le presenze sono salvate per NUMERO, non per nome
+                        // training.presenze = { 1: true, 2: false, 3: true, ... }
+                        const numeriPresenti = Object.entries(training.presenze)
                           .filter(([_, presente]) => presente === true)
-                          .map(([nome, _]) => nome);
+                          .map(([numero, _]) => parseInt(numero));
                         
-                        // Seleziona solo giocatori presenti
+                        console.log('Numeri presenti nell\'allenamento:', numeriPresenti);
+                        
+                        // Seleziona solo giocatori con numero presente
                         const nuoviSelezionati = new Set();
                         players.forEach(player => {
-                          if (player.nome && presentiNomi.includes(player.nome)) {
+                          if (player.nome && numeriPresenti.includes(player.numero)) {
                             nuoviSelezionati.add(player.nome);
                           }
                         });
+                        
+                        console.log('Giocatori da selezionare:', Array.from(nuoviSelezionati));
+                        console.log('Totale selezionati:', nuoviSelezionati.size);
                         
                         setGiocatoriSelezionati(nuoviSelezionati);
                         
