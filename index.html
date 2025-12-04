@@ -971,7 +971,7 @@ const SoccerTeamTracker = () => {
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'success', 'error'
   const [lastSynced, setLastSynced] = useState(null);
   const [syncError, setSyncError] = useState('');
-  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false); // DISABILITATO per sicurezza
   const [syncConflicts, setSyncConflicts] = useState(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   
@@ -2194,7 +2194,7 @@ const SoccerTeamTracker = () => {
       deviceId: generateDeviceId(),
       deviceName: getDeviceName(),
       deviceRole: role,
-      autoSyncEnabled: role === 'primary',
+      autoSyncEnabled: false, // SEMPRE disabilitato per sicurezza - l'utente può abilitarlo manualmente
       lastAskedDate: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString()
     };
@@ -2282,6 +2282,31 @@ const SoccerTeamTracker = () => {
   };
 
   /**
+   * Pulisce ricorsivamente tutti i campi undefined da un oggetto
+   * Firestore non accetta undefined, solo null o valori definiti
+   */
+  const cleanUndefinedFields = (obj) => {
+    if (obj === null || obj === undefined) return null;
+    
+    if (Array.isArray(obj)) {
+      return obj.map(item => cleanUndefinedFields(item));
+    }
+    
+    if (typeof obj === 'object') {
+      const cleaned = {};
+      Object.keys(obj).forEach(key => {
+        const value = obj[key];
+        if (value !== undefined) {
+          cleaned[key] = cleanUndefinedFields(value);
+        }
+      });
+      return cleaned;
+    }
+    
+    return obj;
+  };
+
+  /**
    * Salva dati su cloud Firebase
    */
   const saveDataToCloud = async (silent = false) => {
@@ -2299,7 +2324,10 @@ const SoccerTeamTracker = () => {
         deviceRole: deviceRole
       };
       
-      await db.collection('teamData').doc(user.uid).set(data);
+      // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
+      const cleanedData = cleanUndefinedFields(data);
+      
+      await db.collection('teamData').doc(user.uid).set(cleanedData);
       
       if (!silent) {
         showToast('✅ Dati salvati su cloud!', 'success');
@@ -2602,8 +2630,11 @@ const SoccerTeamTracker = () => {
         userId: user.uid
       };
 
+      // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
+      const cleanedData = cleanUndefinedFields(dataToSync);
+
       // Salva su Firestore
-      await db.collection('teamData').doc(user.uid).set(dataToSync, { merge: true });
+      await db.collection('teamData').doc(user.uid).set(cleanedData, { merge: true });
       
       setLastSynced(new Date());
       setSyncStatus('success');
