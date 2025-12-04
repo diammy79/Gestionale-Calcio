@@ -949,6 +949,7 @@ const SoccerTeamTracker = () => {
   const [selectedTrainingForDivision, setSelectedTrainingForDivision] = useState('');
   const [showDivisioneResults, setShowDivisioneResults] = useState(false);
   const [infortunati, setInfortunati] = useState(new Set());
+  const [giocatoriSelezionati, setGiocatoriSelezionati] = useState(new Set());  // Per divisione squadre
   const [regenerateKey, setRegenerateKey] = useState(0);
   
   // State per Convocazioni
@@ -1120,6 +1121,10 @@ const SoccerTeamTracker = () => {
       }
     };
   }, [user]);
+
+  // NOTA: giocatoriSelezionati parte vuoto (size=0), quindi organizzaGiocatori 
+  // includerà tutti i giocatori per default. Quando si importa da allenamento,
+  // viene popolato solo con i presenti.
 
   // Salvataggio AUTOMATICO
   useEffect(() => {
@@ -3372,6 +3377,10 @@ const SoccerTeamTracker = () => {
   };
 
   const organizzaGiocatori = () => {
+    console.log('🔍 organizzaGiocatori chiamato');
+    console.log('   giocatoriSelezionati.size:', giocatoriSelezionati.size);
+    console.log('   giocatoriSelezionati:', Array.from(giocatoriSelezionati));
+    
     const ruoli = {
       'Portieri': [],
       'Difensori': [],
@@ -3379,15 +3388,28 @@ const SoccerTeamTracker = () => {
       'Attaccanti': []
     };
 
+    let includeCount = 0;
+    let excludeCount = 0;
+
     players.forEach(player => {
+      // Filtra per: nome esiste, non infortunato, E selezionato (se giocatoriSelezionati non è vuoto)
       if (player.nome && !infortunati.has(player.nome)) {
-        const ruolo = mappaRuolo(player.ruolo);
-        if (ruolo !== 'Altri' && !(ruolo === 'Portieri' && !includiPortieri)) {
-          ruoli[ruolo].push(player);
+        // Se giocatoriSelezionati è vuoto, include tutti (comportamento default)
+        // Altrimenti include solo i selezionati
+        if (giocatoriSelezionati.size === 0 || giocatoriSelezionati.has(player.nome)) {
+          const ruolo = mappaRuolo(player.ruolo);
+          if (ruolo !== 'Altri' && !(ruolo === 'Portieri' && !includiPortieri)) {
+            ruoli[ruolo].push(player);
+            includeCount++;
+          }
+        } else {
+          excludeCount++;
+          console.log('   ❌ ESCLUSO:', player.nome, '(non in giocatoriSelezionati)');
         }
       }
     });
 
+    console.log('   ✅ Inclusi:', includeCount, '❌ Esclusi:', excludeCount);
     return ruoli;
   };
 
@@ -3452,7 +3474,7 @@ const SoccerTeamTracker = () => {
     squadre.forEach(squadra => delete squadra.totale);
 
     return squadre;
-  }, [numSquadre, includiPortieri, infortunati, regenerateKey, players]);
+  }, [numSquadre, includiPortieri, infortunati, giocatoriSelezionati, regenerateKey, players]);
 
   const conteggioSquadre = useMemo(() => {
     return dividiSquadre.map(squadra => {
@@ -3474,7 +3496,7 @@ const SoccerTeamTracker = () => {
       : ['Difensori', 'Centrocampisti', 'Attaccanti'];
     
     return ruoliDaContare.reduce((sum, ruolo) => sum + ruoli[ruolo].length, 0);
-  }, [includiPortieri, infortunati, players]);
+  }, [includiPortieri, infortunati, giocatoriSelezionati, players]);
 
   const differenzaSquadre = useMemo(() => {
     if (conteggioSquadre.length === 0) return 0;
@@ -7945,7 +7967,7 @@ const SoccerTeamTracker = () => {
                     </select>
                   </div>
 
-                  <div className="flex items-end">
+                  <div className="flex items-end gap-2">
                     <button
                       onClick={() => {
                         if (!selectedTrainingForDivision) {
@@ -7974,6 +7996,7 @@ const SoccerTeamTracker = () => {
                         
                         console.log('Giocatori da selezionare:', Array.from(nuoviSelezionati));
                         console.log('Totale selezionati:', nuoviSelezionati.size);
+                        console.log('Set dopo setGiocatoriSelezionati:', nuoviSelezionati);
                         
                         setGiocatoriSelezionati(nuoviSelezionati);
                         
@@ -7981,13 +8004,29 @@ const SoccerTeamTracker = () => {
                         showToast(`✅ Caricati ${nuoviSelezionati.size} giocatori presenti!`, 'success');
                       }}
                       disabled={!selectedTrainingForDivision || userRole !== 'admin'}
-                      className={`w-full px-6 py-3 rounded-lg font-bold transition-colors ${
+                      className={`flex-1 px-6 py-3 rounded-lg font-bold transition-colors ${
                         selectedTrainingForDivision && userRole === 'admin'
                           ? 'bg-green-600 text-white hover:bg-green-700'
                           : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       }`}
                     >
                       ⬇️ Carica Presenti
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setGiocatoriSelezionati(new Set());
+                        console.log('Reset selezione: tutti i giocatori saranno inclusi');
+                        showToast('✅ Selezione resettata: tutti i giocatori inclusi!', 'success');
+                      }}
+                      disabled={userRole !== 'admin'}
+                      className={`px-6 py-3 rounded-lg font-bold transition-colors whitespace-nowrap ${
+                        userRole === 'admin'
+                          ? 'bg-blue-600 text-white hover:bg-blue-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      🔄 Reset
                     </button>
                   </div>
                 </div>
