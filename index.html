@@ -3157,11 +3157,18 @@ const SoccerTeamTracker = () => {
 
   // ========== USE EFFECT PER GRAFICI DASHBOARD ==========
   useEffect(() => {
+    console.log('📊 useEffect grafici dashboard triggered');
+    console.log('   activeTab:', activeTab);
+    console.log('   Chart defined?', typeof Chart !== 'undefined');
+    
     if (activeTab === 'dashboard' && typeof Chart !== 'undefined') {
-      // Aspetta che il DOM sia pronto
+      console.log('✅ Condizioni soddisfatte, creo grafici...');
+      // Aspetta che il DOM sia pronto (aumentato timeout)
       setTimeout(() => {
+        console.log('⏰ Timeout scaduto, cerco canvas...');
         // Grafico Gol Fatti/Subiti
         const goalsCtx = document.getElementById('goalsChart');
+        console.log('   goalsChart trovato?', goalsCtx ? 'SÌ' : 'NO');
         if (goalsCtx) {
           // Distruggi grafico esistente se c'è
           const existingChart = Chart.getChart(goalsCtx);
@@ -3373,7 +3380,8 @@ const SoccerTeamTracker = () => {
             }
           });
         }
-      }, 100);
+      }, 1500); // Aumentato per dare tempo al DOM di caricare completamente
+
     }
   }, [activeTab, matches, trainings, players]);
 
