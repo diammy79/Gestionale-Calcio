@@ -914,7 +914,7 @@ const SoccerTeamTracker = () => {
 
   const [trainings, setTrainings] = useState([]);
   const [matches, setMatches] = useState([]);
-  const [activeTab, setActiveTab] = useState('trainings');
+  const [activeTab, setActiveTab] = useState('dashboard'); // Apre sulla dashboard
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [expandedTrainings, setExpandedTrainings] = useState({});
@@ -5841,8 +5841,30 @@ const SoccerTeamTracker = () => {
 
                 <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow-lg p-6 border-2 border-yellow-200 animate-scale-up" style={{animationDelay: '0.2s'}}>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-4xl">🥅</div>
+                    <div className="text-4xl relative">
+                      <span>🥅</span>
+                      <span className="absolute" style={{fontSize: '0.6em', left: '50%', top: '50%', transform: 'translate(-50%, -50%)'}}>⚽</span>
+                    </div>
                     <div className="text-3xl font-bold text-yellow-600">
+                      {matches.reduce((sum, m) => {
+                        if (!m.golFatti) return sum;
+                        return sum + Object.values(m.golFatti).reduce((s, g) => s + (parseInt(g) || 0), 0);
+                      }, 0)}
+                    </div>
+                  </div>
+                  <div className="text-gray-700 font-semibold">Gol Fatti</div>
+                  <div className="text-sm text-gray-600 mt-1">
+                    Media: {matches.length > 0 ? (matches.reduce((sum, m) => sum + Object.values(m.golFatti || {}).reduce((s, g) => s + (parseInt(g) || 0), 0), 0) / matches.length).toFixed(1) : 0} per partita
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-lg p-6 border-2 border-purple-200 animate-scale-up" style={{animationDelay: '0.3s'}}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-4xl relative">
+                      <span>🥅</span>
+                      <span className="absolute" style={{fontSize: '0.7em', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', color: '#ef4444'}}>❌</span>
+                    </div>
+                    <div className="text-3xl font-bold text-purple-600">
                       {matches.reduce((sum, m) => {
                         if (!m.golSubiti) return sum;
                         return sum + Object.values(m.golSubiti).reduce((s, g) => s + (parseInt(g) || 0), 0);
@@ -5852,22 +5874,6 @@ const SoccerTeamTracker = () => {
                   <div className="text-gray-700 font-semibold">Gol Subiti</div>
                   <div className="text-sm text-gray-600 mt-1">
                     Media: {matches.length > 0 ? (matches.reduce((sum, m) => sum + Object.values(m.golSubiti || {}).reduce((s, g) => s + (parseInt(g) || 0), 0), 0) / matches.length).toFixed(1) : 0} per partita
-                  </div>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-lg p-6 border-2 border-purple-200 animate-scale-up" style={{animationDelay: '0.3s'}}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-4xl">🎯</div>
-                    <div className="text-3xl font-bold text-purple-600">
-                      {matches.reduce((sum, m) => {
-                        if (!m.golFatti) return sum;
-                        return sum + Object.values(m.golFatti).reduce((s, g) => s + (parseInt(g) || 0), 0);
-                      }, 0)}
-                    </div>
-                  </div>
-                  <div className="text-gray-700 font-semibold">Gol Totali</div>
-                  <div className="text-sm text-gray-600 mt-1">
-                    Media: {matches.length > 0 ? (matches.reduce((sum, m) => sum + Object.values(m.golFatti || {}).reduce((s, g) => s + (parseInt(g) || 0), 0), 0) / matches.length).toFixed(1) : 0} per partita
                   </div>
                 </div>
               </div>
