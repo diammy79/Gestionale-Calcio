@@ -967,6 +967,15 @@ const SoccerTeamTracker = () => {
   // State per Analisi Tattica
   const [moduloAvversario, setModuloAvversario] = useState('');
   
+  // ========== STATE PER CLASSIFICA CAMPIONATO ==========
+  const [squadreGirone, setSquadreGirone] = useState([]); // Lista squadre del girone
+  const [risultatiCampionato, setRisultatiCampionato] = useState([]); // Risultati per giornata
+  const [classificaTab, setClassificaTab] = useState('classifica'); // 'squadre', 'risultati', 'classifica'
+  const [editingSquadra, setEditingSquadra] = useState(null);
+  const [showAddSquadraModal, setShowAddSquadraModal] = useState(false);
+  const [selectedGiornata, setSelectedGiornata] = useState(1);
+  const [showImportMatchModal, setShowImportMatchModal] = useState(null); // Per import da partite Real DOR
+  
   // ========== STATE PER SINCRONIZZAZIONE CLOUD ==========
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'success', 'error'
   const [lastSynced, setLastSynced] = useState(null);
@@ -1082,6 +1091,8 @@ const SoccerTeamTracker = () => {
           setAppTitle(savedData.appTitle || appTitle);
           setTeamLogo(savedData.teamLogo || '');
           setInjuries(savedData.injuries || []);
+          setSquadreGirone(savedData.squadreGirone || []);
+          setRisultatiCampionato(savedData.risultatiCampionato || []);
           setLastSaved(savedData.lastSaved ? new Date(savedData.lastSaved) : null);
         }
       } catch (error) {
@@ -1138,6 +1149,8 @@ const SoccerTeamTracker = () => {
         appTitle,
         teamLogo,
         injuries,
+        squadreGirone,
+        risultatiCampionato,
         lastSaved: new Date().toISOString()
       };
       
@@ -1148,7 +1161,7 @@ const SoccerTeamTracker = () => {
     };
     
     saveData();
-  }, [players, trainings, matches, appTitle, teamLogo, injuries, isLoading]);
+  }, [players, trainings, matches, appTitle, teamLogo, injuries, squadreGirone, risultatiCampionato, isLoading]);
 
   useEffect(() => {
     if (isTimerRunning) {
@@ -2626,6 +2639,8 @@ const SoccerTeamTracker = () => {
         appTitle,
         teamLogo,
         injuries,
+        squadreGirone,
+        risultatiCampionato,
         lastSynced: new Date().toISOString(),
         userId: user.uid
       };
@@ -2757,6 +2772,14 @@ const SoccerTeamTracker = () => {
         console.log('   ✅ Carico Injuries:', cloudData.injuries.length);
         setInjuries(cloudData.injuries);
       }
+      if (cloudData.squadreGirone) {
+        console.log('   ✅ Carico Squadre Girone:', cloudData.squadreGirone.length);
+        setSquadreGirone(cloudData.squadreGirone);
+      }
+      if (cloudData.risultatiCampionato) {
+        console.log('   ✅ Carico Risultati Campionato:', cloudData.risultatiCampionato.length);
+        setRisultatiCampionato(cloudData.risultatiCampionato);
+      }
       
       setLastSynced(new Date(cloudData.lastSynced));
       setSyncStatus('success');
@@ -2781,6 +2804,8 @@ const SoccerTeamTracker = () => {
         appTitle: cloudData.appTitle,
         teamLogo: cloudData.teamLogo,
         injuries: cloudData.injuries || [],
+        squadreGirone: cloudData.squadreGirone || [],
+        risultatiCampionato: cloudData.risultatiCampionato || [],
         lastSaved: new Date().toISOString()
       };
       await saveToIndexedDB('squadraRealDOR', dataToSave);
@@ -5712,7 +5737,7 @@ const SoccerTeamTracker = () => {
         <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern">
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
             {[
-              'dashboard', 'trainings', 'divisione', 'matches', 'tattica', 'convocazioni', 
+              'dashboard', 'classifica', 'trainings', 'divisione', 'matches', 'tattica', 'convocazioni', 
               'injuries', 'stats', 'top', 'roster', 'calendar',
               ...(userRole === 'admin' ? ['export', 'sync', 'admin'] : [])
             ].map(tab => (
@@ -5777,6 +5802,12 @@ const SoccerTeamTracker = () => {
                   <>
                     <span className="hidden sm:inline">📊 Dashboard</span>
                     <span className="sm:hidden">📊</span>
+                  </>
+                )}
+                {tab === 'classifica' && (
+                  <>
+                    <span className="hidden sm:inline">🏆 Classifica</span>
+                    <span className="sm:hidden">🏆</span>
                   </>
                 )}
                 {tab === 'injuries' && (
@@ -6073,6 +6104,462 @@ const SoccerTeamTracker = () => {
                   );
                 })()}
               </div>
+            </div>
+          )}
+
+          {/* ========== SEZIONE CLASSIFICA CAMPIONATO ========== */}
+          {activeTab === 'classifica' && (
+            <div className="animate-fade-in">
+              <div className="mb-6">
+                <h2 className="text-3xl font-bold text-gray-800 mb-2">🏆 Classifica Campionato</h2>
+                <p className="text-gray-600">Gestisci squadre, risultati e visualizza la classifica del girone</p>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow p-4 border-2 border-blue-200">
+                  <div className="text-3xl font-bold text-blue-600">{squadreGirone.length}</div>
+                  <div className="text-sm text-gray-700 font-semibold">Squadre</div>
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-4 border-2 border-green-200">
+                  <div className="text-3xl font-bold text-green-600">
+                    {risultatiCampionato.reduce((sum, g) => sum + g.partite.filter(p => p.giocata).length, 0)}
+                  </div>
+                  <div className="text-sm text-gray-700 font-semibold">Partite Giocate</div>
+                </div>
+                <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow p-4 border-2 border-yellow-200">
+                  <div className="text-3xl font-bold text-yellow-600">
+                    {risultatiCampionato.reduce((sum, g) => sum + g.partite.reduce((s, p) => 
+                      s + (p.giocata ? (p.golCasa + p.golTrasferta) : 0), 0), 0)}
+                  </div>
+                  <div className="text-sm text-gray-700 font-semibold">Gol Totali</div>
+                </div>
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow p-4 border-2 border-purple-200">
+                  <div className="text-3xl font-bold text-purple-600">{risultatiCampionato.length}</div>
+                  <div className="text-sm text-gray-700 font-semibold">Giornate</div>
+                </div>
+              </div>
+
+              {/* Sub-tabs */}
+              <div className="flex gap-2 mb-6 border-b">
+                <button
+                  onClick={() => setClassificaTab('classifica')}
+                  className={`px-6 py-3 font-semibold ${
+                    classificaTab === 'classifica'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-600 hover:text-blue-600'
+                  }`}
+                >
+                  📊 Classifica
+                </button>
+                <button
+                  onClick={() => setClassificaTab('risultati')}
+                  className={`px-6 py-3 font-semibold ${
+                    classificaTab === 'risultati'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-600 hover:text-blue-600'
+                  }`}
+                >
+                  ⚽ Risultati
+                </button>
+                <button
+                  onClick={() => setClassificaTab('squadre')}
+                  className={`px-6 py-3 font-semibold ${
+                    classificaTab === 'squadre'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-600 hover:text-blue-600'
+                  }`}
+                >
+                  👥 Squadre
+                </button>
+              </div>
+
+              {/* FINE PARTE 1 - Continua nella prossima sostituzione */}
+
+              {/* TAB CLASSIFICA */}
+              {classificaTab === 'classifica' && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b-2">
+                          <th className="p-3 text-left">Pos</th>
+                          <th className="p-3 text-left">Squadra</th>
+                          <th className="p-3 text-center">Pt</th>
+                          <th className="p-3 text-center hidden md:table-cell">G</th>
+                          <th className="p-3 text-center hidden md:table-cell">V</th>
+                          <th className="p-3 text-center hidden md:table-cell">P</th>
+                          <th className="p-3 text-center hidden md:table-cell">S</th>
+                          <th className="p-3 text-center">GF</th>
+                          <th className="p-3 text-center">GS</th>
+                          <th className="p-3 text-center">DR</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          // Calcolo classifica
+                          const classifica = squadreGirone.map(sq => {
+                            let punti = 0, giocate = 0, vinte = 0, pareggiate = 0, perse = 0, golFatti = 0, golSubiti = 0;
+                            
+                            risultatiCampionato.forEach(giornata => {
+                              giornata.partite.forEach(partita => {
+                                if (!partita.giocata) return;
+                                
+                                if (partita.squadraCasa === sq.nome) {
+                                  giocate++;
+                                  golFatti += partita.golCasa;
+                                  golSubiti += partita.golTrasferta;
+                                  if (partita.golCasa > partita.golTrasferta) {
+                                    punti += 3;
+                                    vinte++;
+                                  } else if (partita.golCasa === partita.golTrasferta) {
+                                    punti += 1;
+                                    pareggiate++;
+                                  } else {
+                                    perse++;
+                                  }
+                                } else if (partita.squadraTrasferta === sq.nome) {
+                                  giocate++;
+                                  golFatti += partita.golTrasferta;
+                                  golSubiti += partita.golCasa;
+                                  if (partita.golTrasferta > partita.golCasa) {
+                                    punti += 3;
+                                    vinte++;
+                                  } else if (partita.golTrasferta === partita.golCasa) {
+                                    punti += 1;
+                                    pareggiate++;
+                                  } else {
+                                    perse++;
+                                  }
+                                }
+                              });
+                            });
+                            
+                            return { ...sq, punti, giocate, vinte, pareggiate, perse, golFatti, golSubiti, diffReti: golFatti - golSubiti };
+                          }).sort((a, b) => {
+                            if (b.punti !== a.punti) return b.punti - a.punti;
+                            if (b.diffReti !== a.diffReti) return b.diffReti - a.diffReti;
+                            return b.golFatti - a.golFatti;
+                          });
+                          
+                          if (classifica.length === 0) {
+                            return (
+                              <tr>
+                                <td colSpan="10" className="p-8 text-center text-gray-500">
+                                  <div className="text-4xl mb-2">🏆</div>
+                                  <p>Nessuna squadra inserita</p>
+                                  <p className="text-sm mt-2">Vai su "👥 Squadre" per aggiungere le squadre del girone</p>
+                                </td>
+                              </tr>
+                            );
+                          }
+                          
+                          return classifica.map((sq, idx) => (
+                            <tr key={sq.id} className={`border-b hover:bg-gray-50 ${idx === 0 ? 'bg-yellow-50' : idx <= 2 ? 'bg-blue-50' : idx >= classifica.length - 2 ? 'bg-red-50' : ''}`}>
+                              <td className="p-3 font-bold">
+                                {idx === 0 && '🥇'}
+                                {idx === 1 && '🥈'}
+                                {idx === 2 && '🥉'}
+                                {idx >= 3 && (idx + 1)}
+                              </td>
+                              <td className="p-3 font-semibold">{sq.nome}</td>
+                              <td className="p-3 text-center font-bold text-lg">{sq.punti}</td>
+                              <td className="p-3 text-center hidden md:table-cell">{sq.giocate}</td>
+                              <td className="p-3 text-center hidden md:table-cell">{sq.vinte}</td>
+                              <td className="p-3 text-center hidden md:table-cell">{sq.pareggiate}</td>
+                              <td className="p-3 text-center hidden md:table-cell">{sq.perse}</td>
+                              <td className="p-3 text-center">{sq.golFatti}</td>
+                              <td className="p-3 text-center">{sq.golSubiti}</td>
+                              <td className="p-3 text-center font-semibold">{sq.diffReti > 0 ? '+' : ''}{sq.diffReti}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {squadreGirone.length > 0 && (
+                    <div className="mt-4 text-sm text-gray-600">
+                      <p><strong>Legenda:</strong></p>
+                      <p>Pt = Punti | G = Giocate | V = Vittorie | P = Pareggi | S = Sconfitte</p>
+                      <p>GF = Gol Fatti | GS = Gol Subiti | DR = Differenza Reti</p>
+                      <p className="mt-2">🥇 Primo | 🥈🥉 Podio | 🔴 Zona retrocessione</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB SQUADRE */}
+              {classificaTab === 'squadre' && (
+                <div>
+                  <div className="mb-4">
+                    <button
+                      onClick={() => setShowAddSquadraModal(true)}
+                      disabled={userRole !== 'admin'}
+                      className="bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 disabled:opacity-50"
+                    >
+                      + Aggiungi Squadra
+                    </button>
+                  </div>
+                  
+                  {squadreGirone.length === 0 ? (
+                    <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+                      <div className="text-6xl mb-4">👥</div>
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">Nessuna squadra inserita</h3>
+                      <p className="text-gray-600 mb-4">Aggiungi le squadre del girone per iniziare</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                      <div className="space-y-3">
+                        {squadreGirone.map((sq, idx) => (
+                          <div key={sq.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                            <div className="flex items-center gap-4">
+                              <div className="text-2xl font-bold text-gray-400">{idx + 1}</div>
+                              <div>
+                                <div className="font-bold text-lg">{sq.nome}</div>
+                                <div className="text-sm text-gray-500">Aggiunta il {new Date(sq.dataAggiunta).toLocaleDateString('it-IT')}</div>
+                              </div>
+                            </div>
+                            {userRole === 'admin' && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingSquadra(sq);
+                                    setShowAddSquadraModal(true);
+                                  }}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                >
+                                  ✏️ Modifica
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Eliminare "${sq.nome}"?`)) {
+                                      setSquadreGirone(squadreGirone.filter(s => s.id !== sq.id));
+                                      showToast('Squadra eliminata', 'success');
+                                    }
+                                  }}
+                                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB RISULTATI - Continua nella parte 3 */}
+              {classificaTab === 'risultati' && (
+                <div>
+                  {squadreGirone.length < 2 ? (
+                    <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6 text-center">
+                      <div className="text-4xl mb-2">⚠️</div>
+                      <p className="font-semibold">Aggiungi almeno 2 squadre per inserire risultati</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex gap-4 mb-4 items-center flex-wrap">
+                        <select
+                          value={selectedGiornata}
+                          onChange={(e) => setSelectedGiornata(parseInt(e.target.value))}
+                          className="p-3 border-2 border-gray-300 rounded-lg"
+                        >
+                          {[...Array(22)].map((_, i) => (
+                            <option key={i + 1} value={i + 1}>Giornata {i + 1}</option>
+                          ))}
+                        </select>
+                        {userRole === 'admin' && (
+                          <button
+                            onClick={() => {
+                              const giornata = risultatiCampionato.find(g => g.giornata === selectedGiornata);
+                              if (!giornata) {
+                                setRisultatiCampionato([...risultatiCampionato, {
+                                  giornata: selectedGiornata,
+                                  data: new Date().toISOString().split('T')[0],
+                                  partite: []
+                                }]);
+                              }
+                              showToast('Giornata creata', 'success');
+                            }}
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700"
+                          >
+                            + Nuova Giornata
+                          </button>
+                        )}
+                      </div>
+                      
+                      {(() => {
+                        const giornata = risultatiCampionato.find(g => g.giornata === selectedGiornata);
+                        
+                        if (!giornata) {
+                          return (
+                            <div className="bg-white rounded-lg shadow-lg p-12 text-center">
+                              <div className="text-6xl mb-4">⚽</div>
+                              <p className="text-gray-600">Nessun risultato per questa giornata</p>
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className="bg-white rounded-lg shadow-lg p-6">
+                            <div className="space-y-4">
+                              {giornata.partite.map((partita, idx) => (
+                                <div key={idx} className="border rounded-lg p-4">
+                                  <div className="grid md:grid-cols-5 gap-4 items-center">
+                                    <div className="text-right font-semibold">{partita.squadraCasa}</div>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={partita.golCasa}
+                                      onChange={(e) => {
+                                        const newRisultati = [...risultatiCampionato];
+                                        const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                        g.partite[idx].golCasa = parseInt(e.target.value) || 0;
+                                        setRisultatiCampionato(newRisultati);
+                                      }}
+                                      disabled={userRole !== 'admin'}
+                                      className="p-2 border-2 text-center text-xl font-bold rounded"
+                                    />
+                                    <div className="text-center text-gray-400">-</div>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={partita.golTrasferta}
+                                      onChange={(e) => {
+                                        const newRisultati = [...risultatiCampionato];
+                                        const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                        g.partite[idx].golTrasferta = parseInt(e.target.value) || 0;
+                                        setRisultatiCampionato(newRisultati);
+                                      }}
+                                      disabled={userRole !== 'admin'}
+                                      className="p-2 border-2 text-center text-xl font-bold rounded"
+                                    />
+                                    <div className="font-semibold">{partita.squadraTrasferta}</div>
+                                  </div>
+                                  <label className="flex items-center gap-2 mt-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={partita.giocata}
+                                      onChange={(e) => {
+                                        const newRisultati = [...risultatiCampionato];
+                                        const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                        g.partite[idx].giocata = e.target.checked;
+                                        setRisultatiCampionato(newRisultati);
+                                      }}
+                                      disabled={userRole !== 'admin'}
+                                    />
+                                    <span className="text-sm">Partita giocata</span>
+                                  </label>
+                                </div>
+                              ))}
+                              
+                              {userRole === 'admin' && (
+                                <button
+                                  onClick={() => {
+                                    const newRisultati = [...risultatiCampionato];
+                                    const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                    g.partite.push({
+                                      id: Date.now(),
+                                      squadraCasa: squadreGirone[0]?.nome || '',
+                                      squadraTrasferta: squadreGirone[1]?.nome || '',
+                                      golCasa: 0,
+                                      golTrasferta: 0,
+                                      giocata: false
+                                    });
+                                    setRisultatiCampionato(newRisultati);
+                                  }}
+                                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50"
+                                >
+                                  + Aggiungi Partita
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Modal Aggiungi/Modifica Squadra */}
+              {showAddSquadraModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                    <h3 className="text-xl font-bold mb-4">{editingSquadra ? 'Modifica Squadra' : 'Aggiungi Squadra'}</h3>
+                    <input
+                      type="text"
+                      placeholder="Nome squadra"
+                      defaultValue={editingSquadra?.nome || ''}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          const nome = e.target.value.trim();
+                          if (!nome) {
+                            alert('Inserisci un nome');
+                            return;
+                          }
+                          if (editingSquadra) {
+                            setSquadreGirone(squadreGirone.map(s => s.id === editingSquadra.id ? {...s, nome} : s));
+                            showToast('Squadra modificata', 'success');
+                          } else {
+                            setSquadreGirone([...squadreGirone, {
+                              id: Date.now(),
+                              nome,
+                              dataAggiunta: new Date().toISOString()
+                            }]);
+                            showToast('Squadra aggiunta', 'success');
+                          }
+                          setShowAddSquadraModal(false);
+                          setEditingSquadra(null);
+                        }
+                      }}
+                      className="w-full p-3 border-2 border-gray-300 rounded-lg mb-4"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          const input = document.querySelector('input[placeholder="Nome squadra"]');
+                          const nome = input.value.trim();
+                          if (!nome) {
+                            alert('Inserisci un nome');
+                            return;
+                          }
+                          if (editingSquadra) {
+                            setSquadreGirone(squadreGirone.map(s => s.id === editingSquadra.id ? {...s, nome} : s));
+                            showToast('Squadra modificata', 'success');
+                          } else {
+                            setSquadreGirone([...squadreGirone, {
+                              id: Date.now(),
+                              nome,
+                              dataAggiunta: new Date().toISOString()
+                            }]);
+                            showToast('Squadra aggiunta', 'success');
+                          }
+                          setShowAddSquadraModal(false);
+                          setEditingSquadra(null);
+                        }}
+                        className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold hover:bg-green-700"
+                      >
+                        💾 Salva
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowAddSquadraModal(false);
+                          setEditingSquadra(null);
+                        }}
+                        className="flex-1 bg-gray-400 text-white py-2 rounded-lg font-bold hover:bg-gray-500"
+                      >
+                        ❌ Annulla
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
