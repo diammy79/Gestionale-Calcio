@@ -8562,12 +8562,23 @@ const SoccerTeamTracker = () => {
                         
                         console.log('   Convocati nella partita:', match.convocati);
                         
-                        // Carica convocati dalla partita (oggetto → Set di nomi)
-                        const convocatiNomi = Object.entries(match.convocati || {})
-                          .filter(([_, convocato]) => convocato === true)
-                          .map(([nome, _]) => nome);
+                        // CRITICAL: Convocati sono salvati come NUMERI, ma il Set usa NOMI!
+                        // Converti numeri in nomi (come per Importa Presenti)
                         
-                        console.log('   Convocati trovati:', convocatiNomi);
+                        // 1. Estrai numeri dei giocatori convocati
+                        const numeriConvocati = Object.entries(match.convocati || {})
+                          .filter(([_, convocato]) => convocato === true)
+                          .map(([num, _]) => parseInt(num));
+                        
+                        console.log('   Numeri convocati nella partita:', numeriConvocati);
+                        
+                        // 2. Converti numeri in nomi usando array players
+                        const convocatiNomi = players
+                          .filter(p => numeriConvocati.includes(p.numero))
+                          .map(p => p.nome);
+                        
+                        console.log('   Nomi convocati trovati:', convocatiNomi);
+                        console.log('   Totale convocati:', convocatiNomi.length);
                         
                         const nuoviConvocati = new Set(convocatiNomi);
                         setConvocati(nuoviConvocati);
