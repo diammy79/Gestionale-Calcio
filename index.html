@@ -8539,33 +8539,69 @@ const SoccerTeamTracker = () => {
                   <div className="flex items-end">
                     <button
                       onClick={() => {
+                        console.log('🔘 CARICA CONVOCATI - Click!');
+                        console.log('   selectedMatchForConvocazioni:', selectedMatchForConvocazioni);
+                        console.log('   tipo:', typeof selectedMatchForConvocazioni);
+                        
                         if (!selectedMatchForConvocazioni) {
                           alert('⚠️ Seleziona prima una partita');
                           return;
                         }
                         
-                        const match = matches.find(m => m.id === selectedMatchForConvocazioni);
-                        if (!match) return;
+                        // CRITICAL: Converti in numero prima del confronto
+                        const matchId = parseInt(selectedMatchForConvocazioni);
+                        console.log('   matchId convertito:', matchId);
+                        
+                        const match = matches.find(m => m.id === matchId);
+                        console.log('   match trovato?', match ? 'SÌ' : 'NO');
+                        
+                        if (!match) {
+                          alert('❌ Partita non trovata!');
+                          return;
+                        }
+                        
+                        console.log('   Convocati nella partita:', match.convocati);
                         
                         // Carica convocati dalla partita (oggetto → Set di nomi)
                         const convocatiNomi = Object.entries(match.convocati || {})
                           .filter(([_, convocato]) => convocato === true)
                           .map(([nome, _]) => nome);
                         
+                        console.log('   Convocati trovati:', convocatiNomi);
+                        
                         const nuoviConvocati = new Set(convocatiNomi);
                         setConvocati(nuoviConvocati);
                         
-                        // Carica anche le info partita
-                        setInfoPartita({
-                          squadra1: match.squadraCasa || 'Real DOR',
-                          squadra2: match.avversario || match.squadraTrasferta || '',
-                          dataPartita: match.data || '',
-                          oraRitrovo: match.oraRitrovo || '',
-                          indirizzoCompo: match.campo || ''
-                        });
+                        // Determina se la partita è in casa o trasferta
+                        const realDorInCasa = (match.squadraCasa && match.squadraCasa.toLowerCase().includes('real dor')) ||
+                                              (match.squadraCasa && match.squadraCasa.toLowerCase().includes('brescia'));
+                        
+                        console.log('   Real DOR in casa?', realDorInCasa);
+                        
+                        // Pre-compila info partita con automazione casa/trasferta
+                        if (realDorInCasa) {
+                          console.log('   ⚽ PARTITA IN CASA - Pre-compilazione automatica');
+                          setInfoPartita({
+                            squadra1: match.squadraCasa || 'Real DOR Brescia',
+                            squadra2: match.avversario || match.squadraTrasferta || '',
+                            dataPartita: match.data || '',
+                            oraRitrovo: '13:40',  // Automatico per casa
+                            indirizzoCompo: 'Via Chiappa 12 - Brescia'  // Automatico per casa
+                          });
+                        } else {
+                          console.log('   🚌 PARTITA IN TRASFERTA - Pre-compilazione parziale');
+                          setInfoPartita({
+                            squadra1: match.squadraCasa || '',
+                            squadra2: match.avversario || match.squadraTrasferta || 'Real DOR Brescia',
+                            dataPartita: match.data || '',
+                            oraRitrovo: match.oraRitrovo || '',  // Da compilare manualmente
+                            indirizzoCompo: match.campo || ''  // Da compilare manualmente
+                          });
+                        }
                         
                         // Toast feedback
-                        showToast(`✅ Caricati ${nuoviConvocati.size} convocati e info partita!`, 'success');
+                        const tipoPartita = realDorInCasa ? '🏠 Casa' : '🚌 Trasferta';
+                        showToast(`✅ Caricati ${nuoviConvocati.size} convocati! ${tipoPartita}`, 'success');
                       }}
                       disabled={!selectedMatchForConvocazioni || userRole !== 'admin'}
                       className={`w-full px-6 py-3 rounded-lg font-bold transition-colors ${
