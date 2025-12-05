@@ -3168,8 +3168,23 @@ const SoccerTeamTracker = () => {
           if (existingChart) existingChart.destroy();
           
           const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
-          const golFatti = matches.map(m => Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0));
-          const golSubiti = matches.map(m => Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0));
+          
+          // Calcola totali cumulativi
+          let totaleFatti = 0;
+          let totaleSubiti = 0;
+          const golFattiCumulativi = [];
+          const golSubitiCumulativi = [];
+          
+          matches.forEach(m => {
+            const fatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            const subiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            
+            totaleFatti += fatti;
+            totaleSubiti += subiti;
+            
+            golFattiCumulativi.push(totaleFatti);
+            golSubitiCumulativi.push(totaleSubiti);
+          });
           
           new Chart(goalsCtx, {
             type: 'line',
@@ -3177,20 +3192,26 @@ const SoccerTeamTracker = () => {
               labels: matchDates,
               datasets: [
                 {
-                  label: 'Gol Fatti',
-                  data: golFatti,
+                  label: 'Totale Gol Fatti',
+                  data: golFattiCumulativi,
                   borderColor: '#10b981',
                   backgroundColor: 'rgba(16, 185, 129, 0.1)',
                   tension: 0.4,
-                  fill: true
+                  fill: true,
+                  borderWidth: 3,
+                  pointRadius: 5,
+                  pointHoverRadius: 7
                 },
                 {
-                  label: 'Gol Subiti',
-                  data: golSubiti,
+                  label: 'Totale Gol Subiti',
+                  data: golSubitiCumulativi,
                   borderColor: '#ef4444',
                   backgroundColor: 'rgba(239, 68, 68, 0.1)',
                   tension: 0.4,
-                  fill: true
+                  fill: true,
+                  borderWidth: 3,
+                  pointRadius: 5,
+                  pointHoverRadius: 7
                 }
               ]
             },
@@ -3200,12 +3221,58 @@ const SoccerTeamTracker = () => {
               plugins: {
                 legend: {
                   position: 'top',
+                  labels: {
+                    font: {
+                      size: 13,
+                      weight: 'bold'
+                    }
+                  }
+                },
+                tooltip: {
+                  callbacks: {
+                    title: function(context) {
+                      return 'Dopo: ' + context[0].label;
+                    },
+                    afterLabel: function(context) {
+                      // Mostra anche i gol della singola partita
+                      const index = context.dataIndex;
+                      if (index === 0) return '';
+                      
+                      const prevFatti = context.dataset.label.includes('Fatti') 
+                        ? (index > 0 ? golFattiCumulativi[index - 1] : 0)
+                        : (index > 0 ? golSubitiCumulativi[index - 1] : 0);
+                      const current = context.parsed.y;
+                      const diff = current - prevFatti;
+                      
+                      return `(${diff >= 0 ? '+' : ''}${diff} in questa partita)`;
+                    }
+                  }
                 }
               },
               scales: {
                 y: {
                   beginAtZero: true,
-                  ticks: { stepSize: 1 }
+                  ticks: { 
+                    stepSize: 5,
+                    font: {
+                      weight: 'bold'
+                    }
+                  },
+                  title: {
+                    display: true,
+                    text: 'Totale Gol',
+                    font: {
+                      size: 14,
+                      weight: 'bold'
+                    }
+                  }
+                },
+                x: {
+                  ticks: {
+                    font: {
+                      size: 11
+                    }
+                  }
                 }
               }
             }
@@ -3230,7 +3297,7 @@ const SoccerTeamTracker = () => {
           new Chart(resultsCtx, {
             type: 'doughnut',
             data: {
-              labels: ['Vittorie', 'Pareggi', 'Sconfitte'],
+              labels: [`Vittorie (${vittorie})`, `Pareggi (${pareggi})`, `Sconfitte (${sconfitte})`],
               datasets: [{
                 data: [vittorie, pareggi, sconfitte],
                 backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
@@ -3244,6 +3311,24 @@ const SoccerTeamTracker = () => {
               plugins: {
                 legend: {
                   position: 'bottom',
+                  labels: {
+                    font: {
+                      size: 14,
+                      weight: 'bold'
+                    },
+                    padding: 15
+                  }
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      const label = context.label || '';
+                      const value = context.parsed || 0;
+                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                      return `${label}: ${percentage}%`;
+                    }
+                  }
                 }
               }
             }
@@ -5756,12 +5841,17 @@ const SoccerTeamTracker = () => {
 
                 <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow-lg p-6 border-2 border-yellow-200 animate-scale-up" style={{animationDelay: '0.2s'}}>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-4xl">👥</div>
-                    <div className="text-3xl font-bold text-yellow-600">{players.filter(p => p.nome).length}</div>
+                    <div className="text-4xl">🥅</div>
+                    <div className="text-3xl font-bold text-yellow-600">
+                      {matches.reduce((sum, m) => {
+                        if (!m.golSubiti) return sum;
+                        return sum + Object.values(m.golSubiti).reduce((s, g) => s + (parseInt(g) || 0), 0);
+                      }, 0)}
+                    </div>
                   </div>
-                  <div className="text-gray-700 font-semibold">Giocatori Attivi</div>
+                  <div className="text-gray-700 font-semibold">Gol Subiti</div>
                   <div className="text-sm text-gray-600 mt-1">
-                    {getActiveInjuries().length} infortunati
+                    Media: {matches.length > 0 ? (matches.reduce((sum, m) => sum + Object.values(m.golSubiti || {}).reduce((s, g) => s + (parseInt(g) || 0), 0), 0) / matches.length).toFixed(1) : 0} per partita
                   </div>
                 </div>
 
