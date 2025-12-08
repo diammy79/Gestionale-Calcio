@@ -2260,10 +2260,7 @@ const SoccerTeamTracker = () => {
     
     // Tabella classifica
     const tableData = classifica.map((sq, idx) => {
-      let pos = (idx + 1).toString();
-      if (idx === 0) pos = '🥇';
-      else if (idx === 1) pos = '🥈';
-      else if (idx === 2) pos = '🥉';
+      const pos = (idx + 1).toString();
       
       return [
         pos,
@@ -2355,8 +2352,8 @@ const SoccerTeamTracker = () => {
       
       topScorer.forEach(([squadra, gol], idx) => {
         doc.setFontSize(9);
-        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
-        doc.text(`${medal} ${squadra}: ${gol} gol`, 20, yPosition);
+        const pos = `${idx + 1}°`;
+        doc.text(`${pos} ${squadra}: ${gol} gol`, 20, yPosition);
         yPosition += 5;
       });
       
@@ -2385,8 +2382,8 @@ const SoccerTeamTracker = () => {
       
       bestDefense.forEach(([squadra, gol], idx) => {
         doc.setFontSize(9);
-        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
-        doc.text(`${medal} ${squadra}: ${gol} gol subiti`, 20, yPosition);
+        const pos = `${idx + 1}°`;
+        doc.text(`${pos} ${squadra}: ${gol} gol subiti`, 20, yPosition);
         yPosition += 5;
       });
       
@@ -2416,8 +2413,8 @@ const SoccerTeamTracker = () => {
         
         topCasa.forEach(([squadra, punti], idx) => {
           doc.setFontSize(9);
-          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
-          doc.text(`${medal} ${squadra}: ${punti} punti`, 20, yPosition);
+          const pos = `${idx + 1}°`;
+          doc.text(`${pos} ${squadra}: ${punti} punti`, 20, yPosition);
           yPosition += 5;
         });
         
@@ -2445,8 +2442,8 @@ const SoccerTeamTracker = () => {
         
         topTrasferta.forEach(([squadra, punti], idx) => {
           doc.setFontSize(9);
-          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
-          doc.text(`${medal} ${squadra}: ${punti} punti`, 20, yPosition);
+          const pos = `${idx + 1}°`;
+          doc.text(`${pos} ${squadra}: ${punti} punti`, 20, yPosition);
           yPosition += 5;
         });
       }
@@ -6599,7 +6596,7 @@ const SoccerTeamTracker = () => {
                     <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200">
                         <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
-                          ⚽ Capocannoniere
+                          ⚽ Miglior Attacco
                         </h4>
                         {(() => {
                           // Calcola gol per squadra
