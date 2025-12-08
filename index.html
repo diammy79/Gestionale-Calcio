@@ -6808,17 +6808,8 @@ const SoccerTeamTracker = () => {
                     </div>
                   )}
 
-              {/* DETTAGLI - TEMPORANEO */}
+              {/* DETTAGLI - Form ultimi 5 + Clean sheet */}
               {statsSubTab === 'dettagli' && (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🔧</div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Sezione in manutenzione</h3>
-                  <p className="text-gray-600">Torna presto!</p>
-                </div>
-              )}
-              
-              {/* DETTAGLI - Form ultimi 5 + Clean sheet - TEMPORANEAMENTE DISABILITATO */}
-              {false && statsSubTab === 'dettagli' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {/* CARD 1: FORM ULTIMI 5 MATCH */}
@@ -6836,12 +6827,15 @@ const SoccerTeamTracker = () => {
                           giornata.partite.forEach(partita => {
                             if (!partita.giocata) return;
                             
+                            const golCasa = parseInt(partita.golCasa) || 0;
+                            const golTrasferta = parseInt(partita.golTrasferta) || 0;
+                            
                             if (partita.squadraCasa === sq.nome) {
-                              if (partita.golCasa > partita.golTrasferta) {
+                              if (golCasa > golTrasferta) {
                                 punti += 3;
                                 vinte++;
                                 risultati.push('V');
-                              } else if (partita.golCasa === partita.golTrasferta) {
+                              } else if (golCasa === golTrasferta) {
                                 punti += 1;
                                 pareggiate++;
                                 risultati.push('P');
@@ -6850,11 +6844,11 @@ const SoccerTeamTracker = () => {
                                 risultati.push('S');
                               }
                             } else if (partita.squadraTrasferta === sq.nome) {
-                              if (partita.golTrasferta > partita.golCasa) {
+                              if (golTrasferta > golCasa) {
                                 punti += 3;
                                 vinte++;
                                 risultati.push('V');
-                              } else if (partita.golTrasferta === partita.golCasa) {
+                              } else if (golTrasferta === golCasa) {
                                 punti += 1;
                                 pareggiate++;
                                 risultati.push('P');
@@ -6952,16 +6946,19 @@ const SoccerTeamTracker = () => {
                           giornata.partite.forEach(partita => {
                             if (!partita.giocata) return;
                             
+                            const golCasa = parseInt(partita.golCasa) || 0;
+                            const golTrasferta = parseInt(partita.golTrasferta) || 0;
+                            
                             if (partita.squadraCasa === sq.nome) {
                               giocate++;
-                              golFatti += partita.golCasa;
-                              golSubiti += partita.golTrasferta;
-                              if (partita.golTrasferta === 0) cleanSheet++;
+                              golFatti += golCasa;
+                              golSubiti += golTrasferta;
+                              if (golTrasferta === 0) cleanSheet++;
                             } else if (partita.squadraTrasferta === sq.nome) {
                               giocate++;
-                              golFatti += partita.golTrasferta;
-                              golSubiti += partita.golCasa;
-                              if (partita.golCasa === 0) cleanSheet++;
+                              golFatti += golTrasferta;
+                              golSubiti += golCasa;
+                              if (golCasa === 0) cleanSheet++;
                             }
                           });
                         });
@@ -7025,18 +7022,8 @@ const SoccerTeamTracker = () => {
                 </div>
               )}
 
-              
-              {/* RECORD - TEMPORANEO */}
+              {/* RECORD - Record & Primati + Grafico */}
               {statsSubTab === 'record' && (
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">🔧</div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Sezione in manutenzione</h3>
-                  <p className="text-gray-600">Torna presto!</p>
-                </div>
-              )}
-
-              {/* RECORD - Record & Primati + Grafico - TEMPORANEAMENTE DISABILITATO */}
-              {false && statsSubTab === 'record' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {/* CARD 3: RECORD & PRIMATI */}
@@ -7054,46 +7041,49 @@ const SoccerTeamTracker = () => {
                         giornata.partite.forEach(partita => {
                           if (!partita.giocata) return;
                           
+                          const golCasa = parseInt(partita.golCasa) || 0;
+                          const golTrasferta = parseInt(partita.golTrasferta) || 0;
+                          
                           // Vittoria più larga
-                          const margineCasa = partita.golCasa - partita.golTrasferta;
-                          const margineTrasferta = partita.golTrasferta - partita.golCasa;
+                          const margineCasa = golCasa - golTrasferta;
+                          const margineTrasferta = golTrasferta - golCasa;
                           
                           if (margineCasa > vittoriaPiuLarga.margine) {
                             vittoriaPiuLarga = {
                               squadra: partita.squadraCasa,
                               margine: margineCasa,
-                              risultato: `${partita.golCasa}-${partita.golTrasferta} vs ${partita.squadraTrasferta}`
+                              risultato: `${golCasa}-${golTrasferta} vs ${partita.squadraTrasferta}`
                             };
                           }
                           if (margineTrasferta > vittoriaPiuLarga.margine) {
                             vittoriaPiuLarga = {
                               squadra: partita.squadraTrasferta,
                               margine: margineTrasferta,
-                              risultato: `${partita.golTrasferta}-${partita.golCasa} vs ${partita.squadraCasa}`
+                              risultato: `${golTrasferta}-${golCasa} vs ${partita.squadraCasa}`
                             };
                           }
                           
                           // Più gol in partita (singola squadra)
-                          if (partita.golCasa > piuGolInPartita.gol) {
+                          if (golCasa > piuGolInPartita.gol) {
                             piuGolInPartita = {
                               squadra: partita.squadraCasa,
-                              gol: partita.golCasa,
-                              risultato: `${partita.golCasa}-${partita.golTrasferta} vs ${partita.squadraTrasferta}`
+                              gol: golCasa,
+                              risultato: `${golCasa}-${golTrasferta} vs ${partita.squadraTrasferta}`
                             };
                           }
-                          if (partita.golTrasferta > piuGolInPartita.gol) {
+                          if (golTrasferta > piuGolInPartita.gol) {
                             piuGolInPartita = {
                               squadra: partita.squadraTrasferta,
-                              gol: partita.golTrasferta,
-                              risultato: `${partita.golTrasferta}-${partita.golCasa} vs ${partita.squadraCasa}`
+                              gol: golTrasferta,
+                              risultato: `${golTrasferta}-${golCasa} vs ${partita.squadraCasa}`
                             };
                           }
                           
                           // Capocannoniere squadre
                           if (!capocannoniere[partita.squadraCasa]) capocannoniere[partita.squadraCasa] = 0;
                           if (!capocannoniere[partita.squadraTrasferta]) capocannoniere[partita.squadraTrasferta] = 0;
-                          capocannoniere[partita.squadraCasa] += partita.golCasa;
-                          capocannoniere[partita.squadraTrasferta] += partita.golTrasferta;
+                          capocannoniere[partita.squadraCasa] += golCasa;
+                          capocannoniere[partita.squadraTrasferta] += golTrasferta;
                         });
                       });
                       
@@ -7107,9 +7097,12 @@ const SoccerTeamTracker = () => {
                           giornata.partite.forEach(partita => {
                             if (!partita.giocata) return;
                             
+                            const golCasa = parseInt(partita.golCasa) || 0;
+                            const golTrasferta = parseInt(partita.golTrasferta) || 0;
+                            
                             let vinto = false;
-                            if (partita.squadraCasa === sq.nome && partita.golCasa > partita.golTrasferta) vinto = true;
-                            if (partita.squadraTrasferta === sq.nome && partita.golTrasferta > partita.golCasa) vinto = true;
+                            if (partita.squadraCasa === sq.nome && golCasa > golTrasferta) vinto = true;
+                            if (partita.squadraTrasferta === sq.nome && golTrasferta > golCasa) vinto = true;
                             
                             if (vinto) {
                               serieCorrente++;
@@ -7177,12 +7170,15 @@ const SoccerTeamTracker = () => {
                           giornata.partite.forEach(partita => {
                             if (!partita.giocata) return;
                             
+                            const golCasa = parseInt(partita.golCasa) || 0;
+                            const golTrasferta = parseInt(partita.golTrasferta) || 0;
+                            
                             if (partita.squadraCasa === sq.nome) {
-                              if (partita.golCasa > partita.golTrasferta) puntiGiornata += 3;
-                              else if (partita.golCasa === partita.golTrasferta) puntiGiornata += 1;
+                              if (golCasa > golTrasferta) puntiGiornata += 3;
+                              else if (golCasa === golTrasferta) puntiGiornata += 1;
                             } else if (partita.squadraTrasferta === sq.nome) {
-                              if (partita.golTrasferta > partita.golCasa) puntiGiornata += 3;
-                              else if (partita.golTrasferta === partita.golCasa) puntiGiornata += 1;
+                              if (golTrasferta > golCasa) puntiGiornata += 3;
+                              else if (golTrasferta === golCasa) puntiGiornata += 1;
                             }
                           });
                           
@@ -7198,7 +7194,7 @@ const SoccerTeamTracker = () => {
                       }).sort((a, b) => b.puntiTotali - a.puntiTotali);
                       
                       const top3 = classifica.slice(0, 3);
-                      const maxPunti = Math.max(...top3.flatMap(s => s.andamento.map(a => a.punti)), 1);
+                      const maxPunti = Math.max(...top3.flatMap(s => s.andamento.map(a => a.punti)));
                       const colors = ['#3b82f6', '#10b981', '#f59e0b'];
                       
                       // Calcola trend (ultimi 3 vs primi 3 giornate)
