@@ -1008,6 +1008,8 @@ const SoccerTeamTracker = () => {
   const [injuries, setInjuries] = useState([]);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
   const [selectedPlayerForInjury, setSelectedPlayerForInjury] = useState(null);
+  const [showEditInjuryModal, setShowEditInjuryModal] = useState(false);
+  const [editingInjury, setEditingInjury] = useState(null);
   
   // Calendario
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -6892,12 +6894,19 @@ const SoccerTeamTracker = () => {
                                   <input
                                     type="number"
                                     min="0"
-                                    value={partita.golCasa}
+                                    placeholder="0"
+                                    value={partita.golCasa === '' ? '' : partita.golCasa}
                                     onChange={(e) => {
                                       const newRisultati = [...risultatiCampionato];
                                       const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                      g.partite[idx].golCasa = parseInt(e.target.value) || 0;
-                                      g.partite[idx].giocata = true;  // Auto-giocata
+                                      const value = e.target.value === '' ? '' : parseInt(e.target.value) || 0;
+                                      g.partite[idx].golCasa = value;
+                                      // Imposta giocata=true solo se entrambi i gol sono inseriti
+                                      if (value !== '' && g.partite[idx].golTrasferta !== '') {
+                                        g.partite[idx].giocata = true;
+                                      } else {
+                                        g.partite[idx].giocata = false;
+                                      }
                                       setRisultatiCampionato(newRisultati);
                                     }}
                                     disabled={userRole !== 'admin'}
@@ -6909,12 +6918,19 @@ const SoccerTeamTracker = () => {
                                   <input
                                     type="number"
                                     min="0"
-                                    value={partita.golTrasferta}
+                                    placeholder="0"
+                                    value={partita.golTrasferta === '' ? '' : partita.golTrasferta}
                                     onChange={(e) => {
                                       const newRisultati = [...risultatiCampionato];
                                       const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                      g.partite[idx].golTrasferta = parseInt(e.target.value) || 0;
-                                      g.partite[idx].giocata = true;  // Auto-giocata
+                                      const value = e.target.value === '' ? '' : parseInt(e.target.value) || 0;
+                                      g.partite[idx].golTrasferta = value;
+                                      // Imposta giocata=true solo se entrambi i gol sono inseriti
+                                      if (value !== '' && g.partite[idx].golCasa !== '') {
+                                        g.partite[idx].giocata = true;
+                                      } else {
+                                        g.partite[idx].giocata = false;
+                                      }
                                       setRisultatiCampionato(newRisultati);
                                     }}
                                     disabled={userRole !== 'admin'}
@@ -6965,9 +6981,9 @@ const SoccerTeamTracker = () => {
                                       id: Date.now(),
                                       squadraCasa: squadreGirone[0]?.nome || '',
                                       squadraTrasferta: squadreGirone[1]?.nome || '',
-                                      golCasa: 0,
-                                      golTrasferta: 0,
-                                      giocata: true
+                                      golCasa: '',
+                                      golTrasferta: '',
+                                      giocata: false
                                     });
                                     setRisultatiCampionato(newRisultati);
                                   }}
@@ -10953,7 +10969,7 @@ const SoccerTeamTracker = () => {
                       'bg-green-50 border-green-200'
                     }`}>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3 flex-1">
                           <span className={`injury-badge ${injury.status}`}>
                             {injury.status === 'active' ? '🤕 Attivo' :
                              injury.status === 'recovering' ? '📈 Recupero' :
@@ -10964,8 +10980,31 @@ const SoccerTeamTracker = () => {
                             <div className="text-sm text-gray-600">{injury.type}</div>
                           </div>
                         </div>
-                        <div className="text-sm text-gray-600">
-                          {new Date(injury.startDate).toLocaleDateString('it-IT')} → {new Date(injury.estimatedReturn).toLocaleDateString('it-IT')}
+                        <div className="flex items-center gap-4">
+                          <div className="text-sm text-gray-600">
+                            {new Date(injury.startDate).toLocaleDateString('it-IT')} → {new Date(injury.estimatedReturn).toLocaleDateString('it-IT')}
+                          </div>
+                          {userRole === 'admin' && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingInjury(injury);
+                                  setShowEditInjuryModal(true);
+                                }}
+                                className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm font-semibold"
+                                title="Modifica infortunio"
+                              >
+                                ✏️
+                              </button>
+                              <button
+                                onClick={() => removeInjury(injury.id)}
+                                className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 text-sm font-semibold"
+                                title="Elimina infortunio"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -11083,6 +11122,131 @@ const SoccerTeamTracker = () => {
                     className="w-full bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-semibold"
                   >
                     Registra Infortunio
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Modifica Infortunio */}
+        {showEditInjuryModal && editingInjury && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full animate-scale-up">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-6 rounded-t-lg">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-2xl font-bold">✏️ Modifica Infortunio</h3>
+                  <button
+                    onClick={() => {
+                      setShowEditInjuryModal(false);
+                      setEditingInjury(null);
+                    }}
+                    className="text-white hover:text-gray-200 text-3xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Giocatore</label>
+                    <div className="w-full px-4 py-2 bg-gray-100 border-2 border-gray-300 rounded-lg">
+                      #{editingInjury.playerNum} - {editingInjury.playerName}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo di Infortunio</label>
+                    <input
+                      type="text"
+                      id="editInjuryType"
+                      defaultValue={editingInjury.type}
+                      placeholder="Es: Distorsione caviglia, Stiramento muscolare..."
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Stato</label>
+                    <select
+                      id="editInjuryStatus"
+                      defaultValue={editingInjury.status}
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"
+                    >
+                      <option value="active">🤕 Attivo</option>
+                      <option value="recovering">📈 In Recupero</option>
+                      <option value="recovered">✅ Recuperato</option>
+                    </select>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Data Inizio</label>
+                      <input
+                        type="date"
+                        id="editInjuryStartDate"
+                        defaultValue={editingInjury.startDate}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Rientro Stimato</label>
+                      <input
+                        type="date"
+                        id="editInjuryReturnDate"
+                        defaultValue={editingInjury.estimatedReturn}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Note (opzionale)</label>
+                    <textarea
+                      id="editInjuryNotes"
+                      rows="3"
+                      defaultValue={editingInjury.notes || ''}
+                      placeholder="Descrizione, trattamenti, raccomandazioni..."
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg"
+                    ></textarea>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      const type = document.getElementById('editInjuryType').value;
+                      const status = document.getElementById('editInjuryStatus').value;
+                      const startDate = document.getElementById('editInjuryStartDate').value;
+                      const returnDate = document.getElementById('editInjuryReturnDate').value;
+                      const notes = document.getElementById('editInjuryNotes').value;
+                      
+                      if (!type || !returnDate) {
+                        showToast('Compila tutti i campi obbligatori!', 'warning');
+                        return;
+                      }
+                      
+                      // Aggiorna l'infortunio
+                      setInjuries(injuries.map(inj => 
+                        inj.id === editingInjury.id 
+                          ? {
+                              ...inj,
+                              type,
+                              status,
+                              startDate,
+                              estimatedReturn: returnDate,
+                              notes
+                            }
+                          : inj
+                      ));
+                      
+                      showToast('Infortunio aggiornato!', 'success');
+                      setShowEditInjuryModal(false);
+                      setEditingInjury(null);
+                    }}
+                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                  >
+                    Salva Modifiche
                   </button>
                 </div>
               </div>
