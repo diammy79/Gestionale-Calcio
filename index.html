@@ -6027,8 +6027,8 @@ const SoccerTeamTracker = () => {
         <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern">
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
             {[
-              'dashboard', 'classifica', 'trainings', 'divisione', 'matches', 'tattica', 'convocazioni', 
-              'injuries', 'stats', 'top', 'roster', 'calendar',
+              'dashboard', 'classifica', 'top', 'stats', 'matches', 'convocazioni', 'tattica', 
+              'trainings', 'divisione', 'injuries', 'calendar', 'roster',
               ...(userRole === 'admin' ? ['export', 'sync', 'admin'] : [])
             ].map(tab => (
               <button
