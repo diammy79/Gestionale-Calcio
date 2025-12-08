@@ -2207,6 +2207,7 @@ const SoccerTeamTracker = () => {
       
       risultatiCampionato.forEach(giornata => {
         giornata.partite.forEach(partita => {
+          if (!partita.giocata) return;  // Solo partite giocate
           
           if (partita.squadraCasa === sq.nome) {
             giocate++;
@@ -2323,7 +2324,7 @@ const SoccerTeamTracker = () => {
     yPosition = doc.lastAutoTable.finalY + 10;
     
     // Statistiche Aggregate
-    if (risultatiCampionato.some(g => g.partite.length > 0)) {
+    if (risultatiCampionato.some(g => g.partite.some(p => p.giocata))) {
       doc.setFontSize(14);
       doc.text('📊 STATISTICHE CAMPIONATO', 15, yPosition);
       yPosition += 8;
@@ -2332,7 +2333,8 @@ const SoccerTeamTracker = () => {
       const golPerSquadra = {};
       risultatiCampionato.forEach(giornata => {
         giornata.partite.forEach(partita => {
-          if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
+              if (!partita.giocata) return;
+                        if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
           if (!golPerSquadra[partita.squadraTrasferta]) golPerSquadra[partita.squadraTrasferta] = 0;
           golPerSquadra[partita.squadraCasa] += partita.golCasa;
           golPerSquadra[partita.squadraTrasferta] += partita.golTrasferta;
@@ -2362,7 +2364,8 @@ const SoccerTeamTracker = () => {
       const golSubitiPerSquadra = {};
       risultatiCampionato.forEach(giornata => {
         giornata.partite.forEach(partita => {
-          if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
+              if (!partita.giocata) return;
+                        if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
           if (!golSubitiPerSquadra[partita.squadraTrasferta]) golSubitiPerSquadra[partita.squadraTrasferta] = 0;
           golSubitiPerSquadra[partita.squadraCasa] += partita.golTrasferta;
           golSubitiPerSquadra[partita.squadraTrasferta] += partita.golCasa;
@@ -2393,7 +2396,8 @@ const SoccerTeamTracker = () => {
         const puntiCasa = {};
         risultatiCampionato.forEach(giornata => {
           giornata.partite.forEach(partita => {
-            if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
+              if (!partita.giocata) return;
+                          if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
             if (partita.golCasa > partita.golTrasferta) puntiCasa[partita.squadraCasa] += 3;
             else if (partita.golCasa === partita.golTrasferta) puntiCasa[partita.squadraCasa] += 1;
           });
@@ -2421,7 +2425,8 @@ const SoccerTeamTracker = () => {
         const puntiTrasferta = {};
         risultatiCampionato.forEach(giornata => {
           giornata.partite.forEach(partita => {
-            if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
+              if (!partita.giocata) return;
+                          if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
             if (partita.golTrasferta > partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 3;
             else if (partita.golTrasferta === partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 1;
           });
@@ -6408,14 +6413,14 @@ const SoccerTeamTracker = () => {
                 </div>
                 <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-4 border-2 border-green-200">
                   <div className="text-3xl font-bold text-green-600">
-                    {risultatiCampionato.reduce((sum, g) => sum + g.partite.length, 0)}
+                    {risultatiCampionato.reduce((sum, g) => sum + g.partite.filter(p => p.giocata).length, 0)}
                   </div>
-                  <div className="text-sm text-gray-700 font-semibold">Partite Inserite</div>
+                  <div className="text-sm text-gray-700 font-semibold">Partite Giocate</div>
                 </div>
                 <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow p-4 border-2 border-yellow-200">
                   <div className="text-3xl font-bold text-yellow-600">
                     {risultatiCampionato.reduce((sum, g) => sum + g.partite.reduce((s, p) => 
-                      s + (p.golCasa + p.golTrasferta), 0), 0)}
+                      s + (p.giocata ? (p.golCasa + p.golTrasferta) : 0), 0), 0)}
                   </div>
                   <div className="text-sm text-gray-700 font-semibold">Gol Totali</div>
                 </div>
@@ -6503,6 +6508,7 @@ const SoccerTeamTracker = () => {
                             
                             risultatiCampionato.forEach(giornata => {
                               giornata.partite.forEach(partita => {
+                                if (!partita.giocata) return;  // Solo partite giocate
                                 
                                 if (partita.squadraCasa === sq.nome) {
                                   giocate++;
@@ -6587,7 +6593,7 @@ const SoccerTeamTracker = () => {
                   )}
                   
                   {/* Statistiche Aggregate */}
-                  {squadreGirone.length > 0 && risultatiCampionato.some(g => g.partite.length > 0) && (
+                  {squadreGirone.length > 0 && risultatiCampionato.some(g => g.partite.some(p => p.giocata)) && (
                     <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200">
                         <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
@@ -6598,7 +6604,8 @@ const SoccerTeamTracker = () => {
                           const golPerSquadra = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
+              if (!partita.giocata) return;
+                                            if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
                               if (!golPerSquadra[partita.squadraTrasferta]) golPerSquadra[partita.squadraTrasferta] = 0;
                               golPerSquadra[partita.squadraCasa] += partita.golCasa;
                               golPerSquadra[partita.squadraTrasferta] += partita.golTrasferta;
@@ -6636,7 +6643,8 @@ const SoccerTeamTracker = () => {
                           const golSubitiPerSquadra = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
+              if (!partita.giocata) return;
+                                            if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
                               if (!golSubitiPerSquadra[partita.squadraTrasferta]) golSubitiPerSquadra[partita.squadraTrasferta] = 0;
                               golSubitiPerSquadra[partita.squadraCasa] += partita.golTrasferta;
                               golSubitiPerSquadra[partita.squadraTrasferta] += partita.golCasa;
@@ -6674,7 +6682,8 @@ const SoccerTeamTracker = () => {
                           const puntiCasa = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
+              if (!partita.giocata) return;
+                                            if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
                               if (partita.golCasa > partita.golTrasferta) puntiCasa[partita.squadraCasa] += 3;
                               else if (partita.golCasa === partita.golTrasferta) puntiCasa[partita.squadraCasa] += 1;
                             });
@@ -6711,7 +6720,8 @@ const SoccerTeamTracker = () => {
                           const puntiTrasferta = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
+              if (!partita.giocata) return;
+                                            if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
                               if (partita.golTrasferta > partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 3;
                               else if (partita.golTrasferta === partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 1;
                             });
@@ -6887,6 +6897,7 @@ const SoccerTeamTracker = () => {
                                       const newRisultati = [...risultatiCampionato];
                                       const g = newRisultati.find(r => r.giornata === selectedGiornata);
                                       g.partite[idx].golCasa = parseInt(e.target.value) || 0;
+                                      g.partite[idx].giocata = true;  // Auto-giocata
                                       setRisultatiCampionato(newRisultati);
                                     }}
                                     disabled={userRole !== 'admin'}
@@ -6903,6 +6914,7 @@ const SoccerTeamTracker = () => {
                                       const newRisultati = [...risultatiCampionato];
                                       const g = newRisultati.find(r => r.giornata === selectedGiornata);
                                       g.partite[idx].golTrasferta = parseInt(e.target.value) || 0;
+                                      g.partite[idx].giocata = true;  // Auto-giocata
                                       setRisultatiCampionato(newRisultati);
                                     }}
                                     disabled={userRole !== 'admin'}
@@ -6941,12 +6953,6 @@ const SoccerTeamTracker = () => {
                                       🗑️
                                     </button>
                                   )}
-                                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-semibold"
-                                      >
-                                        🗑️ Elimina
-                                      </button>
-                                    )}
-                                  </div>
                                 </div>
                               ))}
                               
@@ -6960,7 +6966,8 @@ const SoccerTeamTracker = () => {
                                       squadraCasa: squadreGirone[0]?.nome || '',
                                       squadraTrasferta: squadreGirone[1]?.nome || '',
                                       golCasa: 0,
-                                      golTrasferta: 0
+                                      golTrasferta: 0,
+                                      giocata: true
                                     });
                                     setRisultatiCampionato(newRisultati);
                                   }}
