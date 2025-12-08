@@ -6807,11 +6807,18 @@ const SoccerTeamTracker = () => {
                       </div>
                     </div>
                   )}
+
+              {/* DETTAGLI - TEMPORANEO */}
+              {statsSubTab === 'dettagli' && (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🔧</div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">Sezione in manutenzione</h3>
+                  <p className="text-gray-600">Torna presto!</p>
                 </div>
               )}
-
-              {/* DETTAGLI - Form ultimi 5 + Clean sheet */}
-              {statsSubTab === 'dettagli' && (
+              
+              {/* DETTAGLI - Form ultimi 5 + Clean sheet - TEMPORANEAMENTE DISABILITATO */}
+              {false && statsSubTab === 'dettagli' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {/* CARD 1: FORM ULTIMI 5 MATCH */}
@@ -7018,8 +7025,18 @@ const SoccerTeamTracker = () => {
                 </div>
               )}
 
-              {/* RECORD - Record & Primati + Grafico */}
+              
+              {/* RECORD - TEMPORANEO */}
               {statsSubTab === 'record' && (
+                <div className="text-center py-12">
+                  <div className="text-6xl mb-4">🔧</div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">Sezione in manutenzione</h3>
+                  <p className="text-gray-600">Torna presto!</p>
+                </div>
+              )}
+
+              {/* RECORD - Record & Primati + Grafico - TEMPORANEAMENTE DISABILITATO */}
+              {false && statsSubTab === 'record' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   
                   {/* CARD 3: RECORD & PRIMATI */}
@@ -7181,7 +7198,7 @@ const SoccerTeamTracker = () => {
                       }).sort((a, b) => b.puntiTotali - a.puntiTotali);
                       
                       const top3 = classifica.slice(0, 3);
-                      const maxPunti = Math.max(...top3.flatMap(s => s.andamento.map(a => a.punti)));
+                      const maxPunti = Math.max(...top3.flatMap(s => s.andamento.map(a => a.punti)), 1);
                       const colors = ['#3b82f6', '#10b981', '#f59e0b'];
                       
                       // Calcola trend (ultimi 3 vs primi 3 giornate)
