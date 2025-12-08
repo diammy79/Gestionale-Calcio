@@ -3892,6 +3892,171 @@ const SoccerTeamTracker = () => {
     return index >= 0 ? index + 1 : null;
   };
 
+  // ========== FUNZIONE EXPORT ROSA PDF ==========
+  
+  const exportRosaPDF = () => {
+    const doc = new jsPDF();
+    const currentYear = new Date().getFullYear();
+    
+    // Helper per ordinamento ruoli (stesso di calculateStats)
+    const getRuoloOrderPDF = (ruolo) => {
+      if (!ruolo) return 999;
+      const r = ruolo.toLowerCase().trim();
+      
+      if (r.includes('portier') || r === 'por' || r === 'p') return 1;
+      if ((r.includes('difensor') && r.includes('central')) || r === 'dc' || r === 'difensore centrale') return 2;
+      if (r.includes('terzin') || r === 'td' || r === 'ts' || r === 'terzino destro' || r === 'terzino sinistro') return 3;
+      if ((r.includes('centroc') && r.includes('central')) || r === 'cc' || r === 'centrocampista centrale' || r.includes('mediano') || r.includes('regista')) return 4;
+      if ((r.includes('esterno') || r.includes('ala')) && !r.includes('attacc') && !r.includes('trequart')) return 5;
+      if (r.includes('trequart') || r === 'tq' || r === 'trequartista') return 6;
+      if (r.includes('attacc') || r.includes('punta') || r === 'at' || r === 'pc' || r === 'as' || r === 'ad') return 7;
+      if (r.includes('difensor') || r.includes('libero')) return 2.5;
+      if (r.includes('centroc') || r.includes('mezzala')) return 4.5;
+      return 999;
+    };
+    
+    // Helper per ottenere categoria ruolo
+    const getRuoloCategoria = (ruolo) => {
+      const order = getRuoloOrderPDF(ruolo);
+      if (order === 1) return 'Portieri';
+      if (order >= 2 && order < 3) return 'Difensori Centrali';
+      if (order === 3) return 'Terzini';
+      if (order >= 4 && order < 5) return 'Centrocampisti Centrali';
+      if (order === 5) return 'Esterni Alti';
+      if (order === 6) return 'Trequartisti';
+      if (order === 7) return 'Attaccanti';
+      return 'Altri';
+    };
+    
+    // Helper per colore ruolo
+    const getRuoloColor = (categoria) => {
+      const colors = {
+        'Portieri': [255, 235, 59],           // Giallo
+        'Difensori Centrali': [33, 150, 243], // Blu
+        'Terzini': [100, 181, 246],           // Azzurro
+        'Centrocampisti Centrali': [76, 175, 80], // Verde
+        'Esterni Alti': [129, 199, 132],      // Verde chiaro
+        'Trequartisti': [156, 39, 176],       // Viola
+        'Attaccanti': [244, 67, 54],          // Rosso
+        'Altri': [158, 158, 158]              // Grigio
+      };
+      return colors[categoria] || [200, 200, 200];
+    };
+    
+    // Ordina giocatori per ruolo
+    const giocatoriOrdinati = players
+      .filter(p => p.nome)
+      .sort((a, b) => {
+        const ruoloA = getRuoloOrderPDF(a.ruolo);
+        const ruoloB = getRuoloOrderPDF(b.ruolo);
+        if (ruoloA !== ruoloB) return ruoloA - ruoloB;
+        return a.nome.localeCompare(b.nome);
+      });
+    
+    // Titolo
+    doc.setFontSize(20);
+    doc.setFont(undefined, 'bold');
+    doc.text('REAL D.O.R. UNDER 18', 105, 20, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.text(`Rosa Stagione ${currentYear}`, 105, 30, { align: 'center' });
+    
+    // Sottotitolo
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Totale Giocatori: ${giocatoriOrdinati.length}`, 105, 38, { align: 'center' });
+    
+    // Linea separatore
+    doc.setLineWidth(0.5);
+    doc.line(20, 42, 190, 42);
+    
+    let yPosition = 50;
+    let currentCategoria = '';
+    let numero = 1;
+    
+    giocatoriOrdinati.forEach((player) => {
+      const categoria = getRuoloCategoria(player.ruolo);
+      
+      // Nuova categoria - Header colorato
+      if (categoria !== currentCategoria) {
+        // Spazio prima della nuova categoria
+        if (currentCategoria !== '') {
+          yPosition += 5;
+        }
+        
+        // Check nuova pagina
+        if (yPosition > 270) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        currentCategoria = categoria;
+        const color = getRuoloColor(categoria);
+        
+        // Box colorato per categoria
+        doc.setFillColor(color[0], color[1], color[2]);
+        doc.rect(20, yPosition - 5, 170, 8, 'F');
+        
+        // Testo categoria
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text(categoria.toUpperCase(), 25, yPosition);
+        
+        doc.setTextColor(0, 0, 0);
+        yPosition += 8;
+      }
+      
+      // Check nuova pagina
+      if (yPosition > 275) {
+        doc.addPage();
+        yPosition = 20;
+      }
+      
+      // Giocatore
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      
+      // Numero progressivo
+      doc.setFont(undefined, 'bold');
+      doc.text(`${numero}.`, 25, yPosition);
+      
+      // Nome
+      doc.setFont(undefined, 'bold');
+      doc.text(player.nome, 35, yPosition);
+      
+      // Ruolo specifico
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`(${player.ruolo || 'N/D'})`, 35 + doc.getTextWidth(player.nome) + 3, yPosition);
+      
+      // Numero maglia (se presente)
+      if (player.numero) {
+        doc.setTextColor(33, 150, 243);
+        doc.setFont(undefined, 'bold');
+        doc.text(`#${player.numero}`, 180, yPosition, { align: 'right' });
+      }
+      
+      doc.setTextColor(0, 0, 0);
+      
+      yPosition += 7;
+      numero++;
+    });
+    
+    // Footer con data generazione
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} - Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
+    }
+    
+    // Salva PDF
+    doc.save(`Rosa_Real_DOR_${currentYear}.pdf`);
+    showToast('PDF Rosa scaricato!', 'success');
+  };
+
   // ========== FUNZIONI PER DIVISIONE SQUADRE ==========
   
   const mappaRuolo = (ruolo) => {
@@ -8902,7 +9067,7 @@ const SoccerTeamTracker = () => {
                     </tr>
                   </thead>
                   <tbody className="bg-white">
-                    {calculateStats().map(stat => {
+                    {calculateStats().map((stat, index) => {
                       const totAllenamenti = stat.allenamenti_presenze + stat.allenamenti_assenze;
                       const percPresenze = totAllenamenti > 0 ? ((stat.allenamenti_presenze / totAllenamenti) * 100).toFixed(0) : '-';
                       const totPartite = matches.length;
@@ -8911,7 +9076,7 @@ const SoccerTeamTracker = () => {
                       
                       return (
                         <tr key={stat.nome} className="border-b hover:bg-gray-50">
-                          <td className="p-1 font-bold border">{getNumeroAlfabetico(stat.nome)}</td>
+                          <td className="p-1 font-bold border">{index + 1}</td>
                           <td className="p-1 text-xs border">{stat.nome}</td>
                           <td className="p-1 text-xs border">{stat.ruolo}</td>
                           <td className="p-1 text-center border">{stat.allenamenti_presenze}</td>
@@ -8940,7 +9105,7 @@ const SoccerTeamTracker = () => {
               {/* Layout MOBILE - Card */}
               <div className="flex md:hidden flex-1 overflow-auto">
                 <div className="w-full space-y-3 pb-4">
-                  {calculateStats().map(stat => {
+                  {calculateStats().map((stat, index) => {
                     const totAllenamenti = stat.allenamenti_presenze + stat.allenamenti_assenze;
                     const percPresenze = totAllenamenti > 0 ? ((stat.allenamenti_presenze / totAllenamenti) * 100).toFixed(0) : '-';
                     const totPartite = matches.length;
@@ -8951,7 +9116,7 @@ const SoccerTeamTracker = () => {
                       <div key={stat.nome} className="bg-white rounded-lg shadow-md border-2 border-gray-200 p-4">
                         {/* Header Card */}
                         <div className="flex items-center gap-3 mb-3 pb-3 border-b-2 border-gray-200">
-                          <div className="text-2xl font-bold text-gray-700">#{getNumeroAlfabetico(stat.nome)}</div>
+                          <div className="text-2xl font-bold text-gray-700">#{index + 1}</div>
                           <div className="flex-1">
                             <div className="font-bold text-gray-800">{stat.nome}</div>
                             <div className="text-xs text-gray-600">{stat.ruolo}</div>
@@ -9236,7 +9401,16 @@ const SoccerTeamTracker = () => {
 
 {activeTab === 'roster' && (
             <div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-4">Gestione Rosa</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">Gestione Rosa</h2>
+                <button
+                  onClick={exportRosaPDF}
+                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                >
+                  <span>📋</span>
+                  <span>Stampa Rosa</span>
+                </button>
+              </div>
               <div className="space-y-4">
                 {players
                   .slice()
