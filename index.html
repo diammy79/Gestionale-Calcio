@@ -2207,7 +2207,6 @@ const SoccerTeamTracker = () => {
       
       risultatiCampionato.forEach(giornata => {
         giornata.partite.forEach(partita => {
-          if (!partita.giocata) return;
           
           if (partita.squadraCasa === sq.nome) {
             giocate++;
@@ -2324,7 +2323,7 @@ const SoccerTeamTracker = () => {
     yPosition = doc.lastAutoTable.finalY + 10;
     
     // Statistiche Aggregate
-    if (risultatiCampionato.some(g => g.partite.some(p => p.giocata))) {
+    if (risultatiCampionato.some(g => g.partite.length > 0)) {
       doc.setFontSize(14);
       doc.text('📊 STATISTICHE CAMPIONATO', 15, yPosition);
       yPosition += 8;
@@ -2333,7 +2332,6 @@ const SoccerTeamTracker = () => {
       const golPerSquadra = {};
       risultatiCampionato.forEach(giornata => {
         giornata.partite.forEach(partita => {
-          if (!partita.giocata) return;
           if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
           if (!golPerSquadra[partita.squadraTrasferta]) golPerSquadra[partita.squadraTrasferta] = 0;
           golPerSquadra[partita.squadraCasa] += partita.golCasa;
@@ -2364,7 +2362,6 @@ const SoccerTeamTracker = () => {
       const golSubitiPerSquadra = {};
       risultatiCampionato.forEach(giornata => {
         giornata.partite.forEach(partita => {
-          if (!partita.giocata) return;
           if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
           if (!golSubitiPerSquadra[partita.squadraTrasferta]) golSubitiPerSquadra[partita.squadraTrasferta] = 0;
           golSubitiPerSquadra[partita.squadraCasa] += partita.golTrasferta;
@@ -2396,7 +2393,6 @@ const SoccerTeamTracker = () => {
         const puntiCasa = {};
         risultatiCampionato.forEach(giornata => {
           giornata.partite.forEach(partita => {
-            if (!partita.giocata) return;
             if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
             if (partita.golCasa > partita.golTrasferta) puntiCasa[partita.squadraCasa] += 3;
             else if (partita.golCasa === partita.golTrasferta) puntiCasa[partita.squadraCasa] += 1;
@@ -2425,7 +2421,6 @@ const SoccerTeamTracker = () => {
         const puntiTrasferta = {};
         risultatiCampionato.forEach(giornata => {
           giornata.partite.forEach(partita => {
-            if (!partita.giocata) return;
             if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
             if (partita.golTrasferta > partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 3;
             else if (partita.golTrasferta === partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 1;
@@ -6413,14 +6408,14 @@ const SoccerTeamTracker = () => {
                 </div>
                 <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-4 border-2 border-green-200">
                   <div className="text-3xl font-bold text-green-600">
-                    {risultatiCampionato.reduce((sum, g) => sum + g.partite.filter(p => p.giocata).length, 0)}
+                    {risultatiCampionato.reduce((sum, g) => sum + g.partite.length, 0)}
                   </div>
-                  <div className="text-sm text-gray-700 font-semibold">Partite Giocate</div>
+                  <div className="text-sm text-gray-700 font-semibold">Partite Inserite</div>
                 </div>
                 <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow p-4 border-2 border-yellow-200">
                   <div className="text-3xl font-bold text-yellow-600">
                     {risultatiCampionato.reduce((sum, g) => sum + g.partite.reduce((s, p) => 
-                      s + (p.giocata ? (p.golCasa + p.golTrasferta) : 0), 0), 0)}
+                      s + (p.golCasa + p.golTrasferta), 0), 0)}
                   </div>
                   <div className="text-sm text-gray-700 font-semibold">Gol Totali</div>
                 </div>
@@ -6508,7 +6503,6 @@ const SoccerTeamTracker = () => {
                             
                             risultatiCampionato.forEach(giornata => {
                               giornata.partite.forEach(partita => {
-                                if (!partita.giocata) return;
                                 
                                 if (partita.squadraCasa === sq.nome) {
                                   giocate++;
@@ -6593,7 +6587,7 @@ const SoccerTeamTracker = () => {
                   )}
                   
                   {/* Statistiche Aggregate */}
-                  {squadreGirone.length > 0 && risultatiCampionato.some(g => g.partite.some(p => p.giocata)) && (
+                  {squadreGirone.length > 0 && risultatiCampionato.some(g => g.partite.length > 0) && (
                     <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200">
                         <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
@@ -6604,7 +6598,6 @@ const SoccerTeamTracker = () => {
                           const golPerSquadra = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!partita.giocata) return;
                               if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
                               if (!golPerSquadra[partita.squadraTrasferta]) golPerSquadra[partita.squadraTrasferta] = 0;
                               golPerSquadra[partita.squadraCasa] += partita.golCasa;
@@ -6643,7 +6636,6 @@ const SoccerTeamTracker = () => {
                           const golSubitiPerSquadra = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!partita.giocata) return;
                               if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
                               if (!golSubitiPerSquadra[partita.squadraTrasferta]) golSubitiPerSquadra[partita.squadraTrasferta] = 0;
                               golSubitiPerSquadra[partita.squadraCasa] += partita.golTrasferta;
@@ -6682,7 +6674,6 @@ const SoccerTeamTracker = () => {
                           const puntiCasa = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!partita.giocata) return;
                               if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
                               if (partita.golCasa > partita.golTrasferta) puntiCasa[partita.squadraCasa] += 3;
                               else if (partita.golCasa === partita.golTrasferta) puntiCasa[partita.squadraCasa] += 1;
@@ -6720,7 +6711,6 @@ const SoccerTeamTracker = () => {
                           const puntiTrasferta = {};
                           risultatiCampionato.forEach(giornata => {
                             giornata.partite.forEach(partita => {
-                              if (!partita.giocata) return;
                               if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
                               if (partita.golTrasferta > partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 3;
                               else if (partita.golTrasferta === partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 1;
@@ -6872,92 +6862,85 @@ const SoccerTeamTracker = () => {
                           <div className="bg-white rounded-lg shadow-lg p-6">
                             <div className="space-y-4">
                               {giornata.partite.map((partita, idx) => (
-                                <div key={idx} className="border rounded-lg p-4">
-                                  <div className="grid md:grid-cols-5 gap-4 items-center">
-                                    <select
-                                      value={partita.squadraCasa}
-                                      onChange={(e) => {
-                                        const newRisultati = [...risultatiCampionato];
-                                        const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                        g.partite[idx].squadraCasa = e.target.value;
-                                        setRisultatiCampionato(newRisultati);
-                                      }}
-                                      disabled={userRole !== 'admin'}
-                                      className="p-2 border-2 rounded font-semibold text-right"
-                                    >
-                                      {squadreGirone.map(sq => (
-                                        <option key={sq.id} value={sq.nome}>{sq.nome}</option>
-                                      ))}
-                                    </select>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={partita.golCasa}
-                                      onChange={(e) => {
-                                        const newRisultati = [...risultatiCampionato];
-                                        const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                        g.partite[idx].golCasa = parseInt(e.target.value) || 0;
-                                        setRisultatiCampionato(newRisultati);
-                                      }}
-                                      disabled={userRole !== 'admin'}
-                                      className="p-2 border-2 text-center text-xl font-bold rounded"
-                                    />
-                                    <div className="text-center text-gray-400">-</div>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      value={partita.golTrasferta}
-                                      onChange={(e) => {
-                                        const newRisultati = [...risultatiCampionato];
-                                        const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                        g.partite[idx].golTrasferta = parseInt(e.target.value) || 0;
-                                        setRisultatiCampionato(newRisultati);
-                                      }}
-                                      disabled={userRole !== 'admin'}
-                                      className="p-2 border-2 text-center text-xl font-bold rounded"
-                                    />
-                                    <select
-                                      value={partita.squadraTrasferta}
-                                      onChange={(e) => {
-                                        const newRisultati = [...risultatiCampionato];
-                                        const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                        g.partite[idx].squadraTrasferta = e.target.value;
-                                        setRisultatiCampionato(newRisultati);
-                                      }}
-                                      disabled={userRole !== 'admin'}
-                                      className="p-2 border-2 rounded font-semibold"
-                                    >
-                                      {squadreGirone.map(sq => (
-                                        <option key={sq.id} value={sq.nome}>{sq.nome}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div className="flex items-center justify-between mt-2">
-                                    <label className="flex items-center gap-2">
-                                      <input
-                                        type="checkbox"
-                                        checked={partita.giocata}
-                                        onChange={(e) => {
+                                <div key={idx} className="border rounded-lg p-3 flex items-center gap-3">
+                                  <select
+                                    value={partita.squadraCasa}
+                                    onChange={(e) => {
+                                      const newRisultati = [...risultatiCampionato];
+                                      const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                      g.partite[idx].squadraCasa = e.target.value;
+                                      setRisultatiCampionato(newRisultati);
+                                    }}
+                                    disabled={userRole !== 'admin'}
+                                    className="flex-1 p-2 border-2 rounded font-semibold"
+                                  >
+                                    {squadreGirone.map(sq => (
+                                      <option key={sq.id} value={sq.nome}>{sq.nome}</option>
+                                    ))}
+                                  </select>
+                                  
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={partita.golCasa}
+                                    onChange={(e) => {
+                                      const newRisultati = [...risultatiCampionato];
+                                      const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                      g.partite[idx].golCasa = parseInt(e.target.value) || 0;
+                                      setRisultatiCampionato(newRisultati);
+                                    }}
+                                    disabled={userRole !== 'admin'}
+                                    className="w-16 p-2 border-2 text-center text-lg font-bold rounded"
+                                  />
+                                  
+                                  <div className="text-gray-400 font-bold">-</div>
+                                  
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={partita.golTrasferta}
+                                    onChange={(e) => {
+                                      const newRisultati = [...risultatiCampionato];
+                                      const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                      g.partite[idx].golTrasferta = parseInt(e.target.value) || 0;
+                                      setRisultatiCampionato(newRisultati);
+                                    }}
+                                    disabled={userRole !== 'admin'}
+                                    className="w-16 p-2 border-2 text-center text-lg font-bold rounded"
+                                  />
+                                  
+                                  <select
+                                    value={partita.squadraTrasferta}
+                                    onChange={(e) => {
+                                      const newRisultati = [...risultatiCampionato];
+                                      const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                      g.partite[idx].squadraTrasferta = e.target.value;
+                                      setRisultatiCampionato(newRisultati);
+                                    }}
+                                    disabled={userRole !== 'admin'}
+                                    className="flex-1 p-2 border-2 rounded font-semibold"
+                                  >
+                                    {squadreGirone.map(sq => (
+                                      <option key={sq.id} value={sq.nome}>{sq.nome}</option>
+                                    ))}
+                                  </select>
+                                  
+                                  {userRole === 'admin' && (
+                                    <button
+                                      onClick={() => {
+                                        if (window.confirm(`Eliminare questa partita?\n${partita.squadraCasa} vs ${partita.squadraTrasferta}`)) {
                                           const newRisultati = [...risultatiCampionato];
                                           const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                          g.partite[idx].giocata = e.target.checked;
+                                          g.partite.splice(idx, 1);
                                           setRisultatiCampionato(newRisultati);
-                                        }}
-                                        disabled={userRole !== 'admin'}
-                                      />
-                                      <span className="text-sm">Partita giocata</span>
-                                    </label>
-                                    {userRole === 'admin' && (
-                                      <button
-                                        onClick={() => {
-                                          if (window.confirm(`Eliminare questa partita?\n${partita.squadraCasa} vs ${partita.squadraTrasferta}`)) {
-                                            const newRisultati = [...risultatiCampionato];
-                                            const g = newRisultati.find(r => r.giornata === selectedGiornata);
-                                            g.partite.splice(idx, 1);
-                                            setRisultatiCampionato(newRisultati);
-                                            showToast('Partita eliminata', 'success');
-                                          }
-                                        }}
+                                          showToast('Partita eliminata', 'success');
+                                        }
+                                      }}
+                                      className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-semibold flex-shrink-0"
+                                    >
+                                      🗑️
+                                    </button>
+                                  )}
                                         className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-semibold"
                                       >
                                         🗑️ Elimina
@@ -6977,8 +6960,7 @@ const SoccerTeamTracker = () => {
                                       squadraCasa: squadreGirone[0]?.nome || '',
                                       squadraTrasferta: squadreGirone[1]?.nome || '',
                                       golCasa: 0,
-                                      golTrasferta: 0,
-                                      giocata: false
+                                      golTrasferta: 0
                                     });
                                     setRisultatiCampionato(newRisultati);
                                   }}
