@@ -971,6 +971,7 @@ const SoccerTeamTracker = () => {
   const [squadreGirone, setSquadreGirone] = useState([]); // Lista squadre del girone
   const [risultatiCampionato, setRisultatiCampionato] = useState([]); // Risultati per giornata
   const [classificaTab, setClassificaTab] = useState('classifica'); // 'squadre', 'risultati', 'classifica'
+  const [statsSubTab, setStatsSubTab] = useState('overview'); // 'overview', 'dettagli', 'record'
   const [editingSquadra, setEditingSquadra] = useState(null);
   const [showAddSquadraModal, setShowAddSquadraModal] = useState(false);
   const [selectedGiornata, setSelectedGiornata] = useState(1);
@@ -6613,7 +6614,44 @@ const SoccerTeamTracker = () => {
                       <p className="text-gray-600">Inserisci squadre e risultati per vedere le statistiche</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <>
+                      {/* Sub-sub-tabs Statistiche */}
+                      <div className="flex gap-2 mb-6 border-b">
+                        <button
+                          onClick={() => setStatsSubTab('overview')}
+                          className={`px-4 py-2 font-semibold text-sm ${
+                            statsSubTab === 'overview'
+                              ? 'text-blue-600 border-b-2 border-blue-600'
+                              : 'text-gray-600 hover:text-blue-600'
+                          }`}
+                        >
+                          📊 Overview
+                        </button>
+                        <button
+                          onClick={() => setStatsSubTab('dettagli')}
+                          className={`px-4 py-2 font-semibold text-sm ${
+                            statsSubTab === 'dettagli'
+                              ? 'text-blue-600 border-b-2 border-blue-600'
+                              : 'text-gray-600 hover:text-blue-600'
+                          }`}
+                        >
+                          📈 Dettagli
+                        </button>
+                        <button
+                          onClick={() => setStatsSubTab('record')}
+                          className={`px-4 py-2 font-semibold text-sm ${
+                            statsSubTab === 'record'
+                              ? 'text-blue-600 border-b-2 border-blue-600'
+                              : 'text-gray-600 hover:text-blue-600'
+                          }`}
+                        >
+                          🏆 Record
+                        </button>
+                      </div>
+
+                      {/* OVERVIEW - 4 card esistenti */}
+                      {statsSubTab === 'overview' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200">
                         <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
                           ⚽ Miglior Attacco
@@ -6768,6 +6806,455 @@ const SoccerTeamTracker = () => {
                         })()}
                       </div>
                     </div>
+                  )}
+                </div>
+              )}
+
+              {/* DETTAGLI - Form ultimi 5 + Clean sheet */}
+              {statsSubTab === 'dettagli' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  
+                  {/* CARD 1: FORM ULTIMI 5 MATCH */}
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-200">
+                    <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                      🔥 Form Ultimi 5 Match
+                    </h4>
+                    {(() => {
+                      // Calcola classifica completa per prendere Real DOR
+                      const classifica = squadreGirone.map(sq => {
+                        let punti = 0, vinte = 0, pareggiate = 0, perse = 0;
+                        const risultati = [];
+                        
+                        risultatiCampionato.forEach(giornata => {
+                          giornata.partite.forEach(partita => {
+                            if (!partita.giocata) return;
+                            
+                            if (partita.squadraCasa === sq.nome) {
+                              if (partita.golCasa > partita.golTrasferta) {
+                                punti += 3;
+                                vinte++;
+                                risultati.push('V');
+                              } else if (partita.golCasa === partita.golTrasferta) {
+                                punti += 1;
+                                pareggiate++;
+                                risultati.push('P');
+                              } else {
+                                perse++;
+                                risultati.push('S');
+                              }
+                            } else if (partita.squadraTrasferta === sq.nome) {
+                              if (partita.golTrasferta > partita.golCasa) {
+                                punti += 3;
+                                vinte++;
+                                risultati.push('V');
+                              } else if (partita.golTrasferta === partita.golCasa) {
+                                punti += 1;
+                                pareggiate++;
+                                risultati.push('P');
+                              } else {
+                                perse++;
+                                risultati.push('S');
+                              }
+                            }
+                          });
+                        });
+                        
+                        return { ...sq, punti, vinte, pareggiate, perse, risultati };
+                      }).sort((a, b) => b.punti - a.punti);
+                      
+                      // Prendi le prime 3 squadre
+                      const top3 = classifica.slice(0, 3);
+                      
+                      return (
+                        <div className="space-y-3">
+                          {top3.map((squadra) => {
+                            const ultimi5 = squadra.risultati.slice(-5);
+                            const puntiUltimi5 = ultimi5.reduce((sum, r) => 
+                              sum + (r === 'V' ? 3 : r === 'P' ? 1 : 0), 0
+                            );
+                            
+                            // Calcola trend
+                            let trend = '→';
+                            let trendColor = 'text-gray-600';
+                            if (puntiUltimi5 >= 12) {
+                              trend = '📈';
+                              trendColor = 'text-green-600';
+                            } else if (puntiUltimi5 <= 6) {
+                              trend = '📉';
+                              trendColor = 'text-red-600';
+                            }
+                            
+                            // Calcola serie attuale
+                            let serieAttuale = 0;
+                            let tipoSerie = '';
+                            if (ultimi5.length > 0) {
+                              const ultimo = ultimi5[ultimi5.length - 1];
+                              for (let i = ultimi5.length - 1; i >= 0; i--) {
+                                if (ultimi5[i] === ultimo) {
+                                  serieAttuale++;
+                                } else break;
+                              }
+                              tipoSerie = ultimo === 'V' ? 'vittorie' : ultimo === 'P' ? 'pareggi' : 'sconfitte';
+                            }
+                            
+                            return (
+                              <div key={squadra.id} className="bg-white rounded p-3 border border-blue-200">
+                                <div className="font-semibold text-gray-800 mb-2">{squadra.nome}</div>
+                                <div className="flex items-center gap-2 mb-2">
+                                  {ultimi5.map((r, idx) => (
+                                    <span
+                                      key={idx}
+                                      className={`w-8 h-8 flex items-center justify-center rounded font-bold text-sm ${
+                                        r === 'V' ? 'bg-green-500 text-white' :
+                                        r === 'P' ? 'bg-yellow-500 text-white' :
+                                        'bg-red-500 text-white'
+                                      }`}
+                                    >
+                                      {r}
+                                    </span>
+                                  ))}
+                                  <span className={`text-2xl ml-2 ${trendColor}`}>{trend}</span>
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  <div>Ultimi 5: {ultimi5.filter(r => r === 'V').length}V {ultimi5.filter(r => r === 'P').length}P {ultimi5.filter(r => r === 'S').length}S ({puntiUltimi5} punti)</div>
+                                  {serieAttuale > 1 && (
+                                    <div className="font-semibold text-blue-600 mt-1">
+                                      Serie attuale: {serieAttuale} {tipoSerie} {serieAttuale >= 3 ? '🔥' : ''}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  
+                  {/* CARD 2: CLEAN SHEET & MEDIE */}
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200">
+                    <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                      🛡️ Clean Sheet & Medie
+                    </h4>
+                    {(() => {
+                      // Calcola statistiche dettagliate per ogni squadra
+                      const stats = squadreGirone.map(sq => {
+                        let giocate = 0, golFatti = 0, golSubiti = 0, cleanSheet = 0;
+                        
+                        risultatiCampionato.forEach(giornata => {
+                          giornata.partite.forEach(partita => {
+                            if (!partita.giocata) return;
+                            
+                            if (partita.squadraCasa === sq.nome) {
+                              giocate++;
+                              golFatti += partita.golCasa;
+                              golSubiti += partita.golTrasferta;
+                              if (partita.golTrasferta === 0) cleanSheet++;
+                            } else if (partita.squadraTrasferta === sq.nome) {
+                              giocate++;
+                              golFatti += partita.golTrasferta;
+                              golSubiti += partita.golCasa;
+                              if (partita.golCasa === 0) cleanSheet++;
+                            }
+                          });
+                        });
+                        
+                        return {
+                          nome: sq.nome,
+                          giocate,
+                          golFatti,
+                          golSubiti,
+                          cleanSheet,
+                          mediaGolFatti: giocate > 0 ? (golFatti / giocate).toFixed(1) : 0,
+                          mediaGolSubiti: giocate > 0 ? (golSubiti / giocate).toFixed(1) : 0,
+                          cleanSheetPerc: giocate > 0 ? ((cleanSheet / giocate) * 100).toFixed(0) : 0,
+                          diffReti: golFatti - golSubiti
+                        };
+                      }).sort((a, b) => b.diffReti - a.diffReti);
+                      
+                      const top3 = stats.slice(0, 3);
+                      
+                      return (
+                        <div className="space-y-3">
+                          {top3.map((squadra, idx) => (
+                            <div key={squadra.nome} className="bg-white rounded p-3 border border-green-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-semibold text-gray-800">
+                                  {idx === 0 && '🥇 '}
+                                  {idx === 1 && '🥈 '}
+                                  {idx === 2 && '🥉 '}
+                                  {squadra.nome}
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 text-xs">
+                                <div className="bg-green-100 rounded p-2">
+                                  <div className="text-gray-600">Porte inviolate</div>
+                                  <div className="font-bold text-green-600">
+                                    {squadra.cleanSheet}/{squadra.giocate} ({squadra.cleanSheetPerc}%)
+                                  </div>
+                                </div>
+                                <div className="bg-blue-100 rounded p-2">
+                                  <div className="text-gray-600">Media gol fatti</div>
+                                  <div className="font-bold text-blue-600">{squadra.mediaGolFatti}/partita</div>
+                                </div>
+                                <div className="bg-yellow-100 rounded p-2">
+                                  <div className="text-gray-600">Media gol subiti</div>
+                                  <div className="font-bold text-yellow-600">{squadra.mediaGolSubiti}/partita</div>
+                                </div>
+                                <div className="bg-purple-100 rounded p-2">
+                                  <div className="text-gray-600">Goal difference</div>
+                                  <div className="font-bold text-purple-600">
+                                    {squadra.diffReti > 0 ? '+' : ''}{squadra.diffReti}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  
+                </div>
+              )}
+
+              {/* RECORD - Record & Primati + Grafico */}
+              {statsSubTab === 'record' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  
+                  {/* CARD 3: RECORD & PRIMATI */}
+                  <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200">
+                    <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                      🏆 Record & Primati
+                    </h4>
+                    {(() => {
+                      // Calcola record del campionato
+                      let vittoriaPiuLarga = { squadra: '', margine: 0, risultato: '' };
+                      let piuGolInPartita = { squadra: '', gol: 0, risultato: '' };
+                      let capocannoniere = {};
+                      
+                      risultatiCampionato.forEach(giornata => {
+                        giornata.partite.forEach(partita => {
+                          if (!partita.giocata) return;
+                          
+                          // Vittoria più larga
+                          const margineCasa = partita.golCasa - partita.golTrasferta;
+                          const margineTrasferta = partita.golTrasferta - partita.golCasa;
+                          
+                          if (margineCasa > vittoriaPiuLarga.margine) {
+                            vittoriaPiuLarga = {
+                              squadra: partita.squadraCasa,
+                              margine: margineCasa,
+                              risultato: `${partita.golCasa}-${partita.golTrasferta} vs ${partita.squadraTrasferta}`
+                            };
+                          }
+                          if (margineTrasferta > vittoriaPiuLarga.margine) {
+                            vittoriaPiuLarga = {
+                              squadra: partita.squadraTrasferta,
+                              margine: margineTrasferta,
+                              risultato: `${partita.golTrasferta}-${partita.golCasa} vs ${partita.squadraCasa}`
+                            };
+                          }
+                          
+                          // Più gol in partita (singola squadra)
+                          if (partita.golCasa > piuGolInPartita.gol) {
+                            piuGolInPartita = {
+                              squadra: partita.squadraCasa,
+                              gol: partita.golCasa,
+                              risultato: `${partita.golCasa}-${partita.golTrasferta} vs ${partita.squadraTrasferta}`
+                            };
+                          }
+                          if (partita.golTrasferta > piuGolInPartita.gol) {
+                            piuGolInPartita = {
+                              squadra: partita.squadraTrasferta,
+                              gol: partita.golTrasferta,
+                              risultato: `${partita.golTrasferta}-${partita.golCasa} vs ${partita.squadraCasa}`
+                            };
+                          }
+                          
+                          // Capocannoniere squadre
+                          if (!capocannoniere[partita.squadraCasa]) capocannoniere[partita.squadraCasa] = 0;
+                          if (!capocannoniere[partita.squadraTrasferta]) capocannoniere[partita.squadraTrasferta] = 0;
+                          capocannoniere[partita.squadraCasa] += partita.golCasa;
+                          capocannoniere[partita.squadraTrasferta] += partita.golTrasferta;
+                        });
+                      });
+                      
+                      // Serie migliore (più vittorie consecutive)
+                      let serieMigliore = { squadra: '', vittorie: 0 };
+                      squadreGirone.forEach(sq => {
+                        let serieCorrente = 0;
+                        let serieMax = 0;
+                        
+                        risultatiCampionato.forEach(giornata => {
+                          giornata.partite.forEach(partita => {
+                            if (!partita.giocata) return;
+                            
+                            let vinto = false;
+                            if (partita.squadraCasa === sq.nome && partita.golCasa > partita.golTrasferta) vinto = true;
+                            if (partita.squadraTrasferta === sq.nome && partita.golTrasferta > partita.golCasa) vinto = true;
+                            
+                            if (vinto) {
+                              serieCorrente++;
+                              if (serieCorrente > serieMax) serieMax = serieCorrente;
+                            } else {
+                              serieCorrente = 0;
+                            }
+                          });
+                        });
+                        
+                        if (serieMax > serieMigliore.vittorie) {
+                          serieMigliore = { squadra: sq.nome, vittorie: serieMax };
+                        }
+                      });
+                      
+                      const topGoleador = Object.entries(capocannoniere)
+                        .sort((a, b) => b[1] - a[1])[0];
+                      
+                      return (
+                        <div className="space-y-3">
+                          <div className="bg-white rounded p-3 border border-yellow-200">
+                            <div className="text-xs text-gray-600 mb-1">🎯 Vittoria più larga</div>
+                            <div className="font-bold text-gray-800">{vittoriaPiuLarga.squadra}</div>
+                            <div className="text-sm text-gray-600">{vittoriaPiuLarga.risultato}</div>
+                          </div>
+                          
+                          <div className="bg-white rounded p-3 border border-yellow-200">
+                            <div className="text-xs text-gray-600 mb-1">⚽ Più gol in una partita</div>
+                            <div className="font-bold text-gray-800">{piuGolInPartita.squadra} - {piuGolInPartita.gol} gol</div>
+                            <div className="text-sm text-gray-600">{piuGolInPartita.risultato}</div>
+                          </div>
+                          
+                          <div className="bg-white rounded p-3 border border-yellow-200">
+                            <div className="text-xs text-gray-600 mb-1">🔥 Miglior serie di vittorie</div>
+                            <div className="font-bold text-gray-800">{serieMigliore.squadra}</div>
+                            <div className="text-sm text-gray-600">{serieMigliore.vittorie} vittorie consecutive</div>
+                          </div>
+                          
+                          {topGoleador && (
+                            <div className="bg-white rounded p-3 border border-yellow-200">
+                              <div className="text-xs text-gray-600 mb-1">👟 Squadra più prolifica</div>
+                              <div className="font-bold text-gray-800">{topGoleador[0]}</div>
+                              <div className="text-sm text-gray-600">{topGoleador[1]} gol totali</div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  
+                  {/* CARD 4: GRAFICO ANDAMENTO PUNTI */}
+                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg p-4 border-2 border-purple-200">
+                    <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                      📈 Andamento Punti
+                    </h4>
+                    {(() => {
+                      // Calcola andamento punti per le prime 3 squadre
+                      const classifica = squadreGirone.map(sq => {
+                        let puntiTotali = 0;
+                        const andamento = [];
+                        
+                        risultatiCampionato.forEach(giornata => {
+                          let puntiGiornata = 0;
+                          
+                          giornata.partite.forEach(partita => {
+                            if (!partita.giocata) return;
+                            
+                            if (partita.squadraCasa === sq.nome) {
+                              if (partita.golCasa > partita.golTrasferta) puntiGiornata += 3;
+                              else if (partita.golCasa === partita.golTrasferta) puntiGiornata += 1;
+                            } else if (partita.squadraTrasferta === sq.nome) {
+                              if (partita.golTrasferta > partita.golCasa) puntiGiornata += 3;
+                              else if (partita.golTrasferta === partita.golCasa) puntiGiornata += 1;
+                            }
+                          });
+                          
+                          if (puntiGiornata > 0 || giornata.partite.some(p => 
+                            p.giocata && (p.squadraCasa === sq.nome || p.squadraTrasferta === sq.nome)
+                          )) {
+                            puntiTotali += puntiGiornata;
+                            andamento.push({ giornata: giornata.giornata, punti: puntiTotali });
+                          }
+                        });
+                        
+                        return { nome: sq.nome, andamento, puntiTotali };
+                      }).sort((a, b) => b.puntiTotali - a.puntiTotali);
+                      
+                      const top3 = classifica.slice(0, 3);
+                      const maxPunti = Math.max(...top3.flatMap(s => s.andamento.map(a => a.punti)));
+                      const colors = ['#3b82f6', '#10b981', '#f59e0b'];
+                      
+                      // Calcola trend (ultimi 3 vs primi 3 giornate)
+                      const getTrend = (andamento) => {
+                        if (andamento.length < 6) return { text: '→', color: 'text-gray-600' };
+                        const primi3 = andamento.slice(0, 3).reduce((sum, a, i, arr) => 
+                          sum + (i > 0 ? a.punti - arr[i-1].punti : a.punti), 0
+                        );
+                        const ultimi3 = andamento.slice(-3).reduce((sum, a, i, arr) => 
+                          sum + (i > 0 ? a.punti - arr[i-1].punti : 0), 0
+                        );
+                        
+                        if (ultimi3 > primi3 + 2) return { text: '📈 In crescita', color: 'text-green-600' };
+                        if (ultimi3 < primi3 - 2) return { text: '📉 In calo', color: 'text-red-600' };
+                        return { text: '→ Stabile', color: 'text-gray-600' };
+                      };
+                      
+                      return (
+                        <div className="space-y-4">
+                          {/* Grafico a linee ASCII-style */}
+                          <div className="bg-white rounded p-3 border border-purple-200">
+                            <div className="font-mono text-xs overflow-x-auto">
+                              {top3.map((squadra, sIdx) => (
+                                <div key={squadra.nome} className="mb-3">
+                                  <div className="font-bold mb-1" style={{ color: colors[sIdx] }}>
+                                    {squadra.nome}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    {squadra.andamento.map((punto, idx) => {
+                                      const height = Math.round((punto.punti / maxPunti) * 10);
+                                      return (
+                                        <div key={idx} className="flex flex-col items-center">
+                                          <div 
+                                            className="w-2 rounded-t"
+                                            style={{ 
+                                              height: `${height * 4}px`,
+                                              backgroundColor: colors[sIdx]
+                                            }}
+                                            title={`G${punto.giornata}: ${punto.punti} pt`}
+                                          />
+                                          <div className="text-[8px] mt-1">{punto.giornata}</div>
+                                        </div>
+                                      );
+                                    })}
+                                    <div className="ml-2 font-bold" style={{ color: colors[sIdx] }}>
+                                      {squadra.puntiTotali} pt
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {/* Trend */}
+                          <div className="space-y-2">
+                            {top3.map((squadra) => {
+                              const trend = getTrend(squadra.andamento);
+                              return (
+                                <div key={squadra.nome} className="bg-white rounded p-2 border border-purple-200 flex justify-between items-center">
+                                  <span className="text-sm font-semibold text-gray-800">{squadra.nome}</span>
+                                  <span className={`text-xs font-semibold ${trend.color}`}>{trend.text}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  
+                </div>
+              )}
+                    </>
                   )}
                 </div>
               )}
