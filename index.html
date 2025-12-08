@@ -3829,7 +3829,58 @@ const SoccerTeamTracker = () => {
       });
     });
 
-    return Object.values(stats).filter(s => s.nome).sort((a, b) => a.nome.localeCompare(b.nome));
+    // Funzione helper per ordinamento per ruolo
+    const getRuoloOrder = (ruolo) => {
+      if (!ruolo) return 999;
+      const r = ruolo.toLowerCase().trim();
+      
+      // 1. Portieri
+      if (r.includes('portier') || r === 'por' || r === 'p') return 1;
+      
+      // 2. Difensori centrali
+      if ((r.includes('difensor') && r.includes('central')) || 
+          r === 'dc' || r === 'difensore centrale') return 2;
+      
+      // 3. Terzini
+      if (r.includes('terzin') || r === 'td' || r === 'ts' || 
+          r === 'terzino destro' || r === 'terzino sinistro') return 3;
+      
+      // 4. Centrocampisti centrali
+      if ((r.includes('centroc') && r.includes('central')) || 
+          r === 'cc' || r === 'centrocampista centrale' ||
+          r.includes('mediano') || r.includes('regista')) return 4;
+      
+      // 5. Esterni alti (esterni di centrocampo)
+      if ((r.includes('esterno') || r.includes('ala')) && 
+          !r.includes('attacc') && !r.includes('trequart')) return 5;
+      
+      // 6. Trequartisti
+      if (r.includes('trequart') || r === 'tq' || r === 'trequartista') return 6;
+      
+      // 7. Attaccanti
+      if (r.includes('attacc') || r.includes('punta') || 
+          r === 'at' || r === 'pc' || r === 'as' || r === 'ad') return 7;
+      
+      // Altri difensori (fallback)
+      if (r.includes('difensor') || r.includes('libero')) return 2.5;
+      
+      // Altri centrocampisti (fallback)
+      if (r.includes('centroc') || r.includes('mezzala')) return 4.5;
+      
+      return 999; // Ruoli non riconosciuti vanno alla fine
+    };
+
+    return Object.values(stats)
+      .filter(s => s.nome)
+      .sort((a, b) => {
+        // Prima ordina per ruolo
+        const ruoloA = getRuoloOrder(a.ruolo);
+        const ruoloB = getRuoloOrder(b.ruolo);
+        if (ruoloA !== ruoloB) return ruoloA - ruoloB;
+        
+        // Poi alfabeticamente per nome
+        return a.nome.localeCompare(b.nome);
+      });
   };
 
   const getNumeroAlfabetico = (nomeGiocatore) => {
