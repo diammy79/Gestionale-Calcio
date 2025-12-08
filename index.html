@@ -641,6 +641,198 @@
       background: #d1fae5;
       color: #065f46;
     }
+
+    /* ========== OTTIMIZZAZIONI MOBILE - MIGLIORE LEGGIBILITÀ ========== */
+    @media (max-width: 640px) {
+      /* Font più grandi su mobile */
+      .text-xs {
+        font-size: 0.875rem !important; /* da 0.75rem a 0.875rem */
+      }
+      
+      .text-sm {
+        font-size: 1rem !important; /* da 0.875rem a 1rem */
+      }
+      
+      /* Padding più generoso su mobile */
+      .p-1 {
+        padding: 0.5rem !important; /* da 0.25rem a 0.5rem */
+      }
+      
+      .p-2 {
+        padding: 0.625rem !important; /* da 0.5rem a 0.625rem */
+      }
+      
+      .px-2 {
+        padding-left: 0.625rem !important;
+        padding-right: 0.625rem !important;
+      }
+      
+      .py-2 {
+        padding-top: 0.625rem !important;
+        padding-bottom: 0.625rem !important;
+      }
+      
+      /* Bottoni più grandi e cliccabili */
+      button, .btn, a.btn {
+        min-height: 44px !important; /* Minimo Apple HIG */
+        padding: 0.75rem 1rem !important;
+        font-size: 1rem !important;
+      }
+      
+      /* Tab navigation più visibile */
+      .tab-container button {
+        padding: 0.875rem 1rem !important;
+        font-size: 1rem !important;
+        min-height: 48px !important;
+      }
+      
+      /* Card più spaziose */
+      .card-modern {
+        padding: 1rem !important;
+      }
+      
+      /* Input più grandi */
+      input, select, textarea {
+        min-height: 44px !important;
+        padding: 0.75rem !important;
+        font-size: 1rem !important;
+      }
+      
+      /* Gap più generosi */
+      .gap-1 {
+        gap: 0.5rem !important;
+      }
+      
+      .gap-2 {
+        gap: 0.75rem !important;
+      }
+      
+      /* Titoli più visibili */
+      h1 {
+        font-size: 1.75rem !important;
+      }
+      
+      h2 {
+        font-size: 1.5rem !important;
+      }
+      
+      h3 {
+        font-size: 1.25rem !important;
+      }
+      
+      /* Statistiche card più grandi */
+      .bg-gradient-to-br {
+        padding: 1.25rem !important;
+      }
+      
+      /* Numeri e badge più visibili */
+      .badge-animated {
+        font-size: 0.875rem !important;
+        padding: 0.5rem 0.75rem !important;
+      }
+      
+      /* Lista giocatori più leggibile */
+      .space-y-2 > * {
+        margin-top: 0.75rem !important;
+      }
+      
+      .space-y-3 > * {
+        margin-top: 1rem !important;
+      }
+      
+      /* Icone più grandi */
+      .text-2xl {
+        font-size: 2rem !important;
+      }
+      
+      .text-3xl {
+        font-size: 2.5rem !important;
+      }
+      
+      /* Margini più generosi */
+      .mb-2 {
+        margin-bottom: 0.75rem !important;
+      }
+      
+      .mb-3 {
+        margin-bottom: 1rem !important;
+      }
+      
+      .mb-4 {
+        margin-bottom: 1.25rem !important;
+      }
+      
+      /* Border più visibili */
+      .border {
+        border-width: 2px !important;
+      }
+      
+      /* Shadow più pronunciate per profondità */
+      .shadow-md {
+        box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+      }
+      
+      /* Migliora leggibilità testo su sfondi colorati */
+      .bg-blue-50, .bg-green-50, .bg-yellow-50, .bg-red-50, .bg-purple-50 {
+        color: #1f2937 !important; /* Grigio scuro per contrasto */
+      }
+      
+      /* Toast più grandi */
+      .toast {
+        font-size: 1rem !important;
+        padding: 1rem 1.25rem !important;
+        min-width: 90% !important;
+      }
+      
+      /* Modal più leggibile */
+      .modal-content {
+        padding: 1.5rem !important;
+        font-size: 1rem !important;
+      }
+      
+      /* Timeline eventi più visibile */
+      .timeline-item {
+        padding: 0.75rem !important;
+        font-size: 0.95rem !important;
+      }
+      
+      /* Convocazioni checkbox più grandi */
+      input[type="checkbox"] {
+        width: 24px !important;
+        height: 24px !important;
+      }
+      
+      /* Logo più visibile */
+      img[alt*="Logo"] {
+        min-width: 64px !important;
+        min-height: 64px !important;
+      }
+      
+      /* Formazione campo più grande */
+      .field-position {
+        font-size: 0.75rem !important;
+        padding: 0.5rem !important;
+      }
+      
+      /* Stats numbers più grandi */
+      .text-4xl {
+        font-size: 3rem !important;
+      }
+      
+      .text-5xl {
+        font-size: 3.5rem !important;
+      }
+      
+      /* Migliora scroll tabelle */
+      .overflow-x-auto {
+        -webkit-overflow-scrolling: touch !important;
+      }
+      
+      /* Separatori più visibili */
+      hr, .border-b, .border-t {
+        border-width: 2px !important;
+      }
+    }
   </style>
   <meta name="theme-color" content="#1a56db">
   <meta name="description" content="Moreschi Gestionale Calcio - Gestione Squadra Completa">
