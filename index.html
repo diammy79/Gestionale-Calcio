@@ -2325,7 +2325,7 @@ const SoccerTeamTracker = () => {
     // Statistiche Aggregate
     if (risultatiCampionato.some(g => g.partite.some(p => p.giocata))) {
       doc.setFontSize(14);
-      doc.text('📊 STATISTICHE CAMPIONATO', 15, yPosition);
+      doc.text('STATISTICHE CAMPIONATO', 15, yPosition);
       yPosition += 8;
       
       // Capocannoniere
@@ -2346,7 +2346,7 @@ const SoccerTeamTracker = () => {
       
       doc.setFontSize(11);
       doc.setFont(undefined, 'bold');
-      doc.text('⚽ Miglior Attacco:', 15, yPosition);
+      doc.text('MIGLIOR ATTACCO:', 15, yPosition);
       doc.setFont(undefined, 'normal');
       yPosition += 5;
       
@@ -2376,7 +2376,7 @@ const SoccerTeamTracker = () => {
         .slice(0, 3);
       
       doc.setFont(undefined, 'bold');
-      doc.text('🛡️ Miglior Difesa:', 15, yPosition);
+      doc.text('MIGLIOR DIFESA:', 15, yPosition);
       doc.setFont(undefined, 'normal');
       yPosition += 5;
       
@@ -2407,7 +2407,7 @@ const SoccerTeamTracker = () => {
           .slice(0, 3);
         
         doc.setFont(undefined, 'bold');
-        doc.text('🏠 Miglior Rendimento Casa:', 15, yPosition);
+        doc.text('RENDIMENTO CASA:', 15, yPosition);
         doc.setFont(undefined, 'normal');
         yPosition += 5;
         
@@ -2436,7 +2436,7 @@ const SoccerTeamTracker = () => {
           .slice(0, 3);
         
         doc.setFont(undefined, 'bold');
-        doc.text('🚌 Miglior Rendimento Trasferta:', 15, yPosition);
+        doc.text('RENDIMENTO TRASFERTA:', 15, yPosition);
         doc.setFont(undefined, 'normal');
         yPosition += 5;
         
@@ -6442,6 +6442,16 @@ const SoccerTeamTracker = () => {
                   📊 Classifica
                 </button>
                 <button
+                  onClick={() => setClassificaTab('statistiche')}
+                  className={`px-6 py-3 font-semibold ${
+                    classificaTab === 'statistiche'
+                      ? 'text-blue-600 border-b-2 border-blue-600'
+                      : 'text-gray-600 hover:text-blue-600'
+                  }`}
+                >
+                  📈 Statistiche
+                </button>
+                <button
                   onClick={() => setClassificaTab('risultati')}
                   className={`px-6 py-3 font-semibold ${
                     classificaTab === 'risultati'
@@ -6590,10 +6600,20 @@ const SoccerTeamTracker = () => {
                       <p className="mt-2">🥇 Primo | 🥈🥉 Podio | 🔴 Zona retrocessione</p>
                     </div>
                   )}
-                  
-                  {/* Statistiche Aggregate */}
-                  {squadreGirone.length > 0 && risultatiCampionato.some(g => g.partite.some(p => p.giocata)) && (
-                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                </div>
+              )}
+
+              {/* TAB STATISTICHE */}
+              {classificaTab === 'statistiche' && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  {squadreGirone.length === 0 || !risultatiCampionato.some(g => g.partite.some(p => p.giocata)) ? (
+                    <div className="text-center py-12">
+                      <div className="text-6xl mb-4">📊</div>
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">Nessuna statistica disponibile</h3>
+                      <p className="text-gray-600">Inserisci squadre e risultati per vedere le statistiche</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200">
                         <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
                           ⚽ Miglior Attacco
