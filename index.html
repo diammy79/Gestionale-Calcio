@@ -2175,6 +2175,296 @@ const SoccerTeamTracker = () => {
     return matches.filter(m => m.mvp === playerNum && m.risultato).length;
   };
 
+  /**
+   * Esporta la classifica campionato in PDF
+   */
+  const exportClassificaPDF = () => {
+    if (squadreGirone.length === 0) {
+      alert('Nessuna squadra presente nella classifica');
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Titolo
+    doc.setFontSize(20);
+    doc.text('CLASSIFICA CAMPIONATO', 105, 20, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text('Stagione 2024/2025', 105, 28, { align: 'center' });
+    
+    // Data generazione
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 105, 34, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    
+    let yPosition = 42;
+    
+    // Calcola classifica
+    const classifica = squadreGirone.map(sq => {
+      let punti = 0, giocate = 0, vinte = 0, pareggiate = 0, perse = 0, golFatti = 0, golSubiti = 0;
+      
+      risultatiCampionato.forEach(giornata => {
+        giornata.partite.forEach(partita => {
+          if (!partita.giocata) return;
+          
+          if (partita.squadraCasa === sq.nome) {
+            giocate++;
+            golFatti += partita.golCasa;
+            golSubiti += partita.golTrasferta;
+            if (partita.golCasa > partita.golTrasferta) {
+              punti += 3;
+              vinte++;
+            } else if (partita.golCasa === partita.golTrasferta) {
+              punti += 1;
+              pareggiate++;
+            } else {
+              perse++;
+            }
+          } else if (partita.squadraTrasferta === sq.nome) {
+            giocate++;
+            golFatti += partita.golTrasferta;
+            golSubiti += partita.golCasa;
+            if (partita.golTrasferta > partita.golCasa) {
+              punti += 3;
+              vinte++;
+            } else if (partita.golTrasferta === partita.golCasa) {
+              punti += 1;
+              pareggiate++;
+            } else {
+              perse++;
+            }
+          }
+        });
+      });
+      
+      return { 
+        nome: sq.nome, 
+        punti, 
+        giocate, 
+        vinte, 
+        pareggiate, 
+        perse, 
+        golFatti, 
+        golSubiti, 
+        diffReti: golFatti - golSubiti 
+      };
+    }).sort((a, b) => {
+      if (b.punti !== a.punti) return b.punti - a.punti;
+      if (b.diffReti !== a.diffReti) return b.diffReti - a.diffReti;
+      return b.golFatti - a.golFatti;
+    });
+    
+    // Tabella classifica
+    const tableData = classifica.map((sq, idx) => {
+      let pos = (idx + 1).toString();
+      if (idx === 0) pos = '🥇';
+      else if (idx === 1) pos = '🥈';
+      else if (idx === 2) pos = '🥉';
+      
+      return [
+        pos,
+        sq.nome,
+        sq.punti,
+        sq.giocate,
+        sq.vinte,
+        sq.pareggiate,
+        sq.perse,
+        sq.golFatti,
+        sq.golSubiti,
+        (sq.diffReti > 0 ? '+' : '') + sq.diffReti
+      ];
+    });
+    
+    doc.autoTable({
+      startY: yPosition,
+      head: [['Pos', 'Squadra', 'Pt', 'G', 'V', 'P', 'S', 'GF', 'GS', 'DR']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { 
+        fillColor: [59, 130, 246],
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: { 
+        fontSize: 9 
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 15 },
+        1: { halign: 'left', cellWidth: 60 },
+        2: { halign: 'center', fontStyle: 'bold', cellWidth: 12 },
+        3: { halign: 'center', cellWidth: 10 },
+        4: { halign: 'center', cellWidth: 10 },
+        5: { halign: 'center', cellWidth: 10 },
+        6: { halign: 'center', cellWidth: 10 },
+        7: { halign: 'center', cellWidth: 12 },
+        8: { halign: 'center', cellWidth: 12 },
+        9: { halign: 'center', cellWidth: 15 }
+      },
+      didParseCell: function(data) {
+        if (data.section === 'body') {
+          // Evidenzia primo posto
+          if (data.row.index === 0) {
+            data.cell.styles.fillColor = [254, 243, 199]; // giallo chiaro
+          }
+          // Evidenzia podio
+          else if (data.row.index <= 2) {
+            data.cell.styles.fillColor = [219, 234, 254]; // azzurro chiaro
+          }
+          // Evidenzia zona retrocessione
+          else if (data.row.index >= classifica.length - 2) {
+            data.cell.styles.fillColor = [254, 226, 226]; // rosso chiaro
+          }
+        }
+      }
+    });
+    
+    yPosition = doc.lastAutoTable.finalY + 10;
+    
+    // Statistiche Aggregate
+    if (risultatiCampionato.some(g => g.partite.some(p => p.giocata))) {
+      doc.setFontSize(14);
+      doc.text('📊 STATISTICHE CAMPIONATO', 15, yPosition);
+      yPosition += 8;
+      
+      // Capocannoniere
+      const golPerSquadra = {};
+      risultatiCampionato.forEach(giornata => {
+        giornata.partite.forEach(partita => {
+          if (!partita.giocata) return;
+          if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
+          if (!golPerSquadra[partita.squadraTrasferta]) golPerSquadra[partita.squadraTrasferta] = 0;
+          golPerSquadra[partita.squadraCasa] += partita.golCasa;
+          golPerSquadra[partita.squadraTrasferta] += partita.golTrasferta;
+        });
+      });
+      
+      const topScorer = Object.entries(golPerSquadra)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3);
+      
+      doc.setFontSize(11);
+      doc.setFont(undefined, 'bold');
+      doc.text('⚽ Miglior Attacco:', 15, yPosition);
+      doc.setFont(undefined, 'normal');
+      yPosition += 5;
+      
+      topScorer.forEach(([squadra, gol], idx) => {
+        doc.setFontSize(9);
+        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+        doc.text(`${medal} ${squadra}: ${gol} gol`, 20, yPosition);
+        yPosition += 5;
+      });
+      
+      yPosition += 3;
+      
+      // Miglior difesa
+      const golSubitiPerSquadra = {};
+      risultatiCampionato.forEach(giornata => {
+        giornata.partite.forEach(partita => {
+          if (!partita.giocata) return;
+          if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
+          if (!golSubitiPerSquadra[partita.squadraTrasferta]) golSubitiPerSquadra[partita.squadraTrasferta] = 0;
+          golSubitiPerSquadra[partita.squadraCasa] += partita.golTrasferta;
+          golSubitiPerSquadra[partita.squadraTrasferta] += partita.golCasa;
+        });
+      });
+      
+      const bestDefense = Object.entries(golSubitiPerSquadra)
+        .sort((a, b) => a[1] - b[1])
+        .slice(0, 3);
+      
+      doc.setFont(undefined, 'bold');
+      doc.text('🛡️ Miglior Difesa:', 15, yPosition);
+      doc.setFont(undefined, 'normal');
+      yPosition += 5;
+      
+      bestDefense.forEach(([squadra, gol], idx) => {
+        doc.setFontSize(9);
+        const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+        doc.text(`${medal} ${squadra}: ${gol} gol subiti`, 20, yPosition);
+        yPosition += 5;
+      });
+      
+      // Se c'è spazio, aggiungi rendimento casa/trasferta
+      if (yPosition < 240) {
+        yPosition += 3;
+        
+        // Rendimento casa
+        const puntiCasa = {};
+        risultatiCampionato.forEach(giornata => {
+          giornata.partite.forEach(partita => {
+            if (!partita.giocata) return;
+            if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
+            if (partita.golCasa > partita.golTrasferta) puntiCasa[partita.squadraCasa] += 3;
+            else if (partita.golCasa === partita.golTrasferta) puntiCasa[partita.squadraCasa] += 1;
+          });
+        });
+        
+        const topCasa = Object.entries(puntiCasa)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('🏠 Miglior Rendimento Casa:', 15, yPosition);
+        doc.setFont(undefined, 'normal');
+        yPosition += 5;
+        
+        topCasa.forEach(([squadra, punti], idx) => {
+          doc.setFontSize(9);
+          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+          doc.text(`${medal} ${squadra}: ${punti} punti`, 20, yPosition);
+          yPosition += 5;
+        });
+        
+        yPosition += 3;
+        
+        // Rendimento trasferta
+        const puntiTrasferta = {};
+        risultatiCampionato.forEach(giornata => {
+          giornata.partite.forEach(partita => {
+            if (!partita.giocata) return;
+            if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
+            if (partita.golTrasferta > partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 3;
+            else if (partita.golTrasferta === partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 1;
+          });
+        });
+        
+        const topTrasferta = Object.entries(puntiTrasferta)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3);
+        
+        doc.setFont(undefined, 'bold');
+        doc.text('🚌 Miglior Rendimento Trasferta:', 15, yPosition);
+        doc.setFont(undefined, 'normal');
+        yPosition += 5;
+        
+        topTrasferta.forEach(([squadra, punti], idx) => {
+          doc.setFontSize(9);
+          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉';
+          doc.text(`${medal} ${squadra}: ${punti} punti`, 20, yPosition);
+          yPosition += 5;
+        });
+      }
+    }
+    
+    // Aggiungi footer
+    const pageCount = doc.internal.getNumberOfPages();
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.text(`Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
+      doc.text('Generato da Moreschi Roberto Gestionale Calcio', 105, 285, { align: 'center' });
+    }
+    
+    // Salva PDF
+    doc.save(`Classifica_Campionato_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`);
+    showToast('PDF classifica generato!', 'success');
+  };
+
   // ========== GESTIONE DISPOSITIVI E AUTO-SYNC ==========
   
   /**
@@ -6179,6 +6469,21 @@ const SoccerTeamTracker = () => {
               {/* TAB CLASSIFICA */}
               {classificaTab === 'classifica' && (
                 <div className="bg-white rounded-lg shadow-lg p-6">
+                  {/* Bottone Export PDF */}
+                  {squadreGirone.length > 0 && (
+                    <div className="mb-4 flex justify-end">
+                      <button
+                        onClick={() => {
+                          // Funzione export PDF - implementata dopo
+                          exportClassificaPDF();
+                        }}
+                        className="bg-red-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-red-700 flex items-center gap-2"
+                      >
+                        📄 Esporta PDF
+                      </button>
+                    </div>
+                  )}
+                  
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
@@ -6284,6 +6589,165 @@ const SoccerTeamTracker = () => {
                       <p>Pt = Punti | G = Giocate | V = Vittorie | P = Pareggi | S = Sconfitte</p>
                       <p>GF = Gol Fatti | GS = Gol Subiti | DR = Differenza Reti</p>
                       <p className="mt-2">🥇 Primo | 🥈🥉 Podio | 🔴 Zona retrocessione</p>
+                    </div>
+                  )}
+                  
+                  {/* Statistiche Aggregate */}
+                  {squadreGirone.length > 0 && risultatiCampionato.some(g => g.partite.some(p => p.giocata)) && (
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-4 border-2 border-yellow-200">
+                        <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                          ⚽ Capocannoniere
+                        </h4>
+                        {(() => {
+                          // Calcola gol per squadra
+                          const golPerSquadra = {};
+                          risultatiCampionato.forEach(giornata => {
+                            giornata.partite.forEach(partita => {
+                              if (!partita.giocata) return;
+                              if (!golPerSquadra[partita.squadraCasa]) golPerSquadra[partita.squadraCasa] = 0;
+                              if (!golPerSquadra[partita.squadraTrasferta]) golPerSquadra[partita.squadraTrasferta] = 0;
+                              golPerSquadra[partita.squadraCasa] += partita.golCasa;
+                              golPerSquadra[partita.squadraTrasferta] += partita.golTrasferta;
+                            });
+                          });
+                          
+                          const topScorer = Object.entries(golPerSquadra)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 3);
+                          
+                          return (
+                            <div className="space-y-2">
+                              {topScorer.map(([squadra, gol], idx) => (
+                                <div key={squadra} className="flex justify-between items-center">
+                                  <span className="font-semibold">
+                                    {idx === 0 && '🥇 '}
+                                    {idx === 1 && '🥈 '}
+                                    {idx === 2 && '🥉 '}
+                                    {squadra}
+                                  </span>
+                                  <span className="text-2xl font-bold text-yellow-600">{gol} gol</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg p-4 border-2 border-green-200">
+                        <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                          🛡️ Miglior Difesa
+                        </h4>
+                        {(() => {
+                          // Calcola gol subiti per squadra
+                          const golSubitiPerSquadra = {};
+                          risultatiCampionato.forEach(giornata => {
+                            giornata.partite.forEach(partita => {
+                              if (!partita.giocata) return;
+                              if (!golSubitiPerSquadra[partita.squadraCasa]) golSubitiPerSquadra[partita.squadraCasa] = 0;
+                              if (!golSubitiPerSquadra[partita.squadraTrasferta]) golSubitiPerSquadra[partita.squadraTrasferta] = 0;
+                              golSubitiPerSquadra[partita.squadraCasa] += partita.golTrasferta;
+                              golSubitiPerSquadra[partita.squadraTrasferta] += partita.golCasa;
+                            });
+                          });
+                          
+                          const bestDefense = Object.entries(golSubitiPerSquadra)
+                            .sort((a, b) => a[1] - b[1])
+                            .slice(0, 3);
+                          
+                          return (
+                            <div className="space-y-2">
+                              {bestDefense.map(([squadra, gol], idx) => (
+                                <div key={squadra} className="flex justify-between items-center">
+                                  <span className="font-semibold">
+                                    {idx === 0 && '🥇 '}
+                                    {idx === 1 && '🥈 '}
+                                    {idx === 2 && '🥉 '}
+                                    {squadra}
+                                  </span>
+                                  <span className="text-2xl font-bold text-green-600">{gol} subiti</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-blue-50 to-sky-50 rounded-lg p-4 border-2 border-blue-200">
+                        <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                          🏠 Rendimento Casa
+                        </h4>
+                        {(() => {
+                          // Calcola punti in casa per squadra
+                          const puntiCasa = {};
+                          risultatiCampionato.forEach(giornata => {
+                            giornata.partite.forEach(partita => {
+                              if (!partita.giocata) return;
+                              if (!puntiCasa[partita.squadraCasa]) puntiCasa[partita.squadraCasa] = 0;
+                              if (partita.golCasa > partita.golTrasferta) puntiCasa[partita.squadraCasa] += 3;
+                              else if (partita.golCasa === partita.golTrasferta) puntiCasa[partita.squadraCasa] += 1;
+                            });
+                          });
+                          
+                          const topCasa = Object.entries(puntiCasa)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 3);
+                          
+                          return (
+                            <div className="space-y-2">
+                              {topCasa.map(([squadra, punti], idx) => (
+                                <div key={squadra} className="flex justify-between items-center">
+                                  <span className="font-semibold">
+                                    {idx === 0 && '🥇 '}
+                                    {idx === 1 && '🥈 '}
+                                    {idx === 2 && '🥉 '}
+                                    {squadra}
+                                  </span>
+                                  <span className="text-2xl font-bold text-blue-600">{punti} pt</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      
+                      <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-lg p-4 border-2 border-purple-200">
+                        <h4 className="font-bold text-lg mb-3 flex items-center gap-2">
+                          🚌 Rendimento Trasferta
+                        </h4>
+                        {(() => {
+                          // Calcola punti in trasferta per squadra
+                          const puntiTrasferta = {};
+                          risultatiCampionato.forEach(giornata => {
+                            giornata.partite.forEach(partita => {
+                              if (!partita.giocata) return;
+                              if (!puntiTrasferta[partita.squadraTrasferta]) puntiTrasferta[partita.squadraTrasferta] = 0;
+                              if (partita.golTrasferta > partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 3;
+                              else if (partita.golTrasferta === partita.golCasa) puntiTrasferta[partita.squadraTrasferta] += 1;
+                            });
+                          });
+                          
+                          const topTrasferta = Object.entries(puntiTrasferta)
+                            .sort((a, b) => b[1] - a[1])
+                            .slice(0, 3);
+                          
+                          return (
+                            <div className="space-y-2">
+                              {topTrasferta.map(([squadra, punti], idx) => (
+                                <div key={squadra} className="flex justify-between items-center">
+                                  <span className="font-semibold">
+                                    {idx === 0 && '🥇 '}
+                                    {idx === 1 && '🥈 '}
+                                    {idx === 2 && '🥉 '}
+                                    {squadra}
+                                  </span>
+                                  <span className="text-2xl font-bold text-purple-600">{punti} pt</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
                   )}
                 </div>
