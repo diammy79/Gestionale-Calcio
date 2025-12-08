@@ -3895,6 +3895,7 @@ const SoccerTeamTracker = () => {
   // ========== FUNZIONE EXPORT ROSA PDF ==========
   
   const exportRosaPDF = () => {
+    const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const currentYear = new Date().getFullYear();
     
@@ -3953,104 +3954,91 @@ const SoccerTeamTracker = () => {
         return a.nome.localeCompare(b.nome);
       });
     
-    // Titolo
-    doc.setFontSize(20);
+    // Titolo - COMPATTO
+    doc.setFontSize(18);
     doc.setFont(undefined, 'bold');
-    doc.text('REAL D.O.R. UNDER 18', 105, 20, { align: 'center' });
+    doc.text('REAL D.O.R. UNDER 18', 105, 15, { align: 'center' });
     
-    doc.setFontSize(14);
-    doc.text(`Rosa Stagione ${currentYear}`, 105, 30, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(`Rosa Stagione ${currentYear}`, 105, 22, { align: 'center' });
     
-    // Sottotitolo
-    doc.setFontSize(10);
+    // Sottotitolo - COMPATTO
+    doc.setFontSize(9);
     doc.setFont(undefined, 'normal');
-    doc.text(`Totale Giocatori: ${giocatoriOrdinati.length}`, 105, 38, { align: 'center' });
+    doc.text(`Totale Giocatori: ${giocatoriOrdinati.length}`, 105, 28, { align: 'center' });
     
     // Linea separatore
-    doc.setLineWidth(0.5);
-    doc.line(20, 42, 190, 42);
+    doc.setLineWidth(0.3);
+    doc.line(20, 31, 190, 31);
     
-    let yPosition = 50;
+    let yPosition = 36; // Posizione iniziale più alta
     let currentCategoria = '';
     let numero = 1;
     
     giocatoriOrdinati.forEach((player) => {
       const categoria = getRuoloCategoria(player.ruolo);
       
-      // Nuova categoria - Header colorato
+      // Nuova categoria - Header colorato COMPATTO
       if (categoria !== currentCategoria) {
-        // Spazio prima della nuova categoria
+        // Spazio prima della nuova categoria (ridotto)
         if (currentCategoria !== '') {
-          yPosition += 5;
-        }
-        
-        // Check nuova pagina
-        if (yPosition > 270) {
-          doc.addPage();
-          yPosition = 20;
+          yPosition += 2;
         }
         
         currentCategoria = categoria;
         const color = getRuoloColor(categoria);
         
-        // Box colorato per categoria
+        // Box colorato per categoria (ridotto)
         doc.setFillColor(color[0], color[1], color[2]);
-        doc.rect(20, yPosition - 5, 170, 8, 'F');
+        doc.rect(20, yPosition - 3.5, 170, 5, 'F');
         
-        // Testo categoria
-        doc.setFontSize(11);
+        // Testo categoria (ridotto)
+        doc.setFontSize(9);
         doc.setFont(undefined, 'bold');
         doc.setTextColor(255, 255, 255);
-        doc.text(categoria.toUpperCase(), 25, yPosition);
+        doc.text(categoria.toUpperCase(), 23, yPosition);
         
         doc.setTextColor(0, 0, 0);
-        yPosition += 8;
+        yPosition += 5.5;
       }
       
-      // Check nuova pagina
-      if (yPosition > 275) {
-        doc.addPage();
-        yPosition = 20;
-      }
-      
-      // Giocatore
-      doc.setFontSize(10);
+      // Giocatore - COMPATTO
+      doc.setFontSize(8.5); // Font più piccolo
       doc.setFont(undefined, 'normal');
       
       // Numero progressivo
       doc.setFont(undefined, 'bold');
-      doc.text(`${numero}.`, 25, yPosition);
+      doc.text(`${numero}.`, 23, yPosition);
       
-      // Nome
+      // Nome (troncato se troppo lungo)
       doc.setFont(undefined, 'bold');
-      doc.text(player.nome, 35, yPosition);
+      const nomeMax = player.nome.length > 30 ? player.nome.substring(0, 28) + '...' : player.nome;
+      doc.text(nomeMax, 30, yPosition);
       
       // Ruolo specifico
       doc.setFont(undefined, 'normal');
       doc.setTextColor(100, 100, 100);
-      doc.text(`(${player.ruolo || 'N/D'})`, 35 + doc.getTextWidth(player.nome) + 3, yPosition);
+      const ruoloText = player.ruolo || 'N/D';
+      const ruoloMax = ruoloText.length > 20 ? ruoloText.substring(0, 18) + '...' : ruoloText;
+      doc.text(`(${ruoloMax})`, 30 + doc.getTextWidth(nomeMax) + 2, yPosition);
       
       // Numero maglia (se presente)
       if (player.numero) {
         doc.setTextColor(33, 150, 243);
         doc.setFont(undefined, 'bold');
-        doc.text(`#${player.numero}`, 180, yPosition, { align: 'right' });
+        doc.text(`#${player.numero}`, 185, yPosition, { align: 'right' });
       }
       
       doc.setTextColor(0, 0, 0);
       
-      yPosition += 7;
+      yPosition += 5; // Spazio ridotto tra giocatori (era 7)
       numero++;
     });
     
     // Footer con data generazione
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} - Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
-    }
+    doc.setFontSize(7);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')}`, 105, 285, { align: 'center' });
     
     // Salva PDF
     doc.save(`Rosa_Real_DOR_${currentYear}.pdf`);
