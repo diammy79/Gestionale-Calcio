@@ -1112,6 +1112,9 @@ const SoccerTeamTracker = () => {
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [expandedTrainings, setExpandedTrainings] = useState({});
+  const [trainingTabActive, setTrainingTabActive] = useState({}); // 'presenze' o 'esercizi' per ogni training
+  const [newEsercizio, setNewEsercizio] = useState({}); // Form nuovo esercizio per ogni training
+  const [editingEsercizio, setEditingEsercizio] = useState(null); // {trainingId, esercizioId}
   const [expandedMatches, setExpandedMatches] = useState({});
   const [matchTimer, setMatchTimer] = useState(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
@@ -2257,7 +2260,8 @@ const SoccerTeamTracker = () => {
       id: Date.now(),
       data: new Date().toISOString().split('T')[0],
       presenze: presenzePrecompilate,
-      infortuni: infortuniPrecompilati
+      infortuni: infortuniPrecompilati,
+      esercizi: []  // NUOVO CAMPO per esercizi
     };
     setTrainings([...trainings, newTraining]);
   };
@@ -2303,8 +2307,225 @@ const SoccerTeamTracker = () => {
     setTrainings(trainings.filter(t => t.id !== id));
   };
 
+  // ========== TEMPLATE ESERCIZI PREDEFINITI ==========
+  
+  const templateEsercizi = [
+    { nome: "Riscaldamento", durata: 15, descrizione: "Corsa leggera e stretching dinamico" },
+    { nome: "Possesso palla 4v4", durata: 20, descrizione: "Mantenimento palla in quadrato 20x20m" },
+    { nome: "Possesso palla 6v6", durata: 25, descrizione: "Mantenimento palla campo ridotto" },
+    { nome: "Esercitazione passaggi", durata: 20, descrizione: "Triangolazioni e movimenti senza palla" },
+    { nome: "Tiri in porta", durata: 15, descrizione: "Serie di tiri da diverse posizioni" },
+    { nome: "Partitella 7v7", durata: 30, descrizione: "Partita tattica su campo ridotto" },
+    { nome: "Partitella 11v11", durata: 40, descrizione: "Partita tattica su campo intero" },
+    { nome: "Lavoro atletico", durata: 20, descrizione: "Circuito forza e resistenza" },
+    { nome: "Portieri specifico", durata: 20, descrizione: "Lavoro tecnico portieri" },
+    { nome: "Defaticamento", durata: 10, descrizione: "Stretching statico e recupero" }
+  ];
+
+  // ========== FUNZIONI GESTIONE ESERCIZI ==========
+  
+  const addEsercizio = (trainingId) => {
+    const esercizio = newEsercizio[trainingId] || {};
+    
+    if (!esercizio.nome || !esercizio.durata) {
+      alert('❌ Inserisci nome e durata dell\'esercizio');
+      return;
+    }
+    
+    const nuovoEsercizio = {
+      id: Date.now(),
+      nome: esercizio.nome,
+      durata: parseInt(esercizio.durata) || 0,
+      descrizione: esercizio.descrizione || '',
+      valutazione: esercizio.valutazione || ''
+    };
+    
+    setTrainings(trainings.map(t => {
+      if (t.id === trainingId) {
+        return {
+          ...t,
+          esercizi: [...(t.esercizi || []), nuovoEsercizio]
+        };
+      }
+      return t;
+    }));
+    
+    // Reset form
+    setNewEsercizio({ ...newEsercizio, [trainingId]: {} });
+    showToast('✅ Esercizio aggiunto!', 'success');
+  };
+  
+  const updateEsercizio = (trainingId, esercizioId, field, value) => {
+    setTrainings(trainings.map(t => {
+      if (t.id === trainingId) {
+        return {
+          ...t,
+          esercizi: (t.esercizi || []).map(e => 
+            e.id === esercizioId ? { ...e, [field]: value } : e
+          )
+        };
+      }
+      return t;
+    }));
+  };
+  
+  const deleteEsercizio = (trainingId, esercizioId) => {
+    if (!window.confirm('🗑️ Vuoi eliminare questo esercizio?')) return;
+    
+    setTrainings(trainings.map(t => {
+      if (t.id === trainingId) {
+        return {
+          ...t,
+          esercizi: (t.esercizi || []).filter(e => e.id !== esercizioId)
+        };
+      }
+      return t;
+    }));
+    
+    showToast('✅ Esercizio eliminato', 'success');
+  };
+  
+  const caricaTemplateEsercizio = (trainingId, template) => {
+    setNewEsercizio({
+      ...newEsercizio,
+      [trainingId]: {
+        nome: template.nome,
+        durata: template.durata,
+        descrizione: template.descrizione,
+        valutazione: ''
+      }
+    });
+  };
+  
+  const duplicaEserciziDaAltroAllenamento = (targetTrainingId, sourceTrainingId) => {
+    const sourceTraining = trainings.find(t => t.id === parseInt(sourceTrainingId));
+    if (!sourceTraining || !sourceTraining.esercizi || sourceTraining.esercizi.length === 0) {
+      alert('❌ L\'allenamento selezionato non ha esercizi');
+      return;
+    }
+    
+    if (!window.confirm(`📋 Vuoi copiare ${sourceTraining.esercizi.length} esercizi dall'allenamento del ${sourceTraining.data}?`)) {
+      return;
+    }
+    
+    const eserciziCopiati = sourceTraining.esercizi.map(e => ({
+      ...e,
+      id: Date.now() + Math.random(), // Nuovo ID
+      valutazione: '' // Reset valutazione
+    }));
+    
+    setTrainings(trainings.map(t => {
+      if (t.id === targetTrainingId) {
+        return {
+          ...t,
+          esercizi: [...(t.esercizi || []), ...eserciziCopiati]
+        };
+      }
+      return t;
+    }));
+    
+    showToast(`✅ ${eserciziCopiati.length} esercizi copiati!`, 'success');
+  };
+  
+  const getTotaleMinutiEsercizi = (esercizi) => {
+    if (!esercizi || esercizi.length === 0) return 0;
+    return esercizi.reduce((tot, e) => tot + (parseInt(e.durata) || 0), 0);
+  };
+
   const deleteMatch = (id) => {
     setMatches(matches.filter(m => m.id !== id));
+  };
+
+  // ========== TEMPLATE ESERCIZI PREDEFINITI ==========
+  
+  const templateEsercizi = [
+    { nome: "Riscaldamento", durata: 15, descrizione: "Corsa leggera e stretching dinamico" },
+    { nome: "Possesso palla 4v4", durata: 20, descrizione: "Mantenimento palla in quadrato 20x20m" },
+    { nome: "Possesso palla 6v6", durata: 25, descrizione: "Mantenimento palla campo ridotto" },
+    { nome: "Esercitazione passaggi", durata: 20, descrizione: "Triangolazioni e movimenti" },
+    { nome: "Tiri in porta", durata: 15, descrizione: "Serie tiri da diverse posizioni" },
+    { nome: "Partitella 7v7", durata: 30, descrizione: "Partita tattica campo ridotto" },
+    { nome: "Partitella 11v11", durata: 40, descrizione: "Partita tattica campo intero" },
+    { nome: "Lavoro atletico", durata: 20, descrizione: "Circuito forza/resistenza" },
+    { nome: "Portieri specifico", durata: 20, descrizione: "Lavoro tecnico portieri" },
+    { nome: "Defaticamento", durata: 10, descrizione: "Stretching e recupero" },
+    { nome: "Personalizzato", durata: 0, descrizione: "" }
+  ];
+
+  // ========== FUNZIONI GESTIONE ESERCIZI ==========
+  
+  const addEsercizio = (trainingId, esercizio) => {
+    setTrainings(trainings.map(t => {
+      if (t.id === trainingId) {
+        const newEsercizio = {
+          id: Date.now(),
+          nome: esercizio.nome,
+          durata: parseInt(esercizio.durata) || 0,
+          descrizione: esercizio.descrizione || '',
+          valutazione: esercizio.valutazione || ''
+        };
+        return {
+          ...t,
+          esercizi: [...(t.esercizi || []), newEsercizio]
+        };
+      }
+      return t;
+    }));
+  };
+
+  const updateEsercizio = (trainingId, esercizioId, field, value) => {
+    setTrainings(trainings.map(t => {
+      if (t.id === trainingId) {
+        return {
+          ...t,
+          esercizi: (t.esercizi || []).map(e => 
+            e.id === esercizioId ? { ...e, [field]: value } : e
+          )
+        };
+      }
+      return t;
+    }));
+  };
+
+  const deleteEsercizio = (trainingId, esercizioId) => {
+    setTrainings(trainings.map(t => {
+      if (t.id === trainingId) {
+        return {
+          ...t,
+          esercizi: (t.esercizi || []).filter(e => e.id !== esercizioId)
+        };
+      }
+      return t;
+    }));
+  };
+
+  const duplicaEserciziDaAllenamento = (targetTrainingId, sourceTrainingId) => {
+    const sourceTraining = trainings.find(t => t.id === sourceTrainingId);
+    if (!sourceTraining || !sourceTraining.esercizi || sourceTraining.esercizi.length === 0) {
+      showToast('⚠️ Allenamento selezionato non ha esercizi', 'warning');
+      return;
+    }
+
+    setTrainings(trainings.map(t => {
+      if (t.id === targetTrainingId) {
+        const eserciziDuplicati = sourceTraining.esercizi.map(e => ({
+          ...e,
+          id: Date.now() + Math.random() // Nuovo ID univoco
+        }));
+        return {
+          ...t,
+          esercizi: [...(t.esercizi || []), ...eserciziDuplicati]
+        };
+      }
+      return t;
+    }));
+
+    showToast(`✅ ${sourceTraining.esercizi.length} esercizi duplicati!`, 'success');
+  };
+
+  const calcolaTotaleMinuti = (esercizi) => {
+    if (!esercizi || esercizi.length === 0) return 0;
+    return esercizi.reduce((sum, e) => sum + (parseInt(e.durata) || 0), 0);
   };
 
   // ========== FUNZIONI SISTEMA MVP ==========
@@ -8180,6 +8401,11 @@ const SoccerTeamTracker = () => {
                                 Presenti: {Object.values(training.presenze).filter(p => p === true).length} | 
                                 Assenti: {Object.values(training.presenze).filter(p => p === false).length} | 
                                 Infortuni: {Object.values(training.infortuni).filter(i => i).length}
+                                {training.esercizi && training.esercizi.length > 0 && (
+                                  <span className="ml-3 text-blue-600 font-semibold">
+                                    ⏱️ {training.esercizi.length} esercizi - {calcolaTotaleMinuti(training.esercizi)} min
+                                  </span>
+                                )}
                               </span>
                             </div>
                           </div>
@@ -8202,16 +8428,43 @@ const SoccerTeamTracker = () => {
                       </div>
 
                       {expandedTrainings[training.id] && (
-                        <div 
-                          className="p-4 border-t"
-                          style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.7} : {}}
-                        >
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {players.filter(p => {
-                              if (!p.nome) return false;
-                              if (!p.dataCreazione) return true;
-                              return new Date(p.dataCreazione) <= new Date(training.data);
-                            }).map(player => (
+                        <div className="border-t bg-white">
+                          {/* TAB NAVIGATION */}
+                          <div className="flex border-b">
+                            <button
+                              onClick={() => setTrainingTabActive({...trainingTabActive, [training.id]: 'presenze'})}
+                              className={`flex-1 px-6 py-3 font-semibold transition-colors ${
+                                (trainingTabActive[training.id] || 'presenze') === 'presenze'
+                                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              👥 Presenze
+                            </button>
+                            <button
+                              onClick={() => setTrainingTabActive({...trainingTabActive, [training.id]: 'esercizi'})}
+                              className={`flex-1 px-6 py-3 font-semibold transition-colors ${
+                                trainingTabActive[training.id] === 'esercizi'
+                                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              📝 Esercizi ({training.esercizi?.length || 0})
+                            </button>
+                          </div>
+
+                          {/* TAB CONTENT - PRESENZE */}
+                          {(trainingTabActive[training.id] || 'presenze') === 'presenze' && (
+                            <div 
+                              className="p-4"
+                              style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.7} : {}}
+                            >
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                {players.filter(p => {
+                                  if (!p.nome) return false;
+                                  if (!p.dataCreazione) return true;
+                                  return new Date(p.dataCreazione) <= new Date(training.data);
+                                }).map(player => (
                               <div key={player.numero} className="flex items-center gap-2 bg-white p-2 rounded">
                                 <span className="font-bold text-gray-700 w-8">{player.numero}</span>
                                 <span className="flex-1 text-sm">{player.nome}</span>
@@ -8280,7 +8533,289 @@ const SoccerTeamTracker = () => {
                           </div>
                         </div>
                       )}
+
+                      {/* TAB CONTENT - ESERCIZI */}
+                      {trainingTabActive[training.id] === 'esercizi' && (
+                        <div className="p-4">
+                          {/* FORM AGGIUNGI ESERCIZIO */}
+                          {(() => {
+                            const [formEsercizio, setFormEsercizio] = useState({
+                              template: '',
+                              nome: '',
+                              durata: '',
+                              descrizione: '',
+                              valutazione: ''
+                            });
+
+                            return (
+                              <div className="bg-gray-50 rounded-lg p-4 mb-4 border-2 border-gray-200">
+                                <h4 className="font-bold text-lg mb-3">➕ Aggiungi Esercizio</h4>
+                                
+                                {/* Template Dropdown */}
+                                <div className="mb-3">
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Template (opzionale)
+                                  </label>
+                                  <select
+                                    value={formEsercizio.template}
+                                    onChange={(e) => {
+                                      const template = templateEsercizi.find(t => t.nome === e.target.value);
+                                      if (template) {
+                                        setFormEsercizio({
+                                          ...formEsercizio,
+                                          template: template.nome,
+                                          nome: template.nome === 'Personalizzato' ? '' : template.nome,
+                                          durata: template.durata.toString(),
+                                          descrizione: template.descrizione
+                                        });
+                                      }
+                                    }}
+                                    className="w-full p-2 border-2 border-gray-300 rounded-lg"
+                                  >
+                                    <option value="">Seleziona template o inserisci manualmente</option>
+                                    {templateEsercizi.map(t => (
+                                      <option key={t.nome} value={t.nome}>
+                                        {t.nome} {t.durata > 0 ? `(${t.durata} min)` : ''}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                {/* Nome */}
+                                <div className="mb-3">
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Nome Esercizio *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={formEsercizio.nome}
+                                    onChange={(e) => setFormEsercizio({...formEsercizio, nome: e.target.value})}
+                                    placeholder="es: Possesso palla 4v4"
+                                    className="w-full p-2 border-2 border-gray-300 rounded-lg"
+                                  />
+                                </div>
+
+                                {/* Durata */}
+                                <div className="mb-3">
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Durata (minuti) *
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={formEsercizio.durata}
+                                    onChange={(e) => setFormEsercizio({...formEsercizio, durata: e.target.value})}
+                                    placeholder="es: 20"
+                                    min="0"
+                                    className="w-full p-2 border-2 border-gray-300 rounded-lg"
+                                  />
+                                </div>
+
+                                {/* Descrizione */}
+                                <div className="mb-3">
+                                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                                    Descrizione (opzionale)
+                                  </label>
+                                  <textarea
+                                    value={formEsercizio.descrizione}
+                                    onChange={(e) => setFormEsercizio({...formEsercizio, descrizione: e.target.value})}
+                                    placeholder="es: Mantenimento palla in spazi stretti"
+                                    rows="2"
+                                    className="w-full p-2 border-2 border-gray-300 rounded-lg"
+                                  />
+                                </div>
+
+                                {/* Valutazione */}
+                                <div className="mb-4">
+                                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                    Valutazione (opzionale)
+                                  </label>
+                                  <div className="flex gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`val-${training.id}`}
+                                        value="Scarso"
+                                        checked={formEsercizio.valutazione === 'Scarso'}
+                                        onChange={(e) => setFormEsercizio({...formEsercizio, valutazione: e.target.value})}
+                                        className="w-4 h-4"
+                                      />
+                                      <span className={`${formEsercizio.valutazione === 'Scarso' ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
+                                        🔴 Scarso
+                                      </span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`val-${training.id}`}
+                                        value="Medio"
+                                        checked={formEsercizio.valutazione === 'Medio'}
+                                        onChange={(e) => setFormEsercizio({...formEsercizio, valutazione: e.target.value})}
+                                        className="w-4 h-4"
+                                      />
+                                      <span className={`${formEsercizio.valutazione === 'Medio' ? 'text-yellow-600 font-bold' : 'text-gray-600'}`}>
+                                        🟡 Medio
+                                      </span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`val-${training.id}`}
+                                        value="Buono"
+                                        checked={formEsercizio.valutazione === 'Buono'}
+                                        onChange={(e) => setFormEsercizio({...formEsercizio, valutazione: e.target.value})}
+                                        className="w-4 h-4"
+                                      />
+                                      <span className={`${formEsercizio.valutazione === 'Buono' ? 'text-green-600 font-bold' : 'text-gray-600'}`}>
+                                        🟢 Buono
+                                      </span>
+                                    </label>
+                                  </div>
+                                </div>
+
+                                {/* Bottone Aggiungi */}
+                                <button
+                                  onClick={() => {
+                                    if (!formEsercizio.nome || !formEsercizio.durata) {
+                                      showToast('⚠️ Nome e durata sono obbligatori', 'warning');
+                                      return;
+                                    }
+                                    addEsercizio(training.id, formEsercizio);
+                                    setFormEsercizio({
+                                      template: '',
+                                      nome: '',
+                                      durata: '',
+                                      descrizione: '',
+                                      valutazione: ''
+                                    });
+                                    showToast('✅ Esercizio aggiunto!', 'success');
+                                  }}
+                                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                                >
+                                  ✅ Aggiungi Esercizio
+                                </button>
+                              </div>
+                            );
+                          })()}
+
+                          {/* LISTA ESERCIZI */}
+                          {training.esercizi && training.esercizi.length > 0 ? (
+                            <div className="space-y-3">
+                              <h4 className="font-bold text-lg mb-3">📋 Esercizi Inseriti</h4>
+                              
+                              {training.esercizi.map((esercizio, idx) => (
+                                <div key={esercizio.id} className="bg-white rounded-lg p-4 border-2 border-gray-200 hover:border-blue-300 transition-colors">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="font-bold text-gray-800 text-lg">{idx + 1}. {esercizio.nome}</span>
+                                        {esercizio.valutazione && (
+                                          <span className={`text-sm font-semibold ${
+                                            esercizio.valutazione === 'Scarso' ? 'text-red-600' :
+                                            esercizio.valutazione === 'Medio' ? 'text-yellow-600' :
+                                            'text-green-600'
+                                          }`}>
+                                            {esercizio.valutazione === 'Scarso' ? '🔴' :
+                                             esercizio.valutazione === 'Medio' ? '🟡' : '🟢'} {esercizio.valutazione}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-sm text-gray-600">
+                                        ⏱️ {esercizio.durata} minuti
+                                      </div>
+                                      {esercizio.descrizione && (
+                                        <div className="text-sm text-gray-600 mt-1">
+                                          💬 {esercizio.descrizione}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => {
+                                          const newNome = prompt('Nuovo nome:', esercizio.nome);
+                                          if (newNome) updateEsercizio(training.id, esercizio.id, 'nome', newNome);
+                                        }}
+                                        className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                                        title="Modifica"
+                                      >
+                                        ✏️
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          if (window.confirm(`Eliminare "${esercizio.nome}"?`)) {
+                                            deleteEsercizio(training.id, esercizio.id);
+                                            showToast('🗑️ Esercizio eliminato', 'success');
+                                          }
+                                        }}
+                                        className="p-2 text-red-600 hover:bg-red-50 rounded"
+                                        title="Elimina"
+                                      >
+                                        🗑️
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+
+                              {/* TOTALE MINUTI */}
+                              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-bold text-lg text-gray-800">⏱️ TOTALE:</span>
+                                  <span className="font-bold text-2xl text-blue-600">
+                                    {calcolaTotaleMinuti(training.esercizi)} minuti
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 text-gray-500">
+                              <p className="text-lg">Nessun esercizio inserito</p>
+                              <p className="text-sm mt-2">Aggiungi il primo esercizio usando il form sopra</p>
+                            </div>
+                          )}
+
+                          {/* DUPLICA DA ALTRO ALLENAMENTO */}
+                          {trainings.filter(t => t.id !== training.id && t.esercizi && t.esercizi.length > 0).length > 0 && (
+                            <div className="mt-4 bg-purple-50 rounded-lg p-4 border-2 border-purple-200">
+                              <h4 className="font-bold text-lg mb-3">📋 Duplica Esercizi</h4>
+                              <div className="flex gap-2">
+                                <select
+                                  id={`duplicate-${training.id}`}
+                                  className="flex-1 p-2 border-2 border-gray-300 rounded-lg"
+                                  defaultValue=""
+                                >
+                                  <option value="" disabled>Seleziona allenamento...</option>
+                                  {trainings
+                                    .filter(t => t.id !== training.id && t.esercizi && t.esercizi.length > 0)
+                                    .sort((a, b) => new Date(b.data) - new Date(a.data))
+                                    .map(t => (
+                                      <option key={t.id} value={t.id}>
+                                        {t.data} - {t.esercizi.length} esercizi ({calcolaTotaleMinuti(t.esercizi)} min)
+                                      </option>
+                                    ))}
+                                </select>
+                                <button
+                                  onClick={() => {
+                                    const select = document.getElementById(`duplicate-${training.id}`);
+                                    const sourceId = parseInt(select.value);
+                                    if (sourceId) {
+                                      duplicaEserciziDaAllenamento(training.id, sourceId);
+                                      select.value = '';
+                                    } else {
+                                      showToast('⚠️ Seleziona un allenamento', 'warning');
+                                    }
+                                  }}
+                                  className="bg-purple-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-purple-700 transition-colors whitespace-nowrap"
+                                >
+                                  📋 Duplica
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
+                  )}
+                </div>
                   ))}
                 </div>
               )}
