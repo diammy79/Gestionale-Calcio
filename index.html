@@ -842,6 +842,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 </head>
 <body>
   <div id="root"></div>
@@ -860,11 +861,12 @@ const firebaseConfig = {
   appId: "1:573513891203:web:a7ae4934de0913b6120ab6"
 };
 
-let firebaseApp, auth, db;
+let firebaseApp, auth, db, storage;
 try {
   firebaseApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
   auth = firebase.auth();
   db = firebase.firestore();
+  storage = firebase.storage(); // Firebase Storage per foto
   db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
     console.log('Persistenza:', err.code);
   });
@@ -2046,7 +2048,7 @@ const SoccerTeamTracker = () => {
     ));
   };
 
-  const handleImageUpload = (numero, e) => {
+  const handleImageUpload = async (numero, e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -2063,59 +2065,90 @@ const SoccerTeamTracker = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // RIDOTTO: da 400x400 a 200x200 per risparmiare spazio Firebase
-        const maxWidth = 200;
-        const maxHeight = 200;
-        let width = img.width;
-        let height = img.height;
+    if (!user) {
+      alert('❌ Devi essere autenticato per caricare foto su cloud');
+      e.target.value = '';
+      return;
+    }
 
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
+    showToast('📤 Caricamento foto su cloud...', 'info', 2000);
+
+    try {
+      // Comprimi immagine prima dell'upload
+      const compressedBlob = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            // Ridimensiona a 300x300 per qualità migliore rispetto a base64
+            const maxWidth = 300;
+            const maxHeight = 300;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(
+              (blob) => resolve(blob),
+              'image/jpeg',
+              0.85 // Qualità 85%
+            );
+          };
+          img.onerror = () => reject(new Error('Errore caricamento immagine'));
+          img.src = event.target.result;
+        };
+        reader.onerror = () => reject(new Error('Errore lettura file'));
+        reader.readAsDataURL(file);
+      });
+
+      // Upload su Firebase Storage
+      const storageRef = storage.ref();
+      const fileName = `players/${user.uid}/${numero}_${Date.now()}.jpg`;
+      const fileRef = storageRef.child(fileName);
+      
+      const uploadTask = await fileRef.put(compressedBlob);
+      const downloadURL = await fileRef.getDownloadURL();
+      
+      // Elimina vecchia foto se presente
+      const player = players.find(p => p.numero === numero);
+      if (player?.foto && player.foto.startsWith('https://firebasestorage')) {
+        try {
+          const oldRef = storage.refFromURL(player.foto);
+          await oldRef.delete();
+        } catch (err) {
+          console.log('Vecchia foto non trovata o già eliminata');
         }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // COMPRESSIONE AGGRESSIVA: qualità 0.7 invece di 0.92
-        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        
-        // LIMITE RIDOTTO: 50KB invece di 200KB per foto
-        const maxPhotoSize = 50 * 1024;
-        const finalSize = resizedDataUrl.length;
-        
-        if (finalSize > maxPhotoSize) {
-          // Se ancora troppo grande, comprimi ulteriormente
-          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
-          if (compressedDataUrl.length > maxPhotoSize) {
-            alert(`❌ Impossibile ridurre l'immagine sotto ${Math.round(maxPhotoSize/1024)}KB. Dimensione attuale: ${Math.round(compressedDataUrl.length/1024)}KB. Prova con una foto più semplice.`);
-            e.target.value = '';
-            return;
-          }
-          updatePlayer(numero, 'foto', compressedDataUrl);
-          showToast(`📷 Foto compressa a ${Math.round(compressedDataUrl.length/1024)}KB`, 'success');
-        } else {
-          updatePlayer(numero, 'foto', resizedDataUrl);
-          showToast(`📷 Foto salvata (${Math.round(finalSize/1024)}KB)`, 'success');
-        }
-        
-        e.target.value = '';
-      };
-      img.onerror = () => {
+      }
+      
+      // Salva URL nel player
+      updatePlayer(numero, 'foto', downloadURL);
+      
+      const sizeKB = Math.round((uploadTask.bytesTransferred || 0) / 1024);
+      showToast(`✅ Foto caricata su cloud! (${sizeKB}KB)`, 'success');
+      
+      e.target.value = '';
+    } catch (error) {
+      console.error('Errore upload foto:', error);
+      showToast('❌ Errore caricamento foto: ' + error.message, 'error', 5000);
+      e.target.value = '';
+    }
+  };
         alert('❌ Errore nel caricamento dell\'immagine.');
         e.target.value = '';
       };
@@ -3138,35 +3171,7 @@ const SoccerTeamTracker = () => {
       // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
       const cleanedData = cleanUndefinedFields(dataToSync);
 
-      // CONTROLLO DIMENSIONE DOCUMENTO (Limite Firebase: 1MB)
-      const dataString = JSON.stringify(cleanedData);
-      const dataSize = new Blob([dataString]).size;
-      const maxSize = 1048576; // 1MB in bytes
-      
-      if (dataSize > maxSize) {
-        const sizeMB = (dataSize / 1024 / 1024).toFixed(2);
-        const maxMB = (maxSize / 1024 / 1024).toFixed(2);
-        setSyncError(`❌ Documento troppo grande (${sizeMB}MB). Limite Firebase: ${maxMB}MB.\n\n💡 Riduci le foto dei giocatori o rimuovi dati non necessari.`);
-        setSyncStatus('error');
-        showToast(
-          `❌ Sync fallita: documento ${sizeMB}MB > limite ${maxMB}MB\n💡 Comprimi le foto nella sezione Rosa`,
-          'error',
-          8000
-        );
-        return false;
-      }
-      
-      // Se vicino al limite, avvisa
-      if (dataSize > maxSize * 0.9) {
-        const sizeMB = (dataSize / 1024 / 1024).toFixed(2);
-        showToast(
-          `⚠️ Attenzione: documento ${sizeMB}MB (vicino al limite 1MB)`,
-          'warning',
-          5000
-        );
-      }
-
-      // Salva su Firestore
+      // Salva su Firestore (foto ora sono URL, non base64!)
       await db.collection('teamData').doc(user.uid).set(cleanedData, { merge: true });
       
       setLastSynced(new Date());
@@ -3174,9 +3179,9 @@ const SoccerTeamTracker = () => {
       
       // Toast di conferma con dettagli
       const totale = (players?.length || 0) + (trainings?.length || 0) + (matches?.length || 0);
-      const sizeMB = (dataSize / 1024 / 1024).toFixed(2);
+      const playersWithPhotos = players.filter(p => p.foto).length;
       showToast(
-        `✅ Dati caricati sul cloud! (${sizeMB}MB)\n📊 ${players?.length || 0} giocatori, ${trainings?.length || 0} allenamenti, ${matches?.length || 0} partite`,
+        `✅ Dati caricati sul cloud!\n📊 ${players?.length || 0} giocatori (${playersWithPhotos} con foto), ${trainings?.length || 0} allenamenti, ${matches?.length || 0} partite`,
         'success',
         5000
       );
@@ -4274,80 +4279,76 @@ const SoccerTeamTracker = () => {
     showToast('PDF Rosa scaricato!', 'success');
   };
 
-  // ========== COMPRESSIONE BATCH FOTO ==========
+  // ========== MIGRAZIONE FOTO A FIREBASE STORAGE ==========
   
-  const compressAllPhotos = async () => {
-    if (!window.confirm('🗜️ Vuoi comprimere TUTTE le foto dei giocatori?\n\nQuesta operazione ridurrà le dimensioni delle foto per risparmiare spazio su Firebase.\n\n⚠️ Questa azione non può essere annullata.')) {
+  const migratePhotosToStorage = async () => {
+    if (!user) {
+      alert('❌ Devi essere autenticato per migrare le foto');
       return;
     }
     
-    let compressed = 0;
-    let skipped = 0;
+    const playersWithBase64 = players.filter(p => p.foto && !p.foto.startsWith('https://'));
+    
+    if (playersWithBase64.length === 0) {
+      showToast('✅ Tutte le foto sono già su Firebase Storage!', 'success');
+      return;
+    }
+    
+    if (!window.confirm(`🚀 Vuoi migrare ${playersWithBase64.length} foto su Firebase Storage?\n\nQuesta operazione:\n✅ Libera spazio nel database\n✅ Migliora le prestazioni\n✅ Permette sync senza problemi\n\n⚠️ Richiede connessione internet`)) {
+      return;
+    }
+    
+    let migrated = 0;
     let errors = 0;
+    const totalPhotos = playersWithBase64.length;
     
-    showToast('🗜️ Compressione foto in corso...', 'info', 3000);
+    showToast(`🚀 Migrazione ${totalPhotos} foto in corso...`, 'info', 3000);
     
-    for (const player of players) {
-      if (!player.foto || !player.nome) {
-        skipped++;
-        continue;
-      }
-      
+    for (const player of playersWithBase64) {
       try {
-        // Converti base64 in immagine
-        const img = new Image();
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = player.foto;
-        });
+        showToast(`📤 Migrazione ${player.nome}... (${migrated + 1}/${totalPhotos})`, 'info', 1000);
         
-        // Ridimensiona e comprimi
-        const maxWidth = 200;
-        const maxHeight = 200;
-        let width = img.width;
-        let height = img.height;
-        
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
+        // Converti base64 in blob
+        const base64Data = player.foto.split(',')[1];
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
         }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'image/jpeg' });
         
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
+        // Upload su Storage
+        const storageRef = storage.ref();
+        const fileName = `players/${user.uid}/${player.numero}_${Date.now()}.jpg`;
+        const fileRef = storageRef.child(fileName);
         
-        // Comprimi con qualità 0.7
-        const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        await fileRef.put(blob);
+        const downloadURL = await fileRef.getDownloadURL();
         
-        // Aggiorna solo se effettivamente più piccola
-        if (compressedDataUrl.length < player.foto.length) {
-          updatePlayer(player.numero, 'foto', compressedDataUrl);
-          compressed++;
-        } else {
-          skipped++;
-        }
+        // Aggiorna player con URL
+        updatePlayer(player.numero, 'foto', downloadURL);
+        
+        migrated++;
       } catch (error) {
-        console.error(`Errore compressione foto ${player.nome}:`, error);
+        console.error(`Errore migrazione foto ${player.nome}:`, error);
         errors++;
       }
     }
     
-    const totalPhotos = compressed + skipped + errors;
-    showToast(
-      `✅ Compressione completata!\n🗜️ ${compressed} foto compresse\n⏭️ ${skipped} già ottimizzate\n${errors > 0 ? `❌ ${errors} errori` : ''}`,
-      compressed > 0 ? 'success' : 'info',
-      6000
-    );
+    if (errors === 0) {
+      showToast(
+        `✅ Migrazione completata!\n🚀 ${migrated} foto su Firebase Storage\n💾 Database ora leggero!`,
+        'success',
+        6000
+      );
+    } else {
+      showToast(
+        `⚠️ Migrazione parziale:\n✅ ${migrated} foto migrate\n❌ ${errors} errori`,
+        'warning',
+        6000
+      );
+    }
   };
 
   // ========== FUNZIONI PER DIVISIONE SQUADRE ==========
@@ -9698,13 +9699,13 @@ const SoccerTeamTracker = () => {
                 <h2 className="text-2xl font-bold text-gray-800">Gestione Rosa</h2>
                 <div className="flex flex-wrap gap-2">
                   <button
-                    onClick={compressAllPhotos}
-                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-purple-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-                    title="Comprimi tutte le foto per ridurre spazio Firebase"
+                    onClick={migratePhotosToStorage}
+                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                    title="Migra foto da base64 a Firebase Storage (risolve problema 1MB)"
                   >
-                    <span>🗜️</span>
-                    <span className="hidden sm:inline">Comprimi Foto</span>
-                    <span className="sm:hidden">Comprimi</span>
+                    <span>🚀</span>
+                    <span className="hidden sm:inline">Migra su Cloud</span>
+                    <span className="sm:hidden">Migra</span>
                   </button>
                   <button
                     onClick={exportRosaPDF}
