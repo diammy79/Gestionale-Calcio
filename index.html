@@ -866,7 +866,7 @@ try {
   firebaseApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
   auth = firebase.auth();
   db = firebase.firestore();
-  storage = firebase.storage(); // Firebase Storage per foto
+  storage = firebase.storage();
   db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
     console.log('Persistenza:', err.code);
   });
@@ -2066,7 +2066,7 @@ const SoccerTeamTracker = () => {
     }
 
     if (!user) {
-      alert('❌ Devi essere autenticato per caricare foto su cloud');
+      alert('❌ Devi essere autenticato per caricare foto su Firebase Storage');
       e.target.value = '';
       return;
     }
@@ -2080,7 +2080,7 @@ const SoccerTeamTracker = () => {
         reader.onload = (event) => {
           const img = new Image();
           img.onload = () => {
-            // Ridimensiona a 300x300 per qualità migliore rispetto a base64
+            // Ridimensiona a 300x300 per qualità migliore
             const maxWidth = 300;
             const maxHeight = 300;
             let width = img.width;
@@ -2148,17 +2148,6 @@ const SoccerTeamTracker = () => {
       showToast('❌ Errore caricamento foto: ' + error.message, 'error', 5000);
       e.target.value = '';
     }
-  };
-        alert('❌ Errore nel caricamento dell\'immagine.');
-        e.target.value = '';
-      };
-      img.src = event.target.result;
-    };
-    reader.onerror = () => {
-      alert('❌ Errore nella lettura del file.');
-      e.target.value = '';
-    };
-    reader.readAsDataURL(file);
   };
 
   const handleLogoUpload = (e) => {
@@ -3171,7 +3160,7 @@ const SoccerTeamTracker = () => {
       // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
       const cleanedData = cleanUndefinedFields(dataToSync);
 
-      // Salva su Firestore (foto ora sono URL, non base64!)
+      // Salva su Firestore (con Storage, le foto sono URL quindi documento leggero)
       await db.collection('teamData').doc(user.uid).set(cleanedData, { merge: true });
       
       setLastSynced(new Date());
@@ -3180,8 +3169,9 @@ const SoccerTeamTracker = () => {
       // Toast di conferma con dettagli
       const totale = (players?.length || 0) + (trainings?.length || 0) + (matches?.length || 0);
       const playersWithPhotos = players.filter(p => p.foto).length;
+      const photosOnStorage = players.filter(p => p.foto && p.foto.startsWith('https://')).length;
       showToast(
-        `✅ Dati caricati sul cloud!\n📊 ${players?.length || 0} giocatori (${playersWithPhotos} con foto), ${trainings?.length || 0} allenamenti, ${matches?.length || 0} partite`,
+        `✅ Dati caricati sul cloud!\n📊 ${players?.length || 0} giocatori (${playersWithPhotos} con foto, ${photosOnStorage} su Storage), ${trainings?.length || 0} allenamenti, ${matches?.length || 0} partite`,
         'success',
         5000
       );
@@ -4294,7 +4284,7 @@ const SoccerTeamTracker = () => {
       return;
     }
     
-    if (!window.confirm(`🚀 Vuoi migrare ${playersWithBase64.length} foto su Firebase Storage?\n\nQuesta operazione:\n✅ Libera spazio nel database\n✅ Migliora le prestazioni\n✅ Permette sync senza problemi\n\n⚠️ Richiede connessione internet`)) {
+    if (!window.confirm(`🚀 Vuoi migrare ${playersWithBase64.length} foto su Firebase Storage?\n\nQuesta operazione:\n✅ Libera spazio nel database Firestore\n✅ Migliora le prestazioni\n✅ Permette sync senza problemi limite 1MB\n✅ Foto qualità migliore (300x300px)\n\n⚠️ Richiede connessione internet\n⚠️ Durata: ~1-2 minuti per 30 foto`)) {
       return;
     }
     
@@ -4338,15 +4328,15 @@ const SoccerTeamTracker = () => {
     
     if (errors === 0) {
       showToast(
-        `✅ Migrazione completata!\n🚀 ${migrated} foto su Firebase Storage\n💾 Database ora leggero!`,
+        `✅ Migrazione completata!\n🚀 ${migrated} foto su Firebase Storage\n💾 Database Firestore ora leggero!\n☁️ Ora puoi sincronizzare senza problemi`,
         'success',
-        6000
+        8000
       );
     } else {
       showToast(
-        `⚠️ Migrazione parziale:\n✅ ${migrated} foto migrate\n❌ ${errors} errori`,
+        `⚠️ Migrazione parziale:\n✅ ${migrated} foto migrate\n❌ ${errors} errori\n\nVerifica console per dettagli`,
         'warning',
-        6000
+        8000
       );
     }
   };
@@ -9701,7 +9691,7 @@ const SoccerTeamTracker = () => {
                   <button
                     onClick={migratePhotosToStorage}
                     className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-                    title="Migra foto da base64 a Firebase Storage (risolve problema 1MB)"
+                    title="Migra foto da base64 a Firebase Storage (risolve limite 1MB)"
                   >
                     <span>🚀</span>
                     <span className="hidden sm:inline">Migra su Cloud</span>
