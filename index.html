@@ -8671,8 +8671,14 @@ const SoccerTeamTracker = () => {
                                     <div className="flex gap-2">
                                       <button
                                         onClick={() => {
-                                          const newNome = prompt('Nuovo nome:', esercizio.nome);
-                                          if (newNome) updateEsercizio(training.id, esercizio.id, 'nome', newNome);
+                                          setEditingEsercizio({
+                                            trainingId: training.id,
+                                            esercizioId: esercizio.id,
+                                            nome: esercizio.nome,
+                                            durata: esercizio.durata,
+                                            descrizione: esercizio.descrizione || '',
+                                            valutazione: esercizio.valutazione || ''
+                                          });
                                         }}
                                         className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                                         title="Modifica"
@@ -8759,6 +8765,164 @@ const SoccerTeamTracker = () => {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* MODAL MODIFICA ESERCIZIO */}
+          {editingEsercizio && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+                <h3 className="text-2xl font-bold mb-4 text-gray-800">✏️ Modifica Esercizio</h3>
+                
+                {/* Nome */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Nome Esercizio *
+                  </label>
+                  <input
+                    type="text"
+                    value={editingEsercizio.nome}
+                    onChange={(e) => setEditingEsercizio({...editingEsercizio, nome: e.target.value})}
+                    placeholder="es: Possesso palla 4v4"
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg"
+                  />
+                </div>
+
+                {/* Durata */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Durata (minuti) *
+                  </label>
+                  <input
+                    type="number"
+                    value={editingEsercizio.durata}
+                    onChange={(e) => setEditingEsercizio({...editingEsercizio, durata: e.target.value})}
+                    placeholder="es: 20"
+                    min="0"
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg"
+                  />
+                </div>
+
+                {/* Descrizione */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Descrizione (opzionale)
+                  </label>
+                  <textarea
+                    value={editingEsercizio.descrizione}
+                    onChange={(e) => setEditingEsercizio({...editingEsercizio, descrizione: e.target.value})}
+                    placeholder="es: Mantenimento palla in spazi stretti"
+                    rows="3"
+                    className="w-full p-3 border-2 border-gray-300 rounded-lg text-lg"
+                  />
+                </div>
+
+                {/* Valutazione */}
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Valutazione
+                  </label>
+                  <div className="flex flex-wrap gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit-valutazione"
+                        value=""
+                        checked={editingEsercizio.valutazione === ''}
+                        onChange={(e) => setEditingEsercizio({...editingEsercizio, valutazione: ''})}
+                        className="w-5 h-5"
+                      />
+                      <span className={`text-lg ${editingEsercizio.valutazione === '' ? 'font-bold' : ''}`}>
+                        Nessuna
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit-valutazione"
+                        value="Scarso"
+                        checked={editingEsercizio.valutazione === 'Scarso'}
+                        onChange={(e) => setEditingEsercizio({...editingEsercizio, valutazione: e.target.value})}
+                        className="w-5 h-5"
+                      />
+                      <span className={`text-lg ${editingEsercizio.valutazione === 'Scarso' ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
+                        🔴 Scarso
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit-valutazione"
+                        value="Medio"
+                        checked={editingEsercizio.valutazione === 'Medio'}
+                        onChange={(e) => setEditingEsercizio({...editingEsercizio, valutazione: e.target.value})}
+                        className="w-5 h-5"
+                      />
+                      <span className={`text-lg ${editingEsercizio.valutazione === 'Medio' ? 'text-yellow-600 font-bold' : 'text-gray-600'}`}>
+                        🟡 Medio
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="edit-valutazione"
+                        value="Buono"
+                        checked={editingEsercizio.valutazione === 'Buono'}
+                        onChange={(e) => setEditingEsercizio({...editingEsercizio, valutazione: e.target.value})}
+                        className="w-5 h-5"
+                      />
+                      <span className={`text-lg ${editingEsercizio.valutazione === 'Buono' ? 'text-green-600 font-bold' : 'text-gray-600'}`}>
+                        🟢 Buono
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Bottoni */}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setEditingEsercizio(null)}
+                    className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    ❌ Annulla
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!editingEsercizio.nome || !editingEsercizio.durata) {
+                        showToast('⚠️ Nome e durata sono obbligatori', 'warning');
+                        return;
+                      }
+                      
+                      // Aggiorna l'esercizio completo in un'unica operazione
+                      setTrainings(trainings.map(t => {
+                        if (t.id === editingEsercizio.trainingId) {
+                          return {
+                            ...t,
+                            esercizi: (t.esercizi || []).map(e => 
+                              e.id === editingEsercizio.esercizioId 
+                                ? {
+                                    ...e,
+                                    nome: editingEsercizio.nome,
+                                    durata: parseInt(editingEsercizio.durata) || 0,
+                                    descrizione: editingEsercizio.descrizione,
+                                    valutazione: editingEsercizio.valutazione
+                                  }
+                                : e
+                            )
+                          };
+                        }
+                        return t;
+                      }));
+                      
+                      setEditingEsercizio(null);
+                      showToast('✅ Esercizio modificato!', 'success');
+                    }}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                  >
+                    ✅ Salva Modifiche
+                  </button>
+                </div>
+              </div>
             </div>
           )}
 
