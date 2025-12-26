@@ -2319,7 +2319,8 @@ const SoccerTeamTracker = () => {
     { nome: "Partitella 11v11", durata: 40, descrizione: "Partita tattica su campo intero" },
     { nome: "Lavoro atletico", durata: 20, descrizione: "Circuito forza e resistenza" },
     { nome: "Portieri specifico", durata: 20, descrizione: "Lavoro tecnico portieri" },
-    { nome: "Defaticamento", durata: 10, descrizione: "Stretching statico e recupero" }
+    { nome: "Defaticamento", durata: 10, descrizione: "Stretching statico e recupero" },
+    { nome: "Personalizzato", durata: 0, descrizione: "" }
   ];
 
   // ========== FUNZIONI GESTIONE ESERCIZI ==========
@@ -2397,7 +2398,7 @@ const SoccerTeamTracker = () => {
     });
   };
   
-  const duplicaEserciziDaAltroAllenamento = (targetTrainingId, sourceTrainingId) => {
+  const duplicaEserciziDaAllenamento = (targetTrainingId, sourceTrainingId) => {
     const sourceTraining = trainings.find(t => t.id === parseInt(sourceTrainingId));
     if (!sourceTraining || !sourceTraining.esercizi || sourceTraining.esercizi.length === 0) {
       alert('❌ L\'allenamento selezionato non ha esercizi');
@@ -2427,105 +2428,13 @@ const SoccerTeamTracker = () => {
     showToast(`✅ ${eserciziCopiati.length} esercizi copiati!`, 'success');
   };
   
-  const getTotaleMinutiEsercizi = (esercizi) => {
+  const calcolaTotaleMinuti = (esercizi) => {
     if (!esercizi || esercizi.length === 0) return 0;
     return esercizi.reduce((tot, e) => tot + (parseInt(e.durata) || 0), 0);
   };
 
   const deleteMatch = (id) => {
     setMatches(matches.filter(m => m.id !== id));
-  };
-
-  // ========== TEMPLATE ESERCIZI PREDEFINITI ==========
-  
-  const templateEsercizi = [
-    { nome: "Riscaldamento", durata: 15, descrizione: "Corsa leggera e stretching dinamico" },
-    { nome: "Possesso palla 4v4", durata: 20, descrizione: "Mantenimento palla in quadrato 20x20m" },
-    { nome: "Possesso palla 6v6", durata: 25, descrizione: "Mantenimento palla campo ridotto" },
-    { nome: "Esercitazione passaggi", durata: 20, descrizione: "Triangolazioni e movimenti" },
-    { nome: "Tiri in porta", durata: 15, descrizione: "Serie tiri da diverse posizioni" },
-    { nome: "Partitella 7v7", durata: 30, descrizione: "Partita tattica campo ridotto" },
-    { nome: "Partitella 11v11", durata: 40, descrizione: "Partita tattica campo intero" },
-    { nome: "Lavoro atletico", durata: 20, descrizione: "Circuito forza/resistenza" },
-    { nome: "Portieri specifico", durata: 20, descrizione: "Lavoro tecnico portieri" },
-    { nome: "Defaticamento", durata: 10, descrizione: "Stretching e recupero" },
-    { nome: "Personalizzato", durata: 0, descrizione: "" }
-  ];
-
-  // ========== FUNZIONI GESTIONE ESERCIZI ==========
-  
-  const addEsercizio = (trainingId, esercizio) => {
-    setTrainings(trainings.map(t => {
-      if (t.id === trainingId) {
-        const newEsercizio = {
-          id: Date.now(),
-          nome: esercizio.nome,
-          durata: parseInt(esercizio.durata) || 0,
-          descrizione: esercizio.descrizione || '',
-          valutazione: esercizio.valutazione || ''
-        };
-        return {
-          ...t,
-          esercizi: [...(t.esercizi || []), newEsercizio]
-        };
-      }
-      return t;
-    }));
-  };
-
-  const updateEsercizio = (trainingId, esercizioId, field, value) => {
-    setTrainings(trainings.map(t => {
-      if (t.id === trainingId) {
-        return {
-          ...t,
-          esercizi: (t.esercizi || []).map(e => 
-            e.id === esercizioId ? { ...e, [field]: value } : e
-          )
-        };
-      }
-      return t;
-    }));
-  };
-
-  const deleteEsercizio = (trainingId, esercizioId) => {
-    setTrainings(trainings.map(t => {
-      if (t.id === trainingId) {
-        return {
-          ...t,
-          esercizi: (t.esercizi || []).filter(e => e.id !== esercizioId)
-        };
-      }
-      return t;
-    }));
-  };
-
-  const duplicaEserciziDaAllenamento = (targetTrainingId, sourceTrainingId) => {
-    const sourceTraining = trainings.find(t => t.id === sourceTrainingId);
-    if (!sourceTraining || !sourceTraining.esercizi || sourceTraining.esercizi.length === 0) {
-      showToast('⚠️ Allenamento selezionato non ha esercizi', 'warning');
-      return;
-    }
-
-    setTrainings(trainings.map(t => {
-      if (t.id === targetTrainingId) {
-        const eserciziDuplicati = sourceTraining.esercizi.map(e => ({
-          ...e,
-          id: Date.now() + Math.random() // Nuovo ID univoco
-        }));
-        return {
-          ...t,
-          esercizi: [...(t.esercizi || []), ...eserciziDuplicati]
-        };
-      }
-      return t;
-    }));
-
-    showToast(`✅ ${sourceTraining.esercizi.length} esercizi duplicati!`, 'success');
-  };
-
-  const calcolaTotaleMinuti = (esercizi) => {
-    if (!esercizi || esercizi.length === 0) return 0;
-    return esercizi.reduce((sum, e) => sum + (parseInt(e.durata) || 0), 0);
   };
 
   // ========== FUNZIONI SISTEMA MVP ==========
