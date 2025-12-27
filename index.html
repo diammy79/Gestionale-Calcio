@@ -1111,6 +1111,7 @@ const SoccerTeamTracker = () => {
   const [activeTab, setActiveTab] = useState('dashboard'); // Apre sulla dashboard
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+  const [showResultsModal, setShowResultsModal] = useState(false);  // ✅ Modal elenco risultati
   const [expandedTrainings, setExpandedTrainings] = useState({});
   const [trainingTabActive, setTrainingTabActive] = useState({}); // 'presenze' o 'esercizi' per ogni training
   const [newEsercizio, setNewEsercizio] = useState({}); // Form nuovo esercizio per ogni training
@@ -3839,6 +3840,147 @@ const SoccerTeamTracker = () => {
   // Era pericoloso perché poteva sovrascrivere cloud con database vuoto
   // Ora l'utente deve fare sync manuale cliccando "Scarica da Cloud"
 
+  // ========== EXPORT PDF RISULTATI PARTITE ==========
+  const exportResultsPDF = () => {
+    if (matches.length === 0) {
+      showToast('⚠️ Nessuna partita presente', 'warning');
+      return;
+    }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Titolo
+    doc.setFontSize(20);
+    doc.text('RISULTATI PARTITE', 105, 20, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text('Real DOR Under 18', 105, 28, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text('Stagione 2024/2025', 105, 35, { align: 'center' });
+    
+    // Data generazione
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')} alle ${new Date().toLocaleTimeString('it-IT')}`, 105, 41, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    
+    let yPosition = 50;
+    
+    // Prepara dati partite
+    const matchesData = matches
+      .filter(m => {
+        const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        return golFatti > 0 || golSubiti > 0; // Solo partite completate
+      })
+      .sort((a, b) => new Date(a.data) - new Date(b.data)) // Ordina per data
+      .map(m => {
+        const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        const risultato = golFatti > golSubiti ? 'V' : golFatti === golSubiti ? 'P' : 'S';
+        
+        return {
+          data: new Date(m.data).toLocaleDateString('it-IT'),
+          avversario: m.avversario || m.squadraTrasferta || 'Avversario',
+          risultatoText: `${golFatti}-${golSubiti}`,
+          risultato: risultato,
+          luogo: m.luogo || '-',
+          punti: risultato === 'V' ? 3 : risultato === 'P' ? 1 : 0
+        };
+      });
+    
+    // Statistiche riepilogative
+    const totalePartite = matchesData.length;
+    const vittorie = matchesData.filter(m => m.risultato === 'V').length;
+    const pareggi = matchesData.filter(m => m.risultato === 'P').length;
+    const sconfitte = matchesData.filter(m => m.risultato === 'S').length;
+    const puntiTotali = matchesData.reduce((sum, m) => sum + m.punti, 0);
+    
+    // Box statistiche
+    doc.setFillColor(240, 240, 240);
+    doc.rect(15, yPosition, 180, 25, 'F');
+    
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text('STATISTICHE STAGIONE', 20, yPosition + 7);
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`Partite: ${totalePartite}`, 20, yPosition + 14);
+    doc.text(`Vittorie: ${vittorie}`, 60, yPosition + 14);
+    doc.text(`Pareggi: ${pareggi}`, 95, yPosition + 14);
+    doc.text(`Sconfitte: ${sconfitte}`, 130, yPosition + 14);
+    doc.text(`Punti: ${puntiTotali}`, 170, yPosition + 14);
+    
+    doc.setFontSize(9);
+    doc.text(`% Vittorie: ${totalePartite > 0 ? ((vittorie / totalePartite) * 100).toFixed(1) : 0}%`, 20, yPosition + 21);
+    doc.text(`Media Punti/Partita: ${totalePartite > 0 ? (puntiTotali / totalePartite).toFixed(2) : 0}`, 95, yPosition + 21);
+    
+    yPosition += 32;
+    
+    // Tabella risultati
+    const tableData = matchesData.map(m => [
+      m.data,
+      m.avversario,
+      m.risultatoText,
+      m.risultato,
+      m.luogo
+    ]);
+    
+    doc.autoTable({
+      startY: yPosition,
+      head: [['Data', 'Avversario', 'Risultato', 'Esito', 'Luogo']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { 
+        fillColor: [59, 130, 246],
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: { 
+        fontSize: 9 
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 25 },
+        1: { halign: 'left', cellWidth: 70 },
+        2: { halign: 'center', cellWidth: 25, fontStyle: 'bold' },
+        3: { halign: 'center', cellWidth: 20, fontStyle: 'bold' },
+        4: { halign: 'left', cellWidth: 50 }
+      },
+      didParseCell: function(data) {
+        // Colora l'esito (V/P/S)
+        if (data.column.index === 3 && data.section === 'body') {
+          const esito = data.cell.text[0];
+          if (esito === 'V') {
+            data.cell.styles.textColor = [16, 185, 129];
+            data.cell.styles.fontStyle = 'bold';
+          } else if (esito === 'P') {
+            data.cell.styles.textColor = [245, 158, 11];
+            data.cell.styles.fontStyle = 'bold';
+          } else if (esito === 'S') {
+            data.cell.styles.textColor = [239, 68, 68];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
+      }
+    });
+    
+    // Footer
+    const pageCount = doc.internal.getNumberOfPages();
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.text(`Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
+      doc.text('Generato da Moreschi Roberto Gestionale Calcio', 105, 285, { align: 'center' });
+    }
+    
+    // Salva PDF
+    doc.save(`Risultati_Partite_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`);
+    showToast('✅ PDF risultati generato!', 'success');
+  };
+
   // ========== USE EFFECT PER GRAFICI DASHBOARD (CON RETRY LOGIC E RESPONSIVE MOBILE) ==========
   useEffect(() => {
     console.log('📊 useEffect grafici dashboard triggered');
@@ -4000,8 +4142,13 @@ const SoccerTeamTracker = () => {
         tryCreateChart('resultsChart', (ctx) => {
           let vittorie = 0, pareggi = 0, sconfitte = 0;
           matches.forEach(m => {
-            if (!m.risultato || !m.risultato.includes('-')) return;
-            const [golFatti, golSubiti] = m.risultato.split('-').map(g => parseInt(g) || 0);
+            // ✅ FIX: Calcola sempre da golFatti e golSubiti invece del campo risultato
+            const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            
+            // Considera solo partite completate (almeno un gol segnato o subito)
+            if (golFatti === 0 && golSubiti === 0) return;
+            
             if (golFatti > golSubiti) vittorie++;
             else if (golFatti === golSubiti) pareggi++;
             else sconfitte++;
@@ -6833,8 +6980,18 @@ const SoccerTeamTracker = () => {
                   </div>
                   <div className="text-gray-700 font-semibold">Partite Giocate</div>
                   <div className="text-sm text-gray-600 mt-1">
-                    {matches.filter(m => m.risultato && m.risultato.includes('-')).length} completate
+                    {matches.filter(m => {
+                      const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                      const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                      return golFatti > 0 || golSubiti > 0;
+                    }).length} completate
                   </div>
+                  <button
+                    onClick={() => setShowResultsModal(true)}
+                    className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    📋 Elenco Risultati
+                  </button>
                 </div>
 
                 <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-lg p-6 border-2 border-green-200 animate-scale-up" style={{animationDelay: '0.1s'}}>
@@ -11696,6 +11853,156 @@ const SoccerTeamTracker = () => {
                   className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                 >
                   Ho capito, iniziamo!
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========== MODAL ELENCO RISULTATI PARTITE ========== */}
+        {showResultsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[110] p-4 animate-fade-in">
+            <div className="bg-white rounded-lg shadow-2xl max-w-5xl w-full p-6 animate-scale-up max-h-[90vh] overflow-y-auto">
+              <div className="text-center mb-6">
+                <div className="text-6xl mb-3">📋</div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Elenco Risultati Partite</h2>
+                <p className="text-gray-600">Real DOR Under 18 - Stagione 2024/2025</p>
+              </div>
+
+              {/* Statistiche Riepilogative */}
+              {(() => {
+                const partiteCompletate = matches.filter(m => {
+                  const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  return golFatti > 0 || golSubiti > 0;
+                });
+                
+                const vittorie = partiteCompletate.filter(m => {
+                  const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  return golFatti > golSubiti;
+                }).length;
+                
+                const pareggi = partiteCompletate.filter(m => {
+                  const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  return golFatti === golSubiti;
+                }).length;
+                
+                const sconfitte = partiteCompletate.filter(m => {
+                  const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                  return golFatti < golSubiti;
+                }).length;
+                
+                const puntiTotali = vittorie * 3 + pareggi * 1;
+                
+                return (
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow p-4 border-2 border-blue-200">
+                      <div className="text-3xl font-bold text-blue-600">{partiteCompletate.length}</div>
+                      <div className="text-sm text-gray-700 font-semibold">Partite</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow p-4 border-2 border-green-200">
+                      <div className="text-3xl font-bold text-green-600">{vittorie}</div>
+                      <div className="text-sm text-gray-700 font-semibold">Vittorie</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg shadow p-4 border-2 border-yellow-200">
+                      <div className="text-3xl font-bold text-yellow-600">{pareggi}</div>
+                      <div className="text-sm text-gray-700 font-semibold">Pareggi</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-lg shadow p-4 border-2 border-red-200">
+                      <div className="text-3xl font-bold text-red-600">{sconfitte}</div>
+                      <div className="text-sm text-gray-700 font-semibold">Sconfitte</div>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow p-4 border-2 border-purple-200">
+                      <div className="text-3xl font-bold text-purple-600">{puntiTotali}</div>
+                      <div className="text-sm text-gray-700 font-semibold">Punti</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Tabella Risultati */}
+              <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-6">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-blue-600 text-white">
+                      <tr>
+                        <th className="p-3 text-left">Data</th>
+                        <th className="p-3 text-left">Avversario</th>
+                        <th className="p-3 text-center">Risultato</th>
+                        <th className="p-3 text-center">Esito</th>
+                        <th className="p-3 text-left hidden md:table-cell">Luogo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {matches
+                        .filter(m => {
+                          const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                          const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                          return golFatti > 0 || golSubiti > 0;
+                        })
+                        .sort((a, b) => new Date(b.data) - new Date(a.data)) // Più recenti prima
+                        .map((m, idx) => {
+                          const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                          const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                          const risultato = golFatti > golSubiti ? 'Vittoria' : golFatti === golSubiti ? 'Pareggio' : 'Sconfitta';
+                          const esitoColor = risultato === 'Vittoria' ? 'bg-green-50 text-green-700' : risultato === 'Pareggio' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-700';
+                          const esitoIcon = risultato === 'Vittoria' ? '✅' : risultato === 'Pareggio' ? '🟡' : '❌';
+                          
+                          return (
+                            <tr key={m.id || idx} className="border-b hover:bg-gray-50">
+                              <td className="p-3 font-semibold">
+                                {new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              </td>
+                              <td className="p-3">
+                                <div className="font-semibold text-gray-800">{m.avversario || m.squadraTrasferta || 'Avversario'}</div>
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className="text-lg font-bold text-gray-800">{golFatti} - {golSubiti}</span>
+                              </td>
+                              <td className="p-3 text-center">
+                                <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${esitoColor}`}>
+                                  {esitoIcon} {risultato}
+                                </span>
+                              </td>
+                              <td className="p-3 text-gray-600 hidden md:table-cell">{m.luogo || '-'}</td>
+                            </tr>
+                          );
+                        })}
+                      {matches.filter(m => {
+                        const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                        const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                        return golFatti > 0 || golSubiti > 0;
+                      }).length === 0 && (
+                        <tr>
+                          <td colSpan="5" className="p-8 text-center text-gray-500">
+                            <div className="text-4xl mb-2">⚽</div>
+                            <p>Nessuna partita completata</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Pulsanti Azione */}
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => {
+                    exportResultsPDF();
+                  }}
+                  className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                >
+                  📄 Esporta PDF
+                </button>
+                <button
+                  onClick={() => setShowResultsModal(false)}
+                  className="flex-1 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-semibold"
+                >
+                  ✕ Chiudi
                 </button>
               </div>
             </div>
