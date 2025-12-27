@@ -2973,6 +2973,8 @@ const SoccerTeamTracker = () => {
         trainings,
         matches,
         injuries,
+        squadreGirone,        // ✅ AGGIUNTO: Squadre del girone
+        risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
         timestamp: new Date().toISOString(),
         deviceId: generateDeviceId(),
         deviceName: getDeviceName(),
@@ -3038,13 +3040,17 @@ const SoccerTeamTracker = () => {
       if (data.trainings) setTrainings(data.trainings);
       if (data.matches) setMatches(data.matches);
       if (data.injuries) setInjuries(data.injuries);
+      if (data.squadreGirone) setSquadreGirone(data.squadreGirone);              // ✅ AGGIUNTO
+      if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
       
       // Salva anche in IndexedDB
       await saveToIndexedDB('teamData', {
         players: data.players || [],
         trainings: data.trainings || [],
         matches: data.matches || [],
-        injuries: data.injuries || []
+        injuries: data.injuries || [],
+        squadreGirone: data.squadreGirone || [],              // ✅ AGGIUNTO
+        risultatiCampionato: data.risultatiCampionato || []   // ✅ AGGIUNTO
       });
       
       showToast('✅ Dati caricati da cloud!', 'success');
@@ -3379,11 +3385,20 @@ const SoccerTeamTracker = () => {
             console.log('⚠️ CONFLITTO: Dati locali più recenti! Mostro modal...');
             // Dati locali più recenti - mostra dialogo conflitto
             setSyncConflicts({
-              local: { players, trainings, matches, lastSaved: localLastSaved },
+              local: { 
+                players, 
+                trainings, 
+                matches, 
+                squadreGirone,            // ✅ AGGIUNTO
+                risultatiCampionato,      // ✅ AGGIUNTO
+                lastSaved: localLastSaved 
+              },
               cloud: { 
                 players: cloudData.players, 
                 trainings: cloudData.trainings, 
-                matches: cloudData.matches, 
+                matches: cloudData.matches,
+                squadreGirone: cloudData.squadreGirone || [],              // ✅ AGGIUNTO
+                risultatiCampionato: cloudData.risultatiCampionato || [],  // ✅ AGGIUNTO
                 lastSynced: cloudLastSynced 
               }
             });
@@ -3824,7 +3839,7 @@ const SoccerTeamTracker = () => {
   // Era pericoloso perché poteva sovrascrivere cloud con database vuoto
   // Ora l'utente deve fare sync manuale cliccando "Scarica da Cloud"
 
-  // ========== USE EFFECT PER GRAFICI DASHBOARD ==========
+  // ========== USE EFFECT PER GRAFICI DASHBOARD (CON RETRY LOGIC E RESPONSIVE MOBILE) ==========
   useEffect(() => {
     console.log('📊 useEffect grafici dashboard triggered');
     console.log('   activeTab:', activeTab);
@@ -3832,17 +3847,39 @@ const SoccerTeamTracker = () => {
     
     if (activeTab === 'dashboard' && typeof Chart !== 'undefined') {
       console.log('✅ Condizioni soddisfatte, creo grafici...');
-      // Aspetta che il DOM sia pronto (aumentato timeout)
-      setTimeout(() => {
-        console.log('⏰ Timeout scaduto, cerco canvas...');
-        // Grafico Gol Fatti/Subiti
-        const goalsCtx = document.getElementById('goalsChart');
-        console.log('   goalsChart trovato?', goalsCtx ? 'SÌ' : 'NO');
-        if (goalsCtx) {
-          // Distruggi grafico esistente se c'è
-          const existingChart = Chart.getChart(goalsCtx);
-          if (existingChart) existingChart.destroy();
+      
+      // Funzione per tentare la creazione del grafico con retry
+      const tryCreateChart = (chartId, createFn, retries = 0) => {
+        const maxRetries = 5; // Tenta fino a 5 volte
+        const baseDelay = 300; // Parti da 300ms
+        
+        const attemptCreate = () => {
+          const canvas = document.getElementById(chartId);
           
+          if (canvas) {
+            console.log(`✅ Canvas ${chartId} trovato, creo grafico...`);
+            // Distruggi grafico esistente se c'è
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) existingChart.destroy();
+            
+            createFn(canvas);
+          } else if (retries < maxRetries) {
+            console.log(`⏰ Canvas ${chartId} non trovato, retry ${retries + 1}/${maxRetries}...`);
+            setTimeout(() => tryCreateChart(chartId, createFn, retries + 1), baseDelay * (retries + 1));
+          } else {
+            console.log(`❌ Canvas ${chartId} non trovato dopo ${maxRetries} tentativi`);
+          }
+        };
+        
+        attemptCreate();
+      };
+      
+      // Aspetta che il DOM sia pronto
+      setTimeout(() => {
+        console.log('⏰ Inizio creazione grafici...');
+        
+        // ============ GRAFICO GOL FATTI/SUBITI ============
+        tryCreateChart('goalsChart', (ctx) => {
           const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
           
           // Calcola totali cumulativi
@@ -3862,7 +3899,7 @@ const SoccerTeamTracker = () => {
             golSubitiCumulativi.push(totaleSubiti);
           });
           
-          new Chart(goalsCtx, {
+          new Chart(ctx, {
             type: 'line',
             data: {
               labels: matchDates,
@@ -3893,15 +3930,17 @@ const SoccerTeamTracker = () => {
             },
             options: {
               responsive: true,
-              maintainAspectRatio: false,
+              maintainAspectRatio: true,
+              aspectRatio: window.innerWidth < 768 ? 1.2 : 2, // Mobile più quadrato
               plugins: {
                 legend: {
                   position: 'top',
                   labels: {
                     font: {
-                      size: 13,
+                      size: window.innerWidth < 768 ? 11 : 13, // Font più piccolo su mobile
                       weight: 'bold'
-                    }
+                    },
+                    padding: window.innerWidth < 768 ? 8 : 15
                   }
                 },
                 tooltip: {
@@ -3910,7 +3949,6 @@ const SoccerTeamTracker = () => {
                       return 'Dopo: ' + context[0].label;
                     },
                     afterLabel: function(context) {
-                      // Mostra anche i gol della singola partita
                       const index = context.dataIndex;
                       if (index === 0) return '';
                       
@@ -3931,11 +3969,12 @@ const SoccerTeamTracker = () => {
                   ticks: { 
                     stepSize: 5,
                     font: {
+                      size: window.innerWidth < 768 ? 10 : 12,
                       weight: 'bold'
                     }
                   },
                   title: {
-                    display: true,
+                    display: window.innerWidth >= 768, // Nascondi titolo asse su mobile
                     text: 'Totale Gol',
                     font: {
                       size: 14,
@@ -3946,21 +3985,19 @@ const SoccerTeamTracker = () => {
                 x: {
                   ticks: {
                     font: {
-                      size: 11
-                    }
+                      size: window.innerWidth < 768 ? 9 : 11
+                    },
+                    maxRotation: 45,
+                    minRotation: 0
                   }
                 }
               }
             }
           });
-        }
+        });
 
-        // Grafico Risultati (Vittorie/Pareggi/Sconfitte)
-        const resultsCtx = document.getElementById('resultsChart');
-        if (resultsCtx) {
-          const existingChart = Chart.getChart(resultsCtx);
-          if (existingChart) existingChart.destroy();
-          
+        // ============ GRAFICO RISULTATI ============
+        tryCreateChart('resultsChart', (ctx) => {
           let vittorie = 0, pareggi = 0, sconfitte = 0;
           matches.forEach(m => {
             if (!m.risultato || !m.risultato.includes('-')) return;
@@ -3970,7 +4007,7 @@ const SoccerTeamTracker = () => {
             else sconfitte++;
           });
           
-          new Chart(resultsCtx, {
+          new Chart(ctx, {
             type: 'doughnut',
             data: {
               labels: [`Vittorie (${vittorie})`, `Pareggi (${pareggi})`, `Sconfitte (${sconfitte})`],
@@ -3983,16 +4020,17 @@ const SoccerTeamTracker = () => {
             },
             options: {
               responsive: true,
-              maintainAspectRatio: false,
+              maintainAspectRatio: true,
+              aspectRatio: window.innerWidth < 768 ? 1 : 1.5,
               plugins: {
                 legend: {
-                  position: 'bottom',
+                  position: window.innerWidth < 768 ? 'bottom' : 'bottom',
                   labels: {
                     font: {
-                      size: 14,
+                      size: window.innerWidth < 768 ? 11 : 14,
                       weight: 'bold'
                     },
-                    padding: 15
+                    padding: window.innerWidth < 768 ? 10 : 15
                   }
                 },
                 tooltip: {
@@ -4009,19 +4047,15 @@ const SoccerTeamTracker = () => {
               }
             }
           });
-        }
+        });
 
-        // Grafico Presenze Allenamenti
-        const attendanceCtx = document.getElementById('attendanceChart');
-        if (attendanceCtx) {
-          const existingChart = Chart.getChart(attendanceCtx);
-          if (existingChart) existingChart.destroy();
-          
+        // ============ GRAFICO PRESENZE ALLENAMENTI ============
+        tryCreateChart('attendanceChart', (ctx) => {
           const last10Trainings = trainings.slice(-10);
           const trainingDates = last10Trainings.map(t => new Date(t.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
           const presenze = last10Trainings.map(t => Object.values(t.presenze).filter(p => p).length);
           
-          new Chart(attendanceCtx, {
+          new Chart(ctx, {
             type: 'bar',
             data: {
               labels: trainingDates,
@@ -4034,7 +4068,8 @@ const SoccerTeamTracker = () => {
             },
             options: {
               responsive: true,
-              maintainAspectRatio: false,
+              maintainAspectRatio: true,
+              aspectRatio: window.innerWidth < 768 ? 1.2 : 2,
               plugins: {
                 legend: {
                   display: false
@@ -4043,13 +4078,28 @@ const SoccerTeamTracker = () => {
               scales: {
                 y: {
                   beginAtZero: true,
-                  ticks: { stepSize: 1 }
+                  ticks: { 
+                    stepSize: 1,
+                    font: {
+                      size: window.innerWidth < 768 ? 10 : 12
+                    }
+                  }
+                },
+                x: {
+                  ticks: {
+                    font: {
+                      size: window.innerWidth < 768 ? 9 : 11
+                    },
+                    maxRotation: 45,
+                    minRotation: 0
+                  }
                 }
               }
             }
           });
-        }
-      }, 1500); // Aumentato per dare tempo al DOM di caricare completamente
+        });
+        
+      }, 500); // Timeout iniziale ridotto a 500ms, poi retry gestiti internamente
 
     }
   }, [activeTab, matches, trainings, players]);
@@ -13972,6 +14022,14 @@ const SoccerTeamTracker = () => {
                       <span className="text-gray-600">Partite:</span>
                       <span className="font-bold">{syncConflicts.local.matches.length}</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Squadre Girone:</span>
+                      <span className="font-bold">{(syncConflicts.local.squadreGirone || []).length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Giornate Campionato:</span>
+                      <span className="font-bold">{(syncConflicts.local.risultatiCampionato || []).length}</span>
+                    </div>
                     <div className="flex justify-between pt-2 border-t">
                       <span className="text-gray-600">Ultima modifica:</span>
                       <span className="font-bold">{syncConflicts.local.lastSaved.toLocaleString('it-IT')}</span>
@@ -14006,6 +14064,14 @@ const SoccerTeamTracker = () => {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Partite:</span>
                       <span className="font-bold">{syncConflicts.cloud.matches.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Squadre Girone:</span>
+                      <span className="font-bold">{(syncConflicts.cloud.squadreGirone || []).length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Giornate Campionato:</span>
+                      <span className="font-bold">{(syncConflicts.cloud.risultatiCampionato || []).length}</span>
                     </div>
                     <div className="flex justify-between pt-2 border-t">
                       <span className="text-gray-600">Ultima sincronizzazione:</span>
