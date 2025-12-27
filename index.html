@@ -1230,8 +1230,7 @@ const SoccerTeamTracker = () => {
   const [lastSyncInfo, setLastSyncInfo] = useState(null);
   const [autoSyncInterval, setAutoSyncInterval] = useState(null);
 
-  // Carica dati da IndexedDB all'avvio
-    // Gestione autenticazione
+  // Gestione autenticazione
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
@@ -1241,6 +1240,22 @@ const SoccerTeamTracker = () => {
           if (userDoc.exists) {
             const role = userDoc.data().role || 'user';
             setUserRole(role);
+            
+            // ✅ AUTO-SYNC per utenti USER al login
+            if (role === 'user') {
+              console.log('🔄 Utente USER rilevato - Avvio auto-sync da cloud...');
+              // Piccolo delay per assicurarsi che tutto sia pronto
+              setTimeout(async () => {
+                try {
+                  await loadDataFromCloud();
+                  console.log('✅ Auto-sync completato per USER');
+                  showToast('✅ Dati sincronizzati automaticamente dal cloud', 'success');
+                } catch (error) {
+                  console.error('❌ Errore auto-sync USER:', error);
+                  showToast('⚠️ Errore durante la sincronizzazione automatica', 'error');
+                }
+              }, 1500);
+            }
           } else {
             setUserRole('user');
           }
@@ -6856,9 +6871,9 @@ const SoccerTeamTracker = () => {
         <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern">
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
             {[
-              'dashboard', 'classifica', 'top', 'stats', 'matches', 'convocazioni', 'tattica', 
-              'trainings', 'divisione', 'injuries', 'calendar', 'roster',
-              ...(userRole === 'admin' ? ['export', 'sync', 'admin'] : [])
+              'dashboard', 'classifica', 'top', 'stats', 
+              'trainings', 'injuries', 'calendar', 'roster',
+              ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica', 'divisione', 'export', 'sync', 'admin'] : [])
             ].map(tab => (
               <button
                 key={tab}
