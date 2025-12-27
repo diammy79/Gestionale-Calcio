@@ -1150,7 +1150,44 @@
       }
     }
     
-    /* ========== FIX ORIENTAMENTO SMARTPHONE ========== */
+    /* ========== GESTIONE TESTO TAB PORTRAIT/LANDSCAPE ========== */
+    
+    /* Portrait mobile: mostra testo completo, nascondi solo icone */
+    @media (max-width: 640px) and (orientation: portrait) {
+      .tab-text-portrait {
+        display: inline !important;
+        font-size: 0.75rem !important;
+      }
+      
+      .tab-icon-only {
+        display: none !important;
+      }
+      
+      /* Tab navbar: aumenta padding per testo */
+      .tab-container button {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
+    }
+    
+    /* Landscape mobile: nascondi testo, mostra solo icone */
+    @media (max-width: 640px) and (orientation: landscape) {
+      .tab-text-portrait {
+        display: none !important;
+      }
+      
+      .tab-icon-only {
+        display: inline !important;
+      }
+      
+      /* Tab navbar: padding ridotto per solo icone */
+      .tab-container button {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+      }
+    }
+    
+    /* ========== FIX RIDIMENSIONAMENTO ORIENTAMENTO MOBILE ========== */
     @media (max-width: 640px) and (orientation: landscape) {
       /* Landscape: massimizza spazio verticale */
       .mobile-header {
@@ -7325,92 +7362,92 @@ const SoccerTeamTracker = () => {
               >
                 {tab === 'trainings' && (
                   <>
-                    <span className="hidden sm:inline">{`Allenamenti (${trainings.length})`}</span>
-                    <span className="sm:hidden">🏃 {trainings.length}</span>
+                    <span className="tab-text-portrait hidden sm:inline">{`Allenamenti (${trainings.length})`}</span>
+                    <span className="tab-icon-only sm:hidden">🏃 {trainings.length}</span>
                   </>
                 )}
                 {tab === 'matches' && (
                   <>
-                    <span className="hidden sm:inline">{`Partite (${matches.length})`}</span>
-                    <span className="sm:hidden">⚽ {matches.length}</span>
+                    <span className="tab-text-portrait hidden sm:inline">{`Partite (${matches.length})`}</span>
+                    <span className="tab-icon-only sm:hidden">⚽ {matches.length}</span>
                   </>
                 )}
                 {tab === 'stats' && (
                   <>
-                    <span className="hidden sm:inline">Statistiche</span>
-                    <span className="sm:hidden">📊</span>
+                    <span className="tab-text-portrait hidden sm:inline">Statistiche</span>
+                    <span className="tab-icon-only sm:hidden">📊</span>
                   </>
                 )}
                 {tab === 'top' && (
                   <>
-                    <span className="hidden sm:inline">🏆 Giocatori TOP</span>
-                    <span className="sm:hidden">🏆</span>
+                    <span className="tab-text-portrait hidden sm:inline">🏆 Giocatori TOP</span>
+                    <span className="tab-icon-only sm:hidden">🏆</span>
                   </>
                 )}
                 {tab === 'tattica' && (
                   <>
-                    <span className="hidden sm:inline">🎯 Analisi Tattica</span>
-                    <span className="sm:hidden">🎯</span>
+                    <span className="tab-text-portrait hidden sm:inline">🎯 Analisi Tattica</span>
+                    <span className="tab-icon-only sm:hidden">🎯</span>
                   </>
                 )}
                 {tab === 'divisione' && (
                   <>
-                    <span className="hidden sm:inline">⚖️ Divisione Squadre</span>
-                    <span className="sm:hidden">⚖️</span>
+                    <span className="tab-text-portrait hidden sm:inline">⚖️ Divisione Squadre</span>
+                    <span className="tab-icon-only sm:hidden">⚖️</span>
                   </>
                 )}
                 {tab === 'convocazioni' && (
                   <>
-                    <span className="hidden sm:inline">📋 Convocazioni</span>
-                    <span className="sm:hidden">📋</span>
+                    <span className="tab-text-portrait hidden sm:inline">📋 Convocazioni</span>
+                    <span className="tab-icon-only sm:hidden">📋</span>
                   </>
                 )}
                 {tab === 'roster' && (
                   <>
-                    <span className="hidden sm:inline">Gestione Rosa</span>
-                    <span className="sm:hidden">👥</span>
+                    <span className="tab-text-portrait hidden sm:inline">Gestione Rosa</span>
+                    <span className="tab-icon-only sm:hidden">👥</span>
                   </>
                 )}
                 {tab === 'dashboard' && (
                   <>
-                    <span className="hidden sm:inline">📊 Dashboard</span>
-                    <span className="sm:hidden">📊</span>
+                    <span className="tab-text-portrait hidden sm:inline">📊 Dashboard</span>
+                    <span className="tab-icon-only sm:hidden">📊</span>
                   </>
                 )}
                 {tab === 'classifica' && (
                   <>
-                    <span className="hidden sm:inline">🥇 Classifica</span>
-                    <span className="sm:hidden">🥇</span>
+                    <span className="tab-text-portrait hidden sm:inline">🥇 Classifica</span>
+                    <span className="tab-icon-only sm:hidden">🥇</span>
                   </>
                 )}
                 {tab === 'injuries' && (
                   <>
-                    <span className="hidden sm:inline">🤕 Infortuni</span>
-                    <span className="sm:hidden">🤕</span>
+                    <span className="tab-text-portrait hidden sm:inline">🤕 Infortuni</span>
+                    <span className="tab-icon-only sm:hidden">🤕</span>
                   </>
                 )}
                 {tab === 'calendar' && (
                   <>
-                    <span className="hidden sm:inline">📅 Calendario</span>
-                    <span className="sm:hidden">📅</span>
+                    <span className="tab-text-portrait hidden sm:inline">📅 Calendario</span>
+                    <span className="tab-icon-only sm:hidden">📅</span>
                   </>
                 )}
                 {tab === 'export' && (
                   <>
-                    <span className="hidden sm:inline">💾 Esportazioni</span>
-                    <span className="sm:hidden">💾</span>
+                    <span className="tab-text-portrait hidden sm:inline">💾 Esportazioni</span>
+                    <span className="tab-icon-only sm:hidden">💾</span>
                   </>
                 )}
                 {tab === 'sync' && (
                   <>
-                    <span className="hidden sm:inline">☁️ Sincronizzazione</span>
-                    <span className="sm:hidden">☁️</span>
+                    <span className="tab-text-portrait hidden sm:inline">☁️ Sincronizzazione</span>
+                    <span className="tab-icon-only sm:hidden">☁️</span>
                   </>
                 )}
                 {tab === 'admin' && (
                   <>
-                    <span className="hidden sm:inline">👑 Gestione Utenti</span>
-                    <span className="sm:hidden">👑</span>
+                    <span className="tab-text-portrait hidden sm:inline">👑 Gestione Utenti</span>
+                    <span className="tab-icon-only sm:hidden">👑</span>
                   </>
                 )}
               </button>
