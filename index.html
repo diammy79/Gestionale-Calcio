@@ -1249,6 +1249,47 @@
       }
     }
     
+    /* ========== GESTIONE ROSA PORTRAIT MOBILE ========== */
+    @media (max-width: 640px) and (orientation: portrait) {
+      /* Quick Stats: da 5 colonne a 3 per evitare sovrapposizioni */
+      .roster-quick-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+        gap: 0.5rem !important;
+      }
+      
+      /* Numeri statistiche più compatti */
+      .roster-quick-stats .text-2xl {
+        font-size: 1.25rem !important;
+      }
+      
+      /* Testo etichette più piccolo */
+      .roster-quick-stats .text-xs {
+        font-size: 0.65rem !important;
+        line-height: 1rem !important;
+      }
+      
+      /* Foto giocatore più piccola */
+      .roster-player-photo {
+        width: 64px !important;
+        height: 64px !important;
+      }
+      
+      /* Padding card più compatto */
+      .roster-player-card {
+        padding: 0.75rem !important;
+      }
+      
+      /* Grid info giocatore: forza 1 colonna */
+      .roster-player-info {
+        grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+      }
+      
+      /* Numero giocatore più piccolo */
+      .roster-player-number {
+        font-size: 1.25rem !important;
+      }
+    }
+    
     /* ========== FIX RIDIMENSIONAMENTO ORIENTAMENTO MOBILE ========== */
     @media (max-width: 640px) and (orientation: landscape) {
       /* Landscape: massimizza spazio verticale */
@@ -11145,9 +11186,9 @@ const SoccerTeamTracker = () => {
                     return a.nome.localeCompare(b.nome);
                   })
                   .map((player, index) => (
-                  <div key={player.numero} className={`bg-white border rounded-lg p-4 card-hover animate-fade-in ${player.fuoriRosa ? 'opacity-50 border-red-300 bg-red-50' : ''}`} style={{animationDelay: `${index * 0.05}s`}}>
+                  <div key={player.numero} className={`bg-white border rounded-lg p-4 card-hover animate-fade-in roster-player-card ${player.fuoriRosa ? 'opacity-50 border-red-300 bg-red-50' : ''}`} style={{animationDelay: `${index * 0.05}s`}}>
                     <div className="flex gap-4">
-                      <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 relative">
+                      <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 relative roster-player-photo">
                         {player.foto ? (
                           <img 
                             src={player.foto} 
@@ -11174,10 +11215,10 @@ const SoccerTeamTracker = () => {
                         )}
                       </div>
                       <div className="flex-1">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 roster-player-info">
                           <div>
                             <label className="text-xs font-semibold text-gray-600">Numero</label>
-                            <div className="text-xl font-bold text-blue-600">{player.nome ? index + 1 : player.numero}</div>
+                            <div className="text-xl font-bold text-blue-600 roster-player-number">{player.nome ? index + 1 : player.numero}</div>
                           </div>
                           <div className="md:col-span-2">
                             <label className="text-xs font-semibold text-gray-600">Nome Completo</label>
@@ -11208,7 +11249,7 @@ const SoccerTeamTracker = () => {
                           {/* Quick Stats - Solo se giocatore attivo */}
                           {player.nome && editingPlayer !== player.numero && (
                             <div className="md:col-span-3 mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                              <div className="grid grid-cols-5 gap-4 text-center">
+                              <div className="grid grid-cols-5 gap-4 text-center roster-quick-stats">
                                 <div>
                                   <div className="text-2xl font-bold text-blue-600">
                                     {matches.reduce((sum, m) => sum + (parseInt(m.golFatti?.[player.numero]) || 0), 0)}
