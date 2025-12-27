@@ -1282,7 +1282,8 @@ const SoccerTeamTracker = () => {
           
           loadedPlayers = loadedPlayers.map(p => ({
             ...p,
-            dataCreazione: p.dataCreazione || (p.nome ? "2025-08-01" : "")
+            dataCreazione: p.dataCreazione || (p.nome ? "2025-08-01" : ""),
+            fuoriRosa: p.fuoriRosa || false // ✅ Normalizza fuoriRosa
           }));
           
           if (loadedPlayers.length < 30) {
@@ -1296,7 +1297,8 @@ const SoccerTeamTracker = () => {
                 telefono: "", 
                 foto: "", 
                 piede: "",
-                dataCreazione: ""
+                dataCreazione: "",
+                fuoriRosa: false // ✅ Default false per nuovi slot
               });
             }
           }
@@ -2984,8 +2986,14 @@ const SoccerTeamTracker = () => {
     if (!user) return;
     
     try {
+      // ✅ Assicura che tutti i giocatori abbiano il campo fuoriRosa
+      const playersWithFuoriRosa = players.map(p => ({
+        ...p,
+        fuoriRosa: p.fuoriRosa || false // Default false se undefined
+      }));
+      
       const data = {
-        players,
+        players: playersWithFuoriRosa,
         trainings,
         matches,
         injuries,
@@ -3051,8 +3059,14 @@ const SoccerTeamTracker = () => {
       // Backup prima di sovrascrivere
       await createLocalBackup();
       
+      // ✅ Normalizza giocatori con campo fuoriRosa
+      const normalizedPlayers = (data.players || []).map(p => ({
+        ...p,
+        fuoriRosa: p.fuoriRosa || false
+      }));
+      
       // Carica dati
-      if (data.players) setPlayers(data.players);
+      if (data.players) setPlayers(normalizedPlayers);
       if (data.trainings) setTrainings(data.trainings);
       if (data.matches) setMatches(data.matches);
       if (data.injuries) setInjuries(data.injuries);
@@ -3061,7 +3075,7 @@ const SoccerTeamTracker = () => {
       
       // Salva anche in IndexedDB
       await saveToIndexedDB('teamData', {
-        players: data.players || [],
+        players: normalizedPlayers,
         trainings: data.trainings || [],
         matches: data.matches || [],
         injuries: data.injuries || [],
@@ -3296,8 +3310,14 @@ const SoccerTeamTracker = () => {
       setSyncStatus('syncing');
       setSyncError('');
 
+      // ✅ Assicura che tutti i giocatori abbiano il campo fuoriRosa
+      const playersWithFuoriRosa = players.map(p => ({
+        ...p,
+        fuoriRosa: p.fuoriRosa || false // Default false se undefined
+      }));
+
       const dataToSync = {
-        players,
+        players: playersWithFuoriRosa,
         trainings,
         matches,
         appTitle,
@@ -3429,10 +3449,18 @@ const SoccerTeamTracker = () => {
 
       // Carica i dati dal cloud
       console.log('📥 Caricamento dati dal cloud in stato React...');
+      
+      // ✅ Normalizza giocatori con campo fuoriRosa
+      let normalizedPlayers = [];
       if (cloudData.players) {
         console.log('   ✅ Carico Players:', cloudData.players.length);
-        setPlayers(cloudData.players);
+        normalizedPlayers = cloudData.players.map(p => ({
+          ...p,
+          fuoriRosa: p.fuoriRosa || false
+        }));
+        setPlayers(normalizedPlayers);
       }
+      
       if (cloudData.trainings) {
         console.log('   ✅ Carico Trainings:', cloudData.trainings.length);
         setTrainings(cloudData.trainings);
@@ -3473,7 +3501,7 @@ const SoccerTeamTracker = () => {
       
       // Salva anche in locale
       const dataToSave = {
-        players: cloudData.players,
+        players: normalizedPlayers.length > 0 ? normalizedPlayers : cloudData.players,
         trainings: cloudData.trainings,
         matches: cloudData.matches,
         appTitle: cloudData.appTitle,
@@ -6872,8 +6900,12 @@ const SoccerTeamTracker = () => {
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
             {[
               'dashboard', 'classifica', 'top', 'stats', 
-              'trainings', 'injuries', 'calendar', 'roster',
-              ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica', 'divisione', 'export', 'sync', 'admin'] : [])
+              'trainings',
+              ...(userRole === 'admin' ? ['divisione'] : []),
+              'injuries',
+              ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
+              'calendar', 'roster',
+              ...(userRole === 'admin' ? ['export', 'sync', 'admin'] : [])
             ].map(tab => (
               <button
                 key={tab}
