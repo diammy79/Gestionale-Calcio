@@ -1575,6 +1575,7 @@ const loadFromIndexedDB = async (key) => {
 const SoccerTeamTracker = () => {
     // Stati autenticazione
   const [user, setUser] = useState(null);
+  const [teamId, setTeamId] = useState(null); // Team ID condiviso tra ADMIN e USER
   const [userRole, setUserRole] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -1747,8 +1748,19 @@ const SoccerTeamTracker = () => {
         try {
           const userDoc = await db.collection('users').doc(user.uid).get();
           if (userDoc.exists) {
-            const role = userDoc.data().role || 'user';
+            const userData = userDoc.data();
+            const role = userData.role || 'user';
+            const userTeamId = userData.teamId || user.uid; // Usa teamId se esiste, altrimenti user.uid
+            
             setUserRole(role);
+            setTeamId(userTeamId);
+            
+            console.log('👤 Utente autenticato:', {
+              email: user.email,
+              role: role,
+              teamId: userTeamId,
+              sameAsUid: userTeamId === user.uid
+            });
             
             // ✅ AUTO-SYNC per utenti USER al login
             if (role === 'user') {
@@ -1756,11 +1768,18 @@ const SoccerTeamTracker = () => {
               // Piccolo delay per assicurarsi che tutto sia pronto
               setTimeout(async () => {
                 try {
-                  await loadDataFromCloud(true); // skipConfirm=true per USER auto-sync
+                  console.log('⏰ Inizio loadDataFromCloud per USER...');
+                  // Passa user e teamId esplicitamente
+                  await loadDataFromCloud(true, user, userTeamId);
                   console.log('✅ Auto-sync completato per USER');
                   showToast('✅ Dati sincronizzati automaticamente dal cloud', 'success');
                 } catch (error) {
                   console.error('❌ Errore auto-sync USER:', error);
+                  console.error('Dettagli errore:', {
+                    message: error.message,
+                    code: error.code,
+                    stack: error.stack
+                  });
                   showToast('⚠️ Errore durante la sincronizzazione automatica', 'error');
                 }
               }, 1500);
@@ -3545,9 +3564,23 @@ const SoccerTeamTracker = () => {
    * Salva dati su cloud Firebase
    */
   const saveDataToCloud = async (silent = false) => {
-    if (!user) return;
+    if (!user) {
+      console.error('❌ saveDataToCloud: user non presente');
+      return;
+    }
+    
+    if (!teamId) {
+      console.error('❌ saveDataToCloud: teamId non presente');
+      return;
+    }
     
     try {
+      console.log('📤 Inizio preparazione dati per Firebase...', {
+        userId: user.uid,
+        teamId: teamId,
+        saveLocation: `teamData/${teamId}`
+      });
+      
       // ✅ Assicura che tutti i giocatori abbiano il campo fuoriRosa
       const playersWithFuoriRosa = players.map(p => ({
         ...p,
@@ -3582,7 +3615,10 @@ const SoccerTeamTracker = () => {
       // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
       const cleanedData = cleanUndefinedFields(data);
       
-      await db.collection('teamData').doc(user.uid).set(cleanedData);
+      console.log('🧹 Dati puliti, invio a Firebase...');
+      // ⚠️ USA TEAMID invece di user.uid
+      await db.collection('teamData').doc(teamId).set(cleanedData);
+      console.log('✅ Firebase set() completato con successo!');
       
       if (!silent) {
         showToast('✅ Dati salvati su cloud!', 'success');
@@ -3591,23 +3627,55 @@ const SoccerTeamTracker = () => {
       updateLastSyncInfo('manual');
       
     } catch (error) {
-      console.error('Errore salvataggio cloud:', error);
+      console.error('❌ ERRORE SALVATAGGIO CLOUD:', error);
+      console.error('Dettagli errore:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
       if (!silent) {
         showToast('❌ Errore salvataggio: ' + error.message, 'error');
       }
+      throw error; // Rilancia per gestione in handleExitWithSave
     }
   };
 
   /**
    * Carica dati da cloud Firebase
    */
-  const loadDataFromCloud = async (skipConfirm = false) => {
-    if (!user) return;
+  const loadDataFromCloud = async (skipConfirm = false, explicitUser = null, explicitTeamId = null) => {
+    const userToUse = explicitUser || user;
+    const teamIdToUse = explicitTeamId || teamId;
+    
+    if (!userToUse) {
+      console.error('❌ loadDataFromCloud: user non presente');
+      return;
+    }
+    
+    if (!teamIdToUse) {
+      console.error('❌ loadDataFromCloud: teamId non presente');
+      return;
+    }
     
     try {
-      const doc = await db.collection('teamData').doc(user.uid).get();
+      console.log('📡 Inizio caricamento da Firebase...', {
+        userId: userToUse.uid,
+        teamId: teamIdToUse,
+        loadLocation: `teamData/${teamIdToUse}`,
+        skipConfirm: skipConfirm,
+        userSource: explicitUser ? 'explicit' : 'state'
+      });
+      
+      // ⚠️ USA TEAMID invece di user.uid
+      const doc = await db.collection('teamData').doc(teamIdToUse).get();
+      
+      console.log('📄 Documento Firebase ricevuto:', {
+        exists: doc.exists,
+        id: doc.id
+      });
       
       if (!doc.exists) {
+        console.warn('⚠️ NESSUN DOCUMENTO SU FIREBASE!');
         showToast('ℹ️ Nessun dato nel cloud', 'info');
         return;
       }
