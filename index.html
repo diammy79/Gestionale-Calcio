@@ -4740,8 +4740,8 @@ const SoccerTeamTracker = () => {
     let excludeCount = 0;
 
     players.forEach(player => {
-      // Filtra per: nome esiste, non infortunato, E selezionato (se giocatoriSelezionati non è vuoto)
-      if (player.nome && !infortunati.has(player.nome)) {
+      // Filtra per: nome esiste, non fuori rosa, non infortunato, E selezionato (se giocatoriSelezionati non è vuoto)
+      if (player.nome && !player.fuoriRosa && !infortunati.has(player.nome)) {
         // Se giocatoriSelezionati è vuoto, include tutti (comportamento default)
         // Altrimenti include solo i selezionati
         if (giocatoriSelezionati.size === 0 || giocatoriSelezionati.has(player.nome)) {
@@ -8580,6 +8580,7 @@ const SoccerTeamTracker = () => {
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {players.filter(p => {
                                   if (!p.nome) return false;
+                                  if (p.fuoriRosa) return false; // ✅ Escludi giocatori fuori rosa
                                   if (!p.dataCreazione) return true;
                                   return new Date(p.dataCreazione) <= new Date(training.data);
                                 }).map(player => (
@@ -9312,6 +9313,7 @@ const SoccerTeamTracker = () => {
                             <tbody className="bg-white">
                               {players.filter(p => {
                                 if (!p.nome) return false;
+                                if (p.fuoriRosa) return false; // ✅ Escludi giocatori fuori rosa
                                 if (!p.dataCreazione) return true;
                                 return new Date(p.dataCreazione) <= new Date(match.data);
                               }).sort((a, b) => {
@@ -10590,7 +10592,7 @@ const SoccerTeamTracker = () => {
                     return a.nome.localeCompare(b.nome);
                   })
                   .map((player, index) => (
-                  <div key={player.numero} className="bg-white border rounded-lg p-4 card-hover animate-fade-in" style={{animationDelay: `${index * 0.05}s`}}>
+                  <div key={player.numero} className={`bg-white border rounded-lg p-4 card-hover animate-fade-in ${player.fuoriRosa ? 'opacity-50 border-red-300 bg-red-50' : ''}`} style={{animationDelay: `${index * 0.05}s`}}>
                     <div className="flex gap-4">
                       <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 relative">
                         {player.foto ? (
@@ -10772,6 +10774,35 @@ const SoccerTeamTracker = () => {
                               </div>
                             )}
                             <div className="text-xs text-gray-500 mt-1">Il giocatore apparirà solo negli allenamenti e partite dalla data indicata</div>
+                          </div>
+                          <div className="md:col-span-2 lg:col-span-3">
+                            <label className="text-xs font-semibold text-gray-600">⛔ Stato Giocatore</label>
+                            {editingPlayer === player.numero ? (
+                              <div className="flex items-center gap-3 mt-1">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={player.fuoriRosa || false}
+                                    onChange={(e) => updatePlayer(player.numero, 'fuoriRosa', e.target.checked)}
+                                    className="w-4 h-4"
+                                  />
+                                  <span className="text-sm">Fuori Rosa</span>
+                                </label>
+                              </div>
+                            ) : (
+                              <div className="mt-1">
+                                {player.fuoriRosa ? (
+                                  <span className="inline-block px-3 py-1 bg-red-100 text-red-800 rounded-full text-xs font-bold border-2 border-red-300">
+                                    ⛔ FUORI ROSA
+                                  </span>
+                                ) : (
+                                  <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-bold border-2 border-green-300">
+                                    ✅ IN ROSA
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-500 mt-1">I giocatori fuori rosa non appaiono negli elenchi operativi</div>
                           </div>
                         </div>
                       </div>
