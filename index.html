@@ -2368,15 +2368,36 @@ const SoccerTeamTracker = () => {
   const handleExitWithSave = async () => {
     try {
       setShowExitModal(false);
+      showToast('☁️ Preparazione dati per il salvataggio...', 'info');
+      
+      // ⚠️ CRITICO: Delay per assicurare che tutti gli state siano aggiornati
+      // React aggiorna gli state in modo asincrono, quindi aspettiamo che
+      // eventuali modifiche recenti (fuoriRosa, injuries) siano completate
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Log dettagliato PRIMA del salvataggio
+      console.log('🔍 State PRIMA del salvataggio cloud:', {
+        players: players.length,
+        injuries: injuries.length,
+        injuriesData: injuries,
+        playersWithFuoriRosa: players.filter(p => p.fuoriRosa).length,
+        fuoriRosaData: players.filter(p => p.fuoriRosa).map(p => ({ numero: p.numero, nome: p.nome, fuoriRosa: p.fuoriRosa }))
+      });
+      
       showToast('☁️ Salvataggio su cloud in corso...', 'info');
       await saveDataToCloud(true); // silent = true per non mostrare toast doppio
+      
+      // Log DOPO il salvataggio
+      console.log('✅ Salvataggio cloud completato');
+      
       showToast('✅ Dati salvati! A presto!', 'success');
       // Piccolo delay per far vedere il toast
       await new Promise(resolve => setTimeout(resolve, 1500));
       window.close(); // Chiude solo la finestra, NON fa logout
     } catch (error) {
-      console.error('Errore salvataggio:', error);
+      console.error('❌ Errore salvataggio:', error);
       showToast('❌ Errore: ' + error.message, 'error');
+      // Non chiudere se c'è errore
     }
   };
 
@@ -3639,6 +3660,15 @@ const SoccerTeamTracker = () => {
       if (data.injuries) setInjuries(data.injuries);
       if (data.squadreGirone) setSquadreGirone(data.squadreGirone);              // ✅ AGGIUNTO
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
+      
+      // Log DOPO aver settato gli state
+      console.log('✅ State AGGIORNATI dopo caricamento cloud:', {
+        players: normalizedPlayers.length,
+        injuries: (data.injuries || []).length,
+        injuriesData: data.injuries || [],
+        playersWithFuoriRosa: normalizedPlayers.filter(p => p.fuoriRosa).length,
+        fuoriRosaData: normalizedPlayers.filter(p => p.fuoriRosa).map(p => ({ numero: p.numero, nome: p.nome, fuoriRosa: p.fuoriRosa }))
+      });
       
       // Salva anche in IndexedDB
       await saveToIndexedDB('teamData', {
