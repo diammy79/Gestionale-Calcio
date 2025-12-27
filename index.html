@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>⚽ Moreschi Gestionale Calcio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -643,194 +643,528 @@
     }
 
     /* ========== OTTIMIZZAZIONI MOBILE - MIGLIORE LEGGIBILITÀ ========== */
+    /* ========== OTTIMIZZAZIONE SMARTPHONE (max-width: 640px) ========== */
     @media (max-width: 640px) {
-      /* Font più grandi su mobile */
-      .text-xs {
-        font-size: 0.875rem !important; /* da 0.75rem a 0.875rem */
+      /* ===== TITOLI E TESTI - RIDOTTI PER EVITARE OVERFLOW ===== */
+      
+      /* Titolo principale app - ridotto */
+      h1, .text-3xl {
+        font-size: 1.25rem !important; /* Ridotto da 1.875rem */
+        line-height: 1.3 !important;
+        word-break: break-word !important;
       }
       
+      /* Titoli sezioni - ridotti */
+      h2, .text-2xl {
+        font-size: 1.125rem !important; /* Ridotto da 1.5rem */
+        line-height: 1.3 !important;
+        word-break: break-word !important;
+      }
+      
+      /* Sottotitoli - ridotti */
+      h3, .text-xl {
+        font-size: 1rem !important; /* Ridotto da 1.25rem */
+        line-height: 1.3 !important;
+      }
+      
+      /* Testi grandi - ridotti */
+      .text-lg {
+        font-size: 0.95rem !important;
+      }
+      
+      /* Testi normali - mantieni leggibili */
+      .text-base, p {
+        font-size: 0.875rem !important;
+        line-height: 1.4 !important;
+      }
+      
+      /* Testi piccoli - leggibili */
       .text-sm {
-        font-size: 1rem !important; /* da 0.875rem a 1rem */
+        font-size: 0.8125rem !important;
       }
       
-      /* Padding più generoso su mobile */
-      .p-1 {
-        padding: 0.5rem !important; /* da 0.25rem a 0.5rem */
+      .text-xs {
+        font-size: 0.75rem !important;
       }
       
-      .p-2 {
-        padding: 0.625rem !important; /* da 0.5rem a 0.625rem */
+      /* ===== NUMERI STATS - RIDOTTI ===== */
+      .text-4xl {
+        font-size: 1.75rem !important; /* Ridotto da 2.25rem */
       }
       
-      .px-2 {
-        padding-left: 0.625rem !important;
-        padding-right: 0.625rem !important;
+      .text-5xl {
+        font-size: 2rem !important; /* Ridotto da 3rem */
       }
       
-      .py-2 {
+      .text-6xl {
+        font-size: 2.25rem !important;
+      }
+      
+      /* ===== HEADER E NAVIGATION - COMPATTO ===== */
+      
+      /* Header principale - ridotto padding */
+      .bg-white.rounded-lg.shadow-xl:first-of-type {
+        padding: 0.5rem !important;
+      }
+      
+      /* Tab navigation - compatta */
+      .tab-container button {
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.8125rem !important;
+        min-height: 40px !important;
+        white-space: nowrap !important;
+      }
+      
+      /* Badge ruolo - compatto */
+      .bg-yellow-400, .bg-blue-200 {
+        padding: 0.375rem 0.625rem !important;
+        font-size: 0.75rem !important;
+      }
+      
+      /* ===== BOTTONI - TOUCH FRIENDLY ===== */
+      button, .btn, a.btn {
+        min-height: 44px !important; /* Minimo Apple HIG */
+        padding: 0.625rem 0.875rem !important;
+        font-size: 0.875rem !important;
+      }
+      
+      /* Bottoni piccoli (icone) */
+      button.px-2, button.px-3 {
+        padding: 0.5rem !important;
+        min-width: 44px !important;
+      }
+      
+      /* ===== CARDS E CONTAINER - SPAZIATURE RIDOTTE ===== */
+      .card-modern, .bg-white.rounded-lg {
+        padding: 0.75rem !important;
+      }
+      
+      .p-4 {
+        padding: 0.75rem !important;
+      }
+      
+      .p-6 {
+        padding: 1rem !important;
+      }
+      
+      .px-4 {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
+      
+      .py-3, .py-4 {
         padding-top: 0.625rem !important;
         padding-bottom: 0.625rem !important;
       }
       
-      /* Bottoni più grandi e cliccabili */
-      button, .btn, a.btn {
-        min-height: 44px !important; /* Minimo Apple HIG */
-        padding: 0.75rem 1rem !important;
-        font-size: 1rem !important;
-      }
-      
-      /* Tab navigation più visibile */
-      .tab-container button {
-        padding: 0.875rem 1rem !important;
-        font-size: 1rem !important;
-        min-height: 48px !important;
-      }
-      
-      /* Card più spaziose */
-      .card-modern {
-        padding: 1rem !important;
-      }
-      
-      /* Input più grandi */
-      input, select, textarea {
-        min-height: 44px !important;
-        padding: 0.75rem !important;
-        font-size: 1rem !important;
-      }
-      
-      /* Gap più generosi */
-      .gap-1 {
-        gap: 0.5rem !important;
-      }
-      
-      .gap-2 {
-        gap: 0.75rem !important;
-      }
-      
-      /* Titoli più visibili */
-      h1 {
-        font-size: 1.75rem !important;
-      }
-      
-      h2 {
-        font-size: 1.5rem !important;
-      }
-      
-      h3 {
-        font-size: 1.25rem !important;
-      }
-      
-      /* Statistiche card più grandi */
-      .bg-gradient-to-br {
-        padding: 1.25rem !important;
-      }
-      
-      /* Numeri e badge più visibili */
-      .badge-animated {
-        font-size: 0.875rem !important;
-        padding: 0.5rem 0.75rem !important;
-      }
-      
-      /* Lista giocatori più leggibile */
-      .space-y-2 > * {
-        margin-top: 0.75rem !important;
-      }
-      
-      .space-y-3 > * {
-        margin-top: 1rem !important;
-      }
-      
-      /* Icone più grandi */
-      .text-2xl {
-        font-size: 2rem !important;
-      }
-      
-      .text-3xl {
-        font-size: 2.5rem !important;
-      }
-      
-      /* Margini più generosi */
+      /* ===== MARGINI - RIDOTTI ===== */
       .mb-2 {
-        margin-bottom: 0.75rem !important;
+        margin-bottom: 0.375rem !important;
       }
       
-      .mb-3 {
+      .mb-3, .mb-4 {
+        margin-bottom: 0.625rem !important;
+      }
+      
+      .mb-6 {
         margin-bottom: 1rem !important;
       }
       
-      .mb-4 {
-        margin-bottom: 1.25rem !important;
+      /* ===== GAP - RIDOTTI ===== */
+      .gap-2 {
+        gap: 0.375rem !important;
       }
       
-      /* Border più visibili */
-      .border {
-        border-width: 2px !important;
+      .gap-3, .gap-4 {
+        gap: 0.5rem !important;
       }
       
-      /* Shadow più pronunciate per profondità */
-      .shadow-md {
-        box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+      /* ===== FORM ELEMENTS - COMPATTI ===== */
+      input, select, textarea {
+        min-height: 42px !important;
+        padding: 0.5rem 0.625rem !important;
+        font-size: 0.875rem !important;
       }
       
-      /* Migliora leggibilità testo su sfondi colorati */
-      .bg-blue-50, .bg-green-50, .bg-yellow-50, .bg-red-50, .bg-purple-50 {
-        color: #1f2937 !important; /* Grigio scuro per contrasto */
+      label {
+        font-size: 0.8125rem !important;
+        margin-bottom: 0.25rem !important;
       }
       
-      /* Toast più grandi */
-      .toast {
-        font-size: 1rem !important;
-        padding: 1rem 1.25rem !important;
-        min-width: 90% !important;
+      /* ===== TABELLE - RESPONSIVE ===== */
+      table {
+        font-size: 0.8125rem !important;
       }
       
-      /* Modal più leggibile */
-      .modal-content {
-        padding: 1.5rem !important;
-        font-size: 1rem !important;
+      th, td {
+        padding: 0.5rem 0.375rem !important;
       }
       
-      /* Timeline eventi più visibile */
-      .timeline-item {
-        padding: 0.75rem !important;
-        font-size: 0.95rem !important;
+      /* ===== MODAL - OTTIMIZZATI ===== */
+      .modal-content, .bg-white.rounded-lg.shadow-2xl {
+        padding: 1rem !important;
+        max-height: 85vh !important;
+        overflow-y: auto !important;
       }
       
-      /* Convocazioni checkbox più grandi */
-      input[type="checkbox"] {
-        width: 24px !important;
-        height: 24px !important;
+      /* Titoli modal - ridotti */
+      .modal-content h3, .bg-white.rounded-lg.shadow-2xl h3 {
+        font-size: 1.125rem !important;
       }
       
-      /* Logo più visibile */
-      img[alt*="Logo"] {
-        min-width: 64px !important;
-        min-height: 64px !important;
+      /* ===== GESTIONE OVERFLOW - ANTI-SOVRAPPOSIZIONE ===== */
+      
+      /* Impedisci overflow orizzontale */
+      * {
+        max-width: 100%;
+        box-sizing: border-box;
       }
       
-      /* Formazione campo più grande */
-      .field-position {
-        font-size: 0.75rem !important;
+      /* Titoli lunghi - ellipsis o wrap */
+      h1, h2, h3, .font-bold {
+        overflow-wrap: break-word !important;
+        word-wrap: break-word !important;
+        hyphens: auto !important;
+      }
+      
+      /* Container principale */
+      .min-h-screen {
         padding: 0.5rem !important;
       }
       
-      /* Stats numbers più grandi */
+      /* ===== GRID LAYOUT - OTTIMIZZATO ===== */
+      
+      /* Grid stats - singola colonna su mobile molto piccolo */
+      .grid.grid-cols-2 {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.5rem !important;
+      }
+      
+      .grid.grid-cols-3 {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      
+      .grid.grid-cols-4 {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      
+      /* ===== STATISTICHE CARDS - COMPATTE ===== */
+      .bg-gradient-to-br {
+        padding: 0.75rem !important;
+      }
+      
+      /* Numeri grandi stats - ridotti */
+      .bg-gradient-to-br .text-3xl {
+        font-size: 1.5rem !important;
+      }
+      
+      /* ===== BADGE E PILLS - COMPATTI ===== */
+      .badge-animated, .rounded-full {
+        font-size: 0.75rem !important;
+        padding: 0.25rem 0.5rem !important;
+      }
+      
+      /* ===== LOGO - RIDOTTO ===== */
+      img[alt*="Logo"], .w-16, .h-16 {
+        width: 2.5rem !important;
+        height: 2.5rem !important;
+        min-width: 2.5rem !important;
+        min-height: 2.5rem !important;
+      }
+      
+      /* ===== ICONE - PROPORZIONATE ===== */
+      svg, .lucide {
+        width: 1.125rem !important;
+        height: 1.125rem !important;
+      }
+      
+      /* ===== TOAST - COMPATTI ===== */
+      .toast {
+        font-size: 0.875rem !important;
+        padding: 0.75rem 1rem !important;
+        min-width: 85% !important;
+      }
+      
+      /* ===== LISTA GIOCATORI - COMPATTA ===== */
+      .space-y-2 > * {
+        margin-top: 0.375rem !important;
+      }
+      
+      .space-y-3 > * {
+        margin-top: 0.5rem !important;
+      }
+      
+      /* ===== FORMAZIONE CAMPO - LEGGIBILE ===== */
+      .field-position {
+        font-size: 0.7rem !important;
+        padding: 0.375rem !important;
+      }
+      
+      /* ===== CHECKBOX E RADIO - TOUCH FRIENDLY ===== */
+      input[type="checkbox"], input[type="radio"] {
+        width: 20px !important;
+        height: 20px !important;
+      }
+      
+      /* ===== SCROLL ORIZZONTALE - SMOOTH ===== */
+      .overflow-x-auto {
+        -webkit-overflow-scrolling: touch !important;
+        scroll-behavior: smooth !important;
+      }
+      
+      /* ===== FLEX LAYOUTS - ANTI-OVERFLOW ===== */
+      .flex {
+        flex-wrap: wrap !important;
+      }
+      
+      .flex.gap-2 {
+        gap: 0.375rem !important;
+      }
+      
+      /* ===== BANNER INFORMATIVI - COMPATTI ===== */
+      .bg-yellow-50, .bg-blue-50, .bg-green-50 {
+        padding: 0.625rem !important;
+        font-size: 0.8125rem !important;
+      }
+      
+      /* ===== DIVIDERS - VISIBILI MA SOTTILI ===== */
+      hr, .border-b, .border-t {
+        border-width: 1px !important;
+      }
+    }
+    
+    /* ========== OTTIMIZZAZIONE SMARTPHONE PORTRAIT (max-width: 480px) ========== */
+    @media (max-width: 480px) {
+      /* Ulteriore riduzione per schermi molto piccoli */
+      
+      h1, .text-3xl {
+        font-size: 1.125rem !important;
+      }
+      
+      .tab-container button {
+        padding: 0.5rem 0.625rem !important;
+        font-size: 0.75rem !important;
+      }
+      
+      .grid.grid-cols-2 {
+        grid-template-columns: 1fr !important;
+      }
+      
+      /* Bottoni fullwidth su schermi molto piccoli */
+      .flex.gap-2 > button {
+        flex: 1 1 100% !important;
+      }
+    }
+    
+    /* ========== OTTIMIZZAZIONE SMARTPHONE (max-width: 640px) ========== */
+    @media (max-width: 640px) {
+      /* Riduzione dimensioni titoli per evitare overflow */
+      h1, .text-3xl {
+        font-size: 1.5rem !important; /* Da 3xl a xl */
+        line-height: 2rem !important;
+      }
+      
+      h2, .text-2xl {
+        font-size: 1.25rem !important; /* Da 2xl a lg */
+        line-height: 1.75rem !important;
+      }
+      
+      h3, .text-xl {
+        font-size: 1.125rem !important; /* Da xl a lg */
+        line-height: 1.75rem !important;
+      }
+      
+      /* Riduzione padding generale per guadagnare spazio */
+      .p-4 {
+        padding: 0.75rem !important;
+      }
+      
+      .p-6 {
+        padding: 1rem !important;
+      }
+      
+      .px-4 {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
+      
+      .px-6 {
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+      }
+      
+      .py-4 {
+        padding-top: 0.75rem !important;
+        padding-bottom: 0.75rem !important;
+      }
+      
+      .py-6 {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+      }
+      
+      /* Header compatto */
+      .mobile-header h1 {
+        font-size: 1.25rem !important;
+        line-height: 1.5rem !important;
+      }
+      
+      /* Tab navbar: testo più piccolo e compatto */
+      .tab-container button {
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+        font-size: 0.75rem !important;
+        white-space: nowrap;
+      }
+      
+      /* Card statistiche: numeri e testi più compatti */
       .text-4xl {
-        font-size: 3rem !important;
+        font-size: 1.875rem !important; /* Da 4xl a 2xl */
       }
       
       .text-5xl {
-        font-size: 3.5rem !important;
+        font-size: 2.25rem !important; /* Da 5xl a 3xl */
       }
       
-      /* Migliora scroll tabelle */
-      .overflow-x-auto {
-        -webkit-overflow-scrolling: touch !important;
+      /* Badge e bottoni più compatti */
+      button {
+        padding: 0.5rem 0.75rem !important;
+        font-size: 0.875rem !important;
       }
       
-      /* Separatori più visibili */
-      hr, .border-b, .border-t {
-        border-width: 2px !important;
+      button.text-xs {
+        padding: 0.375rem 0.5rem !important;
+        font-size: 0.75rem !important;
+      }
+      
+      /* Modal: massimizza spazio disponibile */
+      .modal-content {
+        max-width: 100% !important;
+        margin: 0.5rem !important;
+        max-height: calc(100vh - 1rem) !important;
+      }
+      
+      /* Tabelle: scroll orizzontale fluido */
+      table {
+        font-size: 0.8rem !important;
+      }
+      
+      table th, table td {
+        padding: 0.5rem !important;
+      }
+      
+      /* Input e select più grandi per touch */
+      input:not([type="checkbox"]):not([type="radio"]),
+      select,
+      textarea {
+        font-size: 16px !important; /* Evita zoom automatico iOS */
+        padding: 0.625rem !important;
+      }
+      
+      /* Checkbox e radio più grandi per touch */
+      input[type="checkbox"],
+      input[type="radio"] {
+        width: 20px !important;
+        height: 20px !important;
+        margin: 0.25rem !important;
+      }
+      
+      /* Icone dimensionate correttamente */
+      svg {
+        flex-shrink: 0;
+      }
+      
+      /* Gap ridotti per evitare sprechi di spazio */
+      .gap-4 {
+        gap: 0.75rem !important;
+      }
+      
+      .gap-6 {
+        gap: 1rem !important;
+      }
+      
+      /* Grid più compatto */
+      .grid {
+        gap: 0.75rem !important;
+      }
+      
+      /* Evita overflow di testo lungo */
+      .break-words {
+        word-wrap: break-word !important;
+        overflow-wrap: break-word !important;
+        word-break: break-word !important;
+      }
+      
+      /* Container full-width su mobile */
+      .container {
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+      }
+      
+      /* Toast più compatto */
+      .toast {
+        min-width: auto !important;
+        width: calc(100vw - 2rem) !important;
+      }
+      
+      .toast-container {
+        right: 1rem !important;
+        left: 1rem !important;
+        top: 1rem !important;
+      }
+      
+      /* Badge ruolo più compatto */
+      .badge-ruolo {
+        font-size: 0.7rem !important;
+        padding: 0.25rem 0.5rem !important;
+      }
+      
+      /* Nascondo testo ridondante su mobile */
+      .mobile-hide-text {
+        display: none !important;
+      }
+      
+      /* Logo squadra più piccolo */
+      img[alt*="Logo"] {
+        max-width: 48px !important;
+        max-height: 48px !important;
+      }
+      
+      /* Pulsanti floating più accessibili */
+      .fixed {
+        bottom: 1rem !important;
+        right: 1rem !important;
+      }
+      
+      /* Prevenzione overflow generale */
+      * {
+        max-width: 100%;
+      }
+      
+      /* Migliora rendering orientamento */
+      @supports (-webkit-touch-callout: none) {
+        /* iOS Safari specifico */
+        body {
+          -webkit-text-size-adjust: 100%;
+        }
+      }
+    }
+    
+    /* ========== FIX ORIENTAMENTO SMARTPHONE ========== */
+    @media (max-width: 640px) and (orientation: landscape) {
+      /* Landscape: massimizza spazio verticale */
+      .mobile-header {
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+      }
+      
+      h1, .text-3xl {
+        font-size: 1.25rem !important;
+      }
+      
+      .tab-container button {
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
       }
     }
   </style>
@@ -6765,7 +7099,7 @@ const SoccerTeamTracker = () => {
       )}
 
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern">
+        <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern mobile-header">
           <div className="flex flex-wrap items-start gap-2 md:gap-4 mb-2">
             <div className="flex items-center gap-2 md:gap-4 flex-1 min-w-0">
               <div className="relative flex-shrink-0">
@@ -6976,9 +7310,8 @@ const SoccerTeamTracker = () => {
               'dashboard', 'classifica', 'top', 'stats', 
               'trainings',
               ...(userRole === 'admin' ? ['divisione'] : []),
-              'injuries',
               ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
-              'calendar', 'roster',
+              'calendar', 'injuries', 'roster',
               ...(userRole === 'admin' ? ['export', 'sync', 'admin'] : [])
             ].map(tab => (
               <button
@@ -14726,6 +15059,46 @@ const SoccerTeamTracker = () => {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<SoccerTeamTracker />);
+  </script>
+  
+  <script>
+    // ========== FIX RIDIMENSIONAMENTO ORIENTAMENTO MOBILE ==========
+    if (window.matchMedia("(max-width: 640px)").matches) {
+      let resizeTimeout;
+      
+      // Gestione cambio orientamento
+      window.addEventListener('orientationchange', function() {
+        // Forza ridimensionamento dopo cambio orientamento
+        setTimeout(function() {
+          // Forza reflow
+          document.body.style.height = window.innerHeight + 'px';
+          setTimeout(function() {
+            document.body.style.height = '';
+          }, 100);
+        }, 100);
+      });
+      
+      // Gestione resize window per zoom corretto
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+          // Aggiusta viewport se necessario
+          const viewport = document.querySelector('meta[name=viewport]');
+          if (viewport) {
+            viewport.setAttribute('content', 
+              'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes'
+            );
+          }
+        }, 250);
+      });
+      
+      // Fix iniziale
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          window.scrollTo(0, 0);
+        }, 100);
+      });
+    }
   </script>
 </body>
 </html>
