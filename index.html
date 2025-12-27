@@ -3881,7 +3881,9 @@ const SoccerTeamTracker = () => {
         
         return {
           data: new Date(m.data).toLocaleDateString('it-IT'),
-          avversario: m.avversario || m.squadraTrasferta || 'Avversario',
+          avversario: m.squadraCasa && m.squadraTrasferta 
+            ? `${m.squadraCasa} vs ${m.squadraTrasferta}`
+            : m.avversario || m.squadraTrasferta || 'Avversario',
           risultatoText: `${golFatti}-${golSubiti}`,
           risultato: risultato,
           luogo: m.luogo || '-',
@@ -3929,7 +3931,7 @@ const SoccerTeamTracker = () => {
     
     doc.autoTable({
       startY: yPosition,
-      head: [['Data', 'Avversario', 'Risultato', 'Esito', 'Luogo']],
+      head: [['Data', 'Partita', 'Risultato', 'Esito', 'Luogo']],
       body: tableData,
       theme: 'grid',
       headStyles: { 
@@ -11930,7 +11932,7 @@ const SoccerTeamTracker = () => {
                     <thead className="bg-blue-600 text-white">
                       <tr>
                         <th className="p-3 text-left">Data</th>
-                        <th className="p-3 text-left">Avversario</th>
+                        <th className="p-3 text-left">Partita</th>
                         <th className="p-3 text-center">Risultato</th>
                         <th className="p-3 text-center">Esito</th>
                         <th className="p-3 text-left hidden md:table-cell">Luogo</th>
@@ -11957,7 +11959,11 @@ const SoccerTeamTracker = () => {
                                 {new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
                               </td>
                               <td className="p-3">
-                                <div className="font-semibold text-gray-800">{m.avversario || m.squadraTrasferta || 'Avversario'}</div>
+                                <div className="font-semibold text-gray-800">
+                                  {m.squadraCasa && m.squadraTrasferta 
+                                    ? `${m.squadraCasa} vs ${m.squadraTrasferta}`
+                                    : m.avversario || m.squadraTrasferta || 'Avversario'}
+                                </div>
                               </td>
                               <td className="p-3 text-center">
                                 <span className="text-lg font-bold text-gray-800">{golFatti} - {golSubiti}</span>
