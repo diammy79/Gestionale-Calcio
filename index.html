@@ -1251,6 +1251,13 @@
     
     /* ========== GESTIONE ROSA PORTRAIT MOBILE ========== */
     @media (max-width: 640px) and (orientation: portrait) {
+      /* Layout verticale: foto sopra, info sotto */
+      .roster-player-card > .flex {
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 1rem !important;
+      }
+      
       /* Quick Stats: da 5 colonne a 3 per evitare sovrapposizioni */
       .roster-quick-stats {
         grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
@@ -1268,25 +1275,52 @@
         line-height: 1rem !important;
       }
       
-      /* Foto giocatore più piccola */
+      /* Foto giocatore centrata */
       .roster-player-photo {
-        width: 64px !important;
-        height: 64px !important;
+        width: 80px !important;
+        height: 80px !important;
       }
       
       /* Padding card più compatto */
       .roster-player-card {
-        padding: 0.75rem !important;
+        padding: 1rem !important;
       }
       
-      /* Grid info giocatore: forza 1 colonna */
+      /* Container info: full width */
+      .roster-player-card .flex-1 {
+        width: 100% !important;
+      }
+      
+      /* Grid info giocatore: 2 colonne simmetriche */
       .roster-player-info {
-        grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 0.75rem !important;
+        width: 100% !important;
       }
       
-      /* Numero giocatore più piccolo */
+      /* Campi che devono occupare 2 colonne */
+      .roster-player-info > div.md\:col-span-2,
+      .roster-player-info > div.md\:col-span-3,
+      .roster-player-info > div.lg\:col-span-3 {
+        grid-column: span 2 / span 2 !important;
+      }
+      
+      /* Numero giocatore leggibile */
       .roster-player-number {
-        font-size: 1.25rem !important;
+        font-size: 1.5rem !important;
+      }
+      
+      /* Labels più visibili */
+      .roster-player-info label {
+        font-size: 0.7rem !important;
+        margin-bottom: 0.25rem !important;
+        display: block !important;
+      }
+      
+      /* Valori info più grandi */
+      .roster-player-info > div > div:not(label):not(input):not(select) {
+        font-size: 0.875rem !important;
+        line-height: 1.25rem !important;
       }
     }
     
@@ -11157,15 +11191,17 @@ const SoccerTeamTracker = () => {
               <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">Gestione Rosa</h2>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={migratePhotosToStorage}
-                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-                    title="Migra foto da base64 a Firebase Storage (risolve limite 1MB)"
-                  >
-                    <span>🚀</span>
-                    <span className="hidden sm:inline">Migra su Cloud</span>
-                    <span className="sm:hidden">Migra</span>
-                  </button>
+                  {userRole === 'admin' && (
+                    <button
+                      onClick={migratePhotosToStorage}
+                      className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                      title="Migra foto da base64 a Firebase Storage (risolve limite 1MB)"
+                    >
+                      <span>🚀</span>
+                      <span className="hidden sm:inline">Migra su Cloud</span>
+                      <span className="sm:hidden">Migra</span>
+                    </button>
+                  )}
                   <button
                     onClick={exportRosaPDF}
                     className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
