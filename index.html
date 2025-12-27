@@ -1756,7 +1756,7 @@ const SoccerTeamTracker = () => {
               // Piccolo delay per assicurarsi che tutto sia pronto
               setTimeout(async () => {
                 try {
-                  await loadDataFromCloud();
+                  await loadDataFromCloud(true); // skipConfirm=true per USER auto-sync
                   console.log('✅ Auto-sync completato per USER');
                   showToast('✅ Dati sincronizzati automaticamente dal cloud', 'success');
                 } catch (error) {
@@ -3546,6 +3546,18 @@ const SoccerTeamTracker = () => {
         deviceRole: deviceRole
       };
       
+      // Log dettagliato per debug
+      console.log('💾 Salvataggio su cloud:', {
+        players: playersWithFuoriRosa.length,
+        trainings: trainings.length,
+        matches: matches.length,
+        injuries: injuries.length,
+        squadreGirone: squadreGirone.length,
+        risultatiCampionato: risultatiCampionato.length,
+        fuoriRosa: playersWithFuoriRosa.filter(p => p.fuoriRosa).length,
+        timestamp: data.timestamp
+      });
+      
       // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
       const cleanedData = cleanUndefinedFields(data);
       
@@ -3568,7 +3580,7 @@ const SoccerTeamTracker = () => {
   /**
    * Carica dati da cloud Firebase
    */
-  const loadDataFromCloud = async () => {
+  const loadDataFromCloud = async (skipConfirm = false) => {
     if (!user) return;
     
     try {
@@ -3581,8 +3593,22 @@ const SoccerTeamTracker = () => {
       
       const data = doc.data();
       
-      // Warning se sync da altro dispositivo recente
-      if (data.deviceId && data.deviceId !== generateDeviceId()) {
+      // Log dettagliato per debug
+      console.log('📥 Caricamento da cloud:', {
+        players: (data.players || []).length,
+        trainings: (data.trainings || []).length,
+        matches: (data.matches || []).length,
+        injuries: (data.injuries || []).length,
+        squadreGirone: (data.squadreGirone || []).length,
+        risultatiCampionato: (data.risultatiCampionato || []).length,
+        fuoriRosa: (data.players || []).filter(p => p.fuoriRosa).length,
+        timestamp: data.timestamp,
+        deviceId: data.deviceId,
+        deviceName: data.deviceName
+      });
+      
+      // Warning se sync da altro dispositivo recente (SOLO se non skipConfirm)
+      if (!skipConfirm && data.deviceId && data.deviceId !== generateDeviceId()) {
         const timeDiff = Math.abs(new Date() - new Date(data.timestamp));
         const hoursDiff = Math.floor(timeDiff / (1000 * 60 * 60));
         
@@ -3625,7 +3651,7 @@ const SoccerTeamTracker = () => {
       });
       
       showToast('✅ Dati caricati da cloud!', 'success');
-      updateLastSyncInfo('manual');
+      updateLastSyncInfo(skipConfirm ? 'auto' : 'manual');
       
     } catch (error) {
       console.error('Errore caricamento cloud:', error);
