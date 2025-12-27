@@ -5088,7 +5088,7 @@ const SoccerTeamTracker = () => {
     // Titolo compatto in linea con il logo
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('⚽ Real D.O.R. - Lista Presenze', teamLogo ? 30 : 15, 15);
+    doc.text('Real D.O.R. - Lista Presenze', teamLogo ? 30 : 15, 15);
     
     yPos = 23;
 
@@ -5100,9 +5100,9 @@ const SoccerTeamTracker = () => {
     
     yPos += 6;
 
-    // Ordino giocatori alfabeticamente
+    // Ordino giocatori alfabeticamente (escludo fuori rosa)
     const giocatoriOrdinati = [...players]
-      .filter(p => p.nome)
+      .filter(p => p.nome && !p.fuoriRosa)
       .sort((a, b) => a.nome.localeCompare(b.nome));
 
     // Preparo dati per la tabella
@@ -6940,8 +6940,8 @@ const SoccerTeamTracker = () => {
                 )}
                 {tab === 'classifica' && (
                   <>
-                    <span className="hidden sm:inline">🏆 Classifica</span>
-                    <span className="sm:hidden">🏆</span>
+                    <span className="hidden sm:inline">🥇 Classifica</span>
+                    <span className="sm:hidden">🥇</span>
                   </>
                 )}
                 {tab === 'injuries' && (
@@ -7255,7 +7255,7 @@ const SoccerTeamTracker = () => {
           {activeTab === 'classifica' && (
             <div className="animate-fade-in">
               <div className="mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">🏆 Classifica Campionato</h2>
+                <h2 className="text-3xl font-bold text-gray-800 mb-2">🥇 Classifica Campionato</h2>
                 <p className="text-gray-600">Gestisci squadre, risultati e visualizza la classifica del girone</p>
               </div>
 
