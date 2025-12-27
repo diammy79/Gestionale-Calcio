@@ -1213,6 +1213,42 @@
       }
     }
     
+    /* ========== STATISTICHE GIOCATORI LANDSCAPE MOBILE ========== */
+    
+    /* Landscape mobile: titolo e container ottimizzati */
+    @media (max-width: 640px) and (orientation: landscape) {
+      .stats-container-mobile {
+        height: calc(100vh - 120px) !important; /* Riduce spazio header */
+      }
+      
+      .stats-title-mobile {
+        font-size: 1rem !important;
+        margin-bottom: 0.5rem !important;
+        padding: 0.25rem 0 !important;
+        line-height: 1.25rem !important;
+      }
+      
+      /* Card statistiche più compatte */
+      .stats-container-mobile .bg-white.rounded-lg {
+        padding: 0.75rem !important;
+        margin-bottom: 0.5rem !important;
+      }
+      
+      /* Grid più compatto */
+      .stats-container-mobile .grid {
+        gap: 0.5rem !important;
+      }
+      
+      /* Font più piccoli nelle card */
+      .stats-container-mobile .text-xs {
+        font-size: 0.7rem !important;
+      }
+      
+      .stats-container-mobile .text-2xl {
+        font-size: 1.25rem !important;
+      }
+    }
+    
     /* ========== FIX RIDIMENSIONAMENTO ORIENTAMENTO MOBILE ========== */
     @media (max-width: 640px) and (orientation: landscape) {
       /* Landscape: massimizza spazio verticale */
@@ -10713,8 +10749,8 @@ const SoccerTeamTracker = () => {
 })()}
 
 {activeTab === 'stats' && (
-            <div className="h-[calc(100vh-280px)] flex flex-col">
-              <h2 className="text-2xl font-bold text-gray-800 mb-3">Statistiche Giocatori</h2>
+            <div className="h-[calc(100vh-280px)] flex flex-col stats-container-mobile">
+              <h2 className="text-2xl font-bold text-gray-800 mb-3 stats-title-mobile">Statistiche Giocatori</h2>
               
               {/* Layout TABLET/DESKTOP - Tabella */}
               <div className="hidden md:flex flex-1 overflow-auto">
