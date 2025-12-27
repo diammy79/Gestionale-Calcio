@@ -6874,7 +6874,9 @@ const SoccerTeamTracker = () => {
                 }`}>
                   {userRole === 'admin' ? '👑 ADMIN' : '👁️ VISUALIZZATORE'}
                 </div>
-                <div className="flex gap-1 md:gap-2">
+                
+                {/* USER: Solo Logout */}
+                {userRole === 'user' && (
                   <button
                     onClick={async () => {
                       try {
@@ -6884,21 +6886,42 @@ const SoccerTeamTracker = () => {
                         showToast('❌ Errore logout', 'error');
                       }
                     }}
-                    className="flex-1 flex items-center justify-center gap-1 px-2 md:px-3 py-1.5 md:py-2 bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
+                    className="flex items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
                     title="Cambia utente"
                   >
-                    <LogOut className="w-4 h-4" />
-                    <span className="hidden sm:inline">Logout</span>
+                    <LogOut className="w-4 h-4 md:w-5 md:h-5" />
+                    <span>Logout</span>
                   </button>
-                  <button
-                    onClick={handleLogout}
-                    className="flex-1 flex items-center justify-center gap-1 px-2 md:px-3 py-1.5 md:py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
-                    title="Chiudi applicazione"
-                  >
-                    <span className="text-base">✕</span>
-                    <span className="hidden sm:inline">Chiudi</span>
-                  </button>
-                </div>
+                )}
+                
+                {/* ADMIN: Logout + Chiudi */}
+                {userRole === 'admin' && (
+                  <div className="flex gap-1 md:gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          await auth.signOut();
+                        } catch (error) {
+                          console.error('Errore logout:', error);
+                          showToast('❌ Errore logout', 'error');
+                        }
+                      }}
+                      className="flex-1 flex items-center justify-center gap-1 px-2 md:px-3 py-1.5 md:py-2 bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
+                      title="Cambia utente"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="hidden sm:inline">Logout</span>
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="flex-1 flex items-center justify-center gap-1 px-2 md:px-3 py-1.5 md:py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
+                      title="Chiudi applicazione"
+                    >
+                      <span className="text-base">✕</span>
+                      <span className="hidden sm:inline">Chiudi</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
