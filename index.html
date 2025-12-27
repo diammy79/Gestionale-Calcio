@@ -1187,6 +1187,32 @@
       }
     }
     
+    /* ========== CLASSIFICA RESPONSIVE MOBILE ========== */
+    
+    /* Mobile Portrait: Nascondi G, GF, GS, DR - Mostra solo V, P, S */
+    @media (max-width: 640px) and (orientation: portrait) {
+      .classifica-col-giocate,
+      .classifica-col-gol {
+        display: none !important;
+      }
+      
+      .classifica-col-risultati {
+        display: table-cell !important;
+      }
+    }
+    
+    /* Mobile Landscape: Nascondi G - Mostra V, P, S, GF, GS, DR */
+    @media (max-width: 640px) and (orientation: landscape) {
+      .classifica-col-giocate {
+        display: none !important;
+      }
+      
+      .classifica-col-risultati,
+      .classifica-col-gol {
+        display: table-cell !important;
+      }
+    }
+    
     /* ========== FIX RIDIMENSIONAMENTO ORIENTAMENTO MOBILE ========== */
     @media (max-width: 640px) and (orientation: landscape) {
       /* Landscape: massimizza spazio verticale */
@@ -7831,13 +7857,13 @@ const SoccerTeamTracker = () => {
                           <th className="p-3 text-left">Pos</th>
                           <th className="p-3 text-left">Squadra</th>
                           <th className="p-3 text-center">Pt</th>
-                          <th className="p-3 text-center hidden md:table-cell">G</th>
-                          <th className="p-3 text-center hidden md:table-cell">V</th>
-                          <th className="p-3 text-center hidden md:table-cell">P</th>
-                          <th className="p-3 text-center hidden md:table-cell">S</th>
-                          <th className="p-3 text-center">GF</th>
-                          <th className="p-3 text-center">GS</th>
-                          <th className="p-3 text-center">DR</th>
+                          <th className="p-3 text-center hidden md:table-cell classifica-col-giocate">G</th>
+                          <th className="p-3 text-center classifica-col-risultati">V</th>
+                          <th className="p-3 text-center classifica-col-risultati">P</th>
+                          <th className="p-3 text-center classifica-col-risultati">S</th>
+                          <th className="p-3 text-center classifica-col-gol">GF</th>
+                          <th className="p-3 text-center classifica-col-gol">GS</th>
+                          <th className="p-3 text-center classifica-col-gol">DR</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -7912,13 +7938,13 @@ const SoccerTeamTracker = () => {
                               </td>
                               <td className="p-3 font-semibold">{sq.nome}</td>
                               <td className="p-3 text-center font-bold text-lg">{sq.punti}</td>
-                              <td className="p-3 text-center hidden md:table-cell">{sq.giocate}</td>
-                              <td className="p-3 text-center hidden md:table-cell">{sq.vinte}</td>
-                              <td className="p-3 text-center hidden md:table-cell">{sq.pareggiate}</td>
-                              <td className="p-3 text-center hidden md:table-cell">{sq.perse}</td>
-                              <td className="p-3 text-center">{sq.golFatti}</td>
-                              <td className="p-3 text-center">{sq.golSubiti}</td>
-                              <td className="p-3 text-center font-semibold">{sq.diffReti > 0 ? '+' : ''}{sq.diffReti}</td>
+                              <td className="p-3 text-center hidden md:table-cell classifica-col-giocate">{sq.giocate}</td>
+                              <td className="p-3 text-center classifica-col-risultati">{sq.vinte}</td>
+                              <td className="p-3 text-center classifica-col-risultati">{sq.pareggiate}</td>
+                              <td className="p-3 text-center classifica-col-risultati">{sq.perse}</td>
+                              <td className="p-3 text-center classifica-col-gol">{sq.golFatti}</td>
+                              <td className="p-3 text-center classifica-col-gol">{sq.golSubiti}</td>
+                              <td className="p-3 text-center font-semibold classifica-col-gol">{sq.diffReti > 0 ? '+' : ''}{sq.diffReti}</td>
                             </tr>
                           ));
                         })()}
