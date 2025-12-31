@@ -1618,9 +1618,11 @@ const SoccerTeamTracker = () => {
   const [trainings, setTrainings] = useState([]);
   const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState('dashboard'); // Apre sulla dashboard
+  const [exerciseModalTraining, setExerciseModalTraining] = useState(null); // Modal esercizi rapido
   
   // Reset modal esercizi quando cambio tab
   useEffect(() => {
+    console.log('🔄 activeTab changed to:', activeTab);
     setExerciseModalTraining(null);
   }, [activeTab]);
   
@@ -1629,16 +1631,18 @@ const SoccerTeamTracker = () => {
     console.log('📊 exerciseModalTraining changed:', exerciseModalTraining);
     if (exerciseModalTraining) {
       console.log('✅ Modal dovrebbe essere visibile!');
+      console.log('📋 Training data:', exerciseModalTraining.data);
+      console.log('📋 Esercizi count:', exerciseModalTraining.esercizi?.length);
     } else {
       console.log('❌ Modal chiuso');
     }
   }, [exerciseModalTraining]);
+  
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [showResultsModal, setShowResultsModal] = useState(false);  // ✅ Modal elenco risultati
   const [showExitModal, setShowExitModal] = useState(false);  // ✅ Modal chiusura app
   const [expandedTrainings, setExpandedTrainings] = useState({});
-  const [exerciseModalTraining, setExerciseModalTraining] = useState(null); // Modal esercizi rapido
   const [trainingTabActive, setTrainingTabActive] = useState({}); // 'presenze' o 'esercizi' per ogni training
   const [newEsercizio, setNewEsercizio] = useState({}); // Form nuovo esercizio per ogni training
   const [editingEsercizio, setEditingEsercizio] = useState(null); // {trainingId, esercizioId}
@@ -11520,7 +11524,9 @@ const SoccerTeamTracker = () => {
               </div>
               
               {/* MODAL ESERCIZI RAPIDO */}
-              {exerciseModalTraining && (
+              {exerciseModalTraining && (() => {
+                console.log('🎨 RENDERING MODAL! Training:', exerciseModalTraining.id);
+                return (
                 <div 
                   className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
                   onClick={() => setExerciseModalTraining(null)}
@@ -11632,7 +11638,8 @@ const SoccerTeamTracker = () => {
                     </div>
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
           )}
 
