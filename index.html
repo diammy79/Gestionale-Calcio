@@ -4910,7 +4910,18 @@ const SoccerTeamTracker = () => {
         tryCreateChart('attendanceChart', (ctx) => {
           const last10Trainings = trainings.slice(-10);
           const trainingDates = last10Trainings.map(t => new Date(t.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
-          const presenze = last10Trainings.map(t => Object.values(t.presenze).filter(p => p).length);
+          const presenze = last10Trainings.map(t => 
+            Object.entries(t.presenze)
+              .filter(([numero, presente]) => {
+                if (!presente) return false;
+                const player = players.find(p => p.numero === parseInt(numero));
+                if (!player || !player.nome) return false;
+                if (player.fuoriRosa) return false;
+                if (player.dataCreazione && new Date(player.dataCreazione) > new Date(t.data)) return false;
+                return true;
+              })
+              .length
+          );
           
           new Chart(ctx, {
             type: 'bar',
@@ -7755,7 +7766,19 @@ const SoccerTeamTracker = () => {
                   </div>
                   <div className="text-gray-700 font-semibold">Allenamenti</div>
                   <div className="text-sm text-gray-600 mt-1">
-                    Media presenze: {trainings.length > 0 ? Math.round((trainings.reduce((acc, t) => acc + Object.values(t.presenze).filter(p => p).length, 0) / trainings.length)) : 0}
+                    Media presenze: {trainings.length > 0 ? Math.round((trainings.reduce((acc, t) => {
+                      const presentiCount = Object.entries(t.presenze)
+                        .filter(([numero, presente]) => {
+                          if (!presente) return false;
+                          const player = players.find(p => p.numero === parseInt(numero));
+                          if (!player || !player.nome) return false;
+                          if (player.fuoriRosa) return false;
+                          if (player.dataCreazione && new Date(player.dataCreazione) > new Date(t.data)) return false;
+                          return true;
+                        })
+                        .length;
+                      return acc + presentiCount;
+                    }, 0) / trainings.length)) : 0}
                   </div>
                 </div>
 
@@ -9268,9 +9291,42 @@ const SoccerTeamTracker = () => {
                             <div>
                               <span className="font-semibold text-lg">Allenamento</span>
                               <span className="text-sm text-gray-600 ml-4">
-                                Presenti: {Object.values(training.presenze).filter(p => p === true).length} | 
-                                Assenti: {Object.values(training.presenze).filter(p => p === false).length} | 
-                                Infortuni: {Object.values(training.infortuni).filter(i => i).length}
+                                Presenti: {
+                                  Object.entries(training.presenze)
+                                    .filter(([numero, presente]) => {
+                                      if (presente !== true) return false;
+                                      const player = players.find(p => p.numero === parseInt(numero));
+                                      if (!player || !player.nome) return false;
+                                      if (player.fuoriRosa) return false;
+                                      if (player.dataCreazione && new Date(player.dataCreazione) > new Date(training.data)) return false;
+                                      return true;
+                                    })
+                                    .length
+                                } | 
+                                Assenti: {
+                                  Object.entries(training.presenze)
+                                    .filter(([numero, presente]) => {
+                                      if (presente !== false) return false;
+                                      const player = players.find(p => p.numero === parseInt(numero));
+                                      if (!player || !player.nome) return false;
+                                      if (player.fuoriRosa) return false;
+                                      if (player.dataCreazione && new Date(player.dataCreazione) > new Date(training.data)) return false;
+                                      return true;
+                                    })
+                                    .length
+                                } | 
+                                Infortuni: {
+                                  Object.entries(training.infortuni)
+                                    .filter(([numero, infortunato]) => {
+                                      if (!infortunato) return false;
+                                      const player = players.find(p => p.numero === parseInt(numero));
+                                      if (!player || !player.nome) return false;
+                                      if (player.fuoriRosa) return false;
+                                      if (player.dataCreazione && new Date(player.dataCreazione) > new Date(training.data)) return false;
+                                      return true;
+                                    })
+                                    .length
+                                }
                                 {training.esercizi && training.esercizi.length > 0 && (
                                   <span className="ml-3 text-blue-600 font-semibold">
                                     ⏱️ {training.esercizi.length} esercizi - {calcolaTotaleMinuti(training.esercizi)} min
@@ -11898,7 +11954,16 @@ const SoccerTeamTracker = () => {
                         .filter(t => Object.values(t.presenze).some(p => p === true))
                         .sort((a, b) => new Date(b.data) - new Date(a.data))
                         .map(training => {
-                          const presentiCount = Object.values(training.presenze).filter(p => p === true).length;
+                          const presentiCount = Object.entries(training.presenze)
+                            .filter(([numero, presente]) => {
+                              if (presente !== true) return false;
+                              const player = players.find(p => p.numero === parseInt(numero));
+                              if (!player || !player.nome) return false;
+                              if (player.fuoriRosa) return false;
+                              if (player.dataCreazione && new Date(player.dataCreazione) > new Date(training.data)) return false;
+                              return true;
+                            })
+                            .length;
                           return (
                             <option key={training.id} value={training.id}>
                               {new Date(training.data).toLocaleDateString('it-IT')} - {presentiCount} presenti
@@ -11989,8 +12054,26 @@ const SoccerTeamTracker = () => {
                   const training = trainings.find(t => t.id === selectedTrainingForDivision);
                   if (!training) return null;
                   
-                  const presentiCount = Object.values(training.presenze).filter(p => p === true).length;
-                  const assentiCount = Object.values(training.presenze).filter(p => p === false).length;
+                  const presentiCount = Object.entries(training.presenze)
+                    .filter(([numero, presente]) => {
+                      if (presente !== true) return false;
+                      const player = players.find(p => p.numero === parseInt(numero));
+                      if (!player || !player.nome) return false;
+                      if (player.fuoriRosa) return false;
+                      if (player.dataCreazione && new Date(player.dataCreazione) > new Date(training.data)) return false;
+                      return true;
+                    })
+                    .length;
+                  const assentiCount = Object.entries(training.presenze)
+                    .filter(([numero, presente]) => {
+                      if (presente !== false) return false;
+                      const player = players.find(p => p.numero === parseInt(numero));
+                      if (!player || !player.nome) return false;
+                      if (player.fuoriRosa) return false;
+                      if (player.dataCreazione && new Date(player.dataCreazione) > new Date(training.data)) return false;
+                      return true;
+                    })
+                    .length;
                   
                   return (
                     <div className="mt-4 p-3 bg-white border-2 border-green-200 rounded-lg">
