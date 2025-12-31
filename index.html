@@ -1623,6 +1623,7 @@ const SoccerTeamTracker = () => {
   const [showResultsModal, setShowResultsModal] = useState(false);  // ✅ Modal elenco risultati
   const [showExitModal, setShowExitModal] = useState(false);  // ✅ Modal chiusura app
   const [expandedTrainings, setExpandedTrainings] = useState({});
+  const [exerciseModalTraining, setExerciseModalTraining] = useState(null); // Modal esercizi rapido
   const [trainingTabActive, setTrainingTabActive] = useState({}); // 'presenze' o 'esercizi' per ogni training
   const [newEsercizio, setNewEsercizio] = useState({}); // Form nuovo esercizio per ogni training
   const [editingEsercizio, setEditingEsercizio] = useState(null); // {trainingId, esercizioId}
@@ -9328,9 +9329,15 @@ const SoccerTeamTracker = () => {
                                     .length
                                 }
                                 {training.esercizi && training.esercizi.length > 0 && (
-                                  <span className="ml-3 text-blue-600 font-semibold">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExerciseModalTraining(training);
+                                    }}
+                                    className="ml-3 text-blue-600 font-semibold hover:text-blue-800 hover:underline transition-all cursor-pointer"
+                                  >
                                     ⏱️ {training.esercizi.length} esercizi - {calcolaTotaleMinuti(training.esercizi)} min
-                                  </span>
+                                  </button>
                                 )}
                               </span>
                             </div>
@@ -11364,6 +11371,108 @@ const SoccerTeamTracker = () => {
                 </div>
               </div>
             </div>
+            
+            {/* MODAL ESERCIZI RAPIDO */}
+            {exerciseModalTraining && (
+              <div 
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                onClick={() => setExerciseModalTraining(null)}
+              >
+                <div 
+                  className="bg-white rounded-lg shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 flex justify-between items-center">
+                    <div>
+                      <h3 className="text-xl font-bold">⏱️ Esercizi Allenamento</h3>
+                      <p className="text-sm text-blue-100 mt-1">
+                        {new Date(exerciseModalTraining.data).toLocaleDateString('it-IT', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setExerciseModalTraining(null)}
+                      className="text-white hover:bg-blue-800 rounded-full p-2 transition-colors"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  
+                  {/* Body */}
+                  <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+                    {exerciseModalTraining.esercizi && exerciseModalTraining.esercizi.length > 0 ? (
+                      <div className="space-y-4">
+                        {/* Riepilogo totale */}
+                        <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mb-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className="text-3xl font-bold text-blue-700">
+                                {exerciseModalTraining.esercizi.length}
+                              </span>
+                              <span className="text-gray-700 ml-2">esercizi totali</span>
+                            </div>
+                            <div>
+                              <span className="text-3xl font-bold text-blue-700">
+                                {calcolaTotaleMinuti(exerciseModalTraining.esercizi)}
+                              </span>
+                              <span className="text-gray-700 ml-2">minuti totali</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Lista esercizi */}
+                        {exerciseModalTraining.esercizi.map((esercizio, idx) => (
+                          <div 
+                            key={idx}
+                            className="bg-white border-2 border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg">
+                                {idx + 1}
+                              </div>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <h4 className="text-lg font-bold text-gray-800">
+                                    {esercizio.nome}
+                                  </h4>
+                                  <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
+                                    ⏱️ {esercizio.durata} min
+                                  </span>
+                                </div>
+                                {esercizio.descrizione && (
+                                  <p className="text-gray-600 text-sm whitespace-pre-wrap">
+                                    {esercizio.descrizione}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-gray-500">
+                        <p className="text-lg">Nessun esercizio registrato</p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Footer */}
+                  <div className="bg-gray-50 p-4 flex justify-end border-t">
+                    <button
+                      onClick={() => setExerciseModalTraining(null)}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                    >
+                      Chiudi
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           )}
 
 {activeTab === 'roster' && (
