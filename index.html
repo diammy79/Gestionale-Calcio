@@ -6386,10 +6386,38 @@ const SoccerTeamTracker = () => {
     doc.setLineWidth(0.5);
     doc.rect(15, yPos, 180, 45);
     
-    // Foto se presente
+    // Foto se presente - MANTIENE PROPORZIONI ORIGINALI
     if (player.foto) {
       try {
-        doc.addImage(player.foto, 'JPEG', 20, yPos + 5, 35, 35);
+        // Crea immagine temporanea per ottenere dimensioni originali
+        const img = new Image();
+        img.src = player.foto;
+        
+        // Calcola proporzioni mantenendo aspect ratio
+        const maxWidth = 35;
+        const maxHeight = 35;
+        let finalWidth = maxWidth;
+        let finalHeight = maxHeight;
+        
+        if (img.width && img.height) {
+          const aspectRatio = img.width / img.height;
+          
+          if (aspectRatio > 1) {
+            // Immagine orizzontale (più larga che alta)
+            finalHeight = maxWidth / aspectRatio;
+            finalWidth = maxWidth;
+          } else {
+            // Immagine verticale (più alta che larga)
+            finalWidth = maxHeight * aspectRatio;
+            finalHeight = maxHeight;
+          }
+        }
+        
+        // Centra l'immagine nel box 35x35
+        const offsetX = (maxWidth - finalWidth) / 2;
+        const offsetY = (maxHeight - finalHeight) / 2;
+        
+        doc.addImage(player.foto, 'JPEG', 20 + offsetX, yPos + 5 + offsetY, finalWidth, finalHeight);
       } catch (e) {
         console.log('Errore caricamento foto');
       }
@@ -6541,15 +6569,15 @@ const SoccerTeamTracker = () => {
     doc.text('PARTITE GIOCATE', 15, yPos);
     yPos += 7;
     
-    const matchesWithPlayer = playerMatches.filter(m => 
-      (m.convocati && m.convocati[player.numero]) || 
-      (m.titolari && m.titolari[player.numero]) ||
-      (m.minutiGiocati && m.minutiGiocati[player.numero] > 0)
-    ).sort((a, b) => new Date(b.data) - new Date(a.data));
+    // Mostra TUTTE le partite, non solo quelle dove è stato convocato
+    const allMatches = playerMatches.sort((a, b) => new Date(b.data) - new Date(a.data));
     
-    if (matchesWithPlayer.length > 0) {
-      const tableData = matchesWithPlayer.slice(0, 15).map(m => {
+    if (allMatches.length > 0) {
+      const tableData = allMatches.slice(0, 20).map(m => {
         const data = new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const isConvocato = (m.convocati && m.convocati[player.numero]) || 
+                           (m.titolari && m.titolari[player.numero]) ||
+                           (m.minutiGiocati && m.minutiGiocati[player.numero] > 0);
         const isTitolare = m.titolari && m.titolari[player.numero];
         const minuti = m.minutiGiocati?.[player.numero] || 0;
         const gol = m.golFatti?.[player.numero] || 0;
@@ -6570,23 +6598,26 @@ const SoccerTeamTracker = () => {
         const gialli = (m.gialliGioco?.[player.numero] || 0) + (m.gialliProtesta?.[player.numero] || 0);
         const rossi = (m.rossiGioco?.[player.numero] || 0) + (m.rossiProtesta?.[player.numero] || 0);
         
-        return [
-          data,
-          avversario,
-          risultato,
-          isTitolare ? 'Si' : 'No',
-          minuti + "'",
-          gol > 0 ? gol : '-',
-          assist > 0 ? assist : '-',
-          gialli > 0 ? gialli : '-',
-          rossi > 0 ? rossi : '-'
-        ];
+        return {
+          data: [
+            data,
+            avversario,
+            risultato,
+            isConvocato ? (isTitolare ? 'Si' : 'No') : 'Non convocato',
+            isConvocato ? (minuti + "'") : '-',
+            isConvocato && gol > 0 ? gol : '-',
+            isConvocato && assist > 0 ? assist : '-',
+            isConvocato && gialli > 0 ? gialli : '-',
+            isConvocato && rossi > 0 ? rossi : '-'
+          ],
+          isConvocato: isConvocato
+        };
       });
       
       doc.autoTable({
         startY: yPos,
         head: [['Data', 'Avversario', 'Ris.', 'Tit.', 'Min', 'Gol', 'Assist', 'Gialli', 'Rossi']],
-        body: tableData,
+        body: tableData.map(item => item.data),
         theme: 'grid',
         headStyles: { 
           fillColor: [0, 51, 153],
@@ -6609,15 +6640,25 @@ const SoccerTeamTracker = () => {
           7: { cellWidth: 14, halign: 'center' },
           8: { cellWidth: 13, halign: 'center' }
         },
+        didParseCell: function(data) {
+          // Applica colore grigio alle righe dove NON è stato convocato
+          if (data.section === 'body') {
+            const rowIndex = data.row.index;
+            if (rowIndex < tableData.length && !tableData[rowIndex].isConvocato) {
+              data.cell.styles.textColor = [180, 180, 180]; // Grigio chiaro
+              data.cell.styles.fillColor = [245, 245, 245]; // Sfondo grigio molto chiaro
+            }
+          }
+        },
         margin: { left: 15, right: 15 }
       });
       
       yPos = doc.lastAutoTable.finalY + 10;
       
-      if (matchesWithPlayer.length > 15) {
+      if (allMatches.length > 20) {
         doc.setFontSize(8);
         doc.setTextColor(100, 100, 100);
-        doc.text(`(Mostrate le ultime 15 partite su ${matchesWithPlayer.length} totali)`, 15, yPos);
+        doc.text(`(Mostrate le ultime 20 partite su ${allMatches.length} totali)`, 15, yPos);
         yPos += 5;
       }
     } else {
