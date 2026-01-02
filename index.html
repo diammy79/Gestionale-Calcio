@@ -1152,21 +1152,38 @@
     
     /* ========== GESTIONE TESTO TAB PORTRAIT/LANDSCAPE ========== */
     
-    /* Portrait mobile: mostra testo completo, nascondi solo icone */
+    /* Portrait mobile: grid 3 colonne compatto */
     @media (max-width: 640px) and (orientation: portrait) {
+      .tab-container {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 0.5rem !important;
+        border-bottom: none !important;
+        overflow-x: visible !important;
+      }
+      
+      .tab-container button {
+        padding: 0.5rem 0.25rem !important;
+        font-size: 0.65rem !important;
+        border-radius: 0.5rem !important;
+        border-bottom: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        gap: 0.25rem !important;
+        min-height: 60px !important;
+      }
+      
       .tab-text-portrait {
-        display: inline !important;
-        font-size: 0.75rem !important;
+        display: block !important;
+        font-size: 0.65rem !important;
+        text-align: center !important;
+        line-height: 1.1 !important;
       }
       
       .tab-icon-only {
-        display: none !important;
-      }
-      
-      /* Tab navbar: aumenta padding per testo */
-      .tab-container button {
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
+        display: block !important;
+        font-size: 1.25rem !important;
       }
     }
     
@@ -7937,19 +7954,19 @@ const SoccerTeamTracker = () => {
               >
                 {tab === 'trainings' && (
                   <>
-                    <span className="tab-text-portrait hidden sm:inline">{`Allenamenti (${trainings.length})`}</span>
-                    <span className="tab-icon-only sm:hidden">🏃 {trainings.length}</span>
+                    <span className="tab-text-portrait hidden sm:inline">🏋️ Allenamenti ({trainings.length})</span>
+                    <span className="tab-icon-only sm:hidden">🏋️ {trainings.length}</span>
                   </>
                 )}
                 {tab === 'matches' && (
                   <>
-                    <span className="tab-text-portrait hidden sm:inline">{`Partite (${matches.length})`}</span>
+                    <span className="tab-text-portrait hidden sm:inline">⚽ Partite ({matches.length})</span>
                     <span className="tab-icon-only sm:hidden">⚽ {matches.length}</span>
                   </>
                 )}
                 {tab === 'stats' && (
                   <>
-                    <span className="tab-text-portrait hidden sm:inline">Statistiche</span>
+                    <span className="tab-text-portrait hidden sm:inline">📊 Statistiche</span>
                     <span className="tab-icon-only sm:hidden">📊</span>
                   </>
                 )}
@@ -7979,7 +7996,7 @@ const SoccerTeamTracker = () => {
                 )}
                 {tab === 'roster' && (
                   <>
-                    <span className="tab-text-portrait hidden sm:inline">Gestione Rosa</span>
+                    <span className="tab-text-portrait hidden sm:inline">👥 Gestione Rosa</span>
                     <span className="tab-icon-only sm:hidden">👥</span>
                   </>
                 )}
