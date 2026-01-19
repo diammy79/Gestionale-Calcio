@@ -1357,6 +1357,14 @@
         padding-top: 0.5rem !important;
         padding-bottom: 0.5rem !important;
       }
+      
+      /* Fix altezza pulsanti gestione rosa in landscape */
+      .flex.flex-row button {
+        min-height: auto !important;
+        max-height: 36px !important;
+        padding-top: 0.5rem !important;
+        padding-bottom: 0.5rem !important;
+      }
     }
   </style>
   <meta name="theme-color" content="#1a56db">
@@ -12227,7 +12235,7 @@ const SoccerTeamTracker = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-row md:flex-col gap-2">
+                      <div className="flex flex-row md:flex-col gap-2 items-start">
                         {editingPlayer === player.numero ? (
                           <>
                             <button 
