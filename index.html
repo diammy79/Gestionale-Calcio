@@ -143,6 +143,16 @@
       animation: spin 1s linear infinite;
     }
     
+    .spinner-small {
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-left-color: #ffffff;
+      border-radius: 50%;
+      width: 16px;
+      height: 16px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+    }
+    
     /* ========== RESPONSIVE MOBILE ========== */
     
     /* Miglioramenti touch */
@@ -1605,6 +1615,7 @@ const SoccerTeamTracker = () => {
   const [authLoading, setAuthLoading] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [loadingData, setLoadingData] = useState(true); // Track caricamento dati in background
   const [lastSaved, setLastSaved] = useState(null);
   const [recoveryMinutes, setRecoveryMinutes] = useState('');
   const [players, setPlayers] = useState([
@@ -1849,7 +1860,11 @@ const SoccerTeamTracker = () => {
   }, []);
 
   useEffect(() => {
+    // ✅ CARICAMENTO OTTIMISTICO: Mostra UI SUBITO!
+    setIsLoading(false);
+    
     const loadData = async () => {
+      setLoadingData(true); // Indica che dati sono in caricamento
       try {
         const savedData = await loadFromIndexedDB('squadraRealDOR');
         if (savedData) {
@@ -1891,7 +1906,7 @@ const SoccerTeamTracker = () => {
       } catch (error) {
         console.error('Errore caricamento dati:', error);
       } finally {
-        setIsLoading(false);
+        setLoadingData(false); // Dati caricati, nasconde badge
       }
     };
     loadData();
@@ -7714,6 +7729,16 @@ const SoccerTeamTracker = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
+      {/* ========== BADGE CARICAMENTO DATI (Solo durante caricamento iniziale) ========== */}
+      {loadingData && (
+        <div className="fixed top-4 right-4 z-40 animate-fade-in">
+          <div className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <div className="spinner-small"></div>
+            <span className="text-sm font-medium">🔄 Caricamento dati...</span>
+          </div>
+        </div>
+      )}
+      
       {/* ========== MODAL SELEZIONE DISPOSITIVO ========== */}
       {showDeviceModal && userRole === 'admin' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
