@@ -8802,6 +8802,46 @@ const SoccerTeamTracker = () => {
                   Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
                 </span>
               )}
+              {/* Promemoria Backup */}
+              {(() => {
+                if (!lastBackupDate) {
+                  return (
+                    <button
+                      onClick={() => {
+                        setActiveTab('export');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold hover:bg-orange-200 transition-colors"
+                      title="Clicca per creare un backup"
+                    >
+                      💾 Consigliato: crea un backup locale
+                    </button>
+                  );
+                }
+                
+                const daysSinceBackup = Math.floor((new Date() - new Date(lastBackupDate)) / (1000 * 60 * 60 * 24));
+                
+                if (daysSinceBackup > 7) {
+                  return (
+                    <button
+                      onClick={() => {
+                        setActiveTab('export');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold hover:bg-yellow-200 transition-colors"
+                      title={`Ultimo backup: ${daysSinceBackup} giorni fa`}
+                    >
+                      💾 Backup consigliato ogni 7gg (ultimo: {daysSinceBackup}gg fa)
+                    </button>
+                  );
+                }
+                
+                return (
+                  <span className="text-xs text-gray-500" title={`Ultimo backup: ${new Date(lastBackupDate).toLocaleDateString('it-IT')}`}>
+                    💾 Backup OK ({daysSinceBackup === 0 ? 'oggi' : `${daysSinceBackup}gg fa`})
+                  </span>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -8835,6 +8875,60 @@ const SoccerTeamTracker = () => {
             </div>
           </div>
         )}
+
+        {/* Banner Promemoria Backup (Compatto - Solo ADMIN) */}
+        {userRole === 'admin' && (() => {
+          if (!lastBackupDate) {
+            // Nessun backup mai fatto
+            return (
+              <div className="bg-orange-50 border border-orange-300 rounded-lg p-3 mb-4 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-orange-600 text-xl">💾</span>
+                  <p className="text-sm text-orange-800 flex-1">
+                    <strong>Backup consigliato:</strong> Oltre al salvataggio automatico, crea un backup locale ogni 7gg
+                  </p>
+                  <button
+                    onClick={() => {
+                      setActiveTab('export');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="text-xs bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded font-semibold transition-colors whitespace-nowrap"
+                  >
+                    Crea →
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          
+          const daysSinceBackup = Math.floor((new Date() - new Date(lastBackupDate)) / (1000 * 60 * 60 * 24));
+          
+          if (daysSinceBackup > 7) {
+            // Backup vecchio > 7 giorni
+            return (
+              <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-yellow-600 text-xl">💾</span>
+                  <p className="text-sm text-yellow-800 flex-1">
+                    <strong>Backup datato:</strong> Ultimo backup {daysSinceBackup} giorni fa - consigliato ogni 7gg
+                  </p>
+                  <button
+                    onClick={() => {
+                      setActiveTab('export');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded font-semibold transition-colors whitespace-nowrap"
+                  >
+                    Aggiorna →
+                  </button>
+                </div>
+              </div>
+            );
+          }
+          
+          // Backup OK - non mostrare nulla per non disturbare
+          return null;
+        })()}
 
         <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern">
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
@@ -9043,94 +9137,6 @@ const SoccerTeamTracker = () => {
                   </div>
                 </div>
               </div>
-
-              {/* ========== CARD AVVISO BACKUP ========== */}
-              {(() => {
-                if (!lastBackupDate) {
-                  // Nessun backup mai fatto
-                  return (
-                    <div className="mb-6 bg-gradient-to-br from-red-50 to-orange-50 rounded-lg shadow-lg p-6 border-2 border-red-300 animate-shake">
-                      <div className="flex items-start gap-4">
-                        <div className="text-5xl animate-pulse-slow">⚠️</div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-bold text-red-800 mb-2">
-                            🔴 Nessun backup trovato!
-                          </h3>
-                          <p className="text-red-700 mb-3">
-                            Non hai ancora creato un backup di sicurezza. È <strong>fortemente consigliato</strong> fare un backup per proteggere i tuoi dati.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setActiveTab('export');
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-                          >
-                            💾 Crea Backup Ora
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-                
-                const daysSinceBackup = Math.floor((new Date() - new Date(lastBackupDate)) / (1000 * 60 * 60 * 24));
-                const backupDate = new Date(lastBackupDate).toLocaleDateString('it-IT', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                });
-                
-                if (daysSinceBackup > 7) {
-                  // Backup vecchio > 7 giorni
-                  return (
-                    <div className="mb-6 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg shadow-lg p-6 border-2 border-yellow-300">
-                      <div className="flex items-start gap-4">
-                        <div className="text-4xl">⚠️</div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-bold text-yellow-800 mb-2">
-                            ⏰ Backup non recente
-                          </h3>
-                          <p className="text-yellow-700 mb-2">
-                            Ultimo backup: <strong>{backupDate}</strong> ({daysSinceBackup} giorni fa)
-                          </p>
-                          <p className="text-sm text-yellow-600 mb-3">
-                            È consigliato fare un backup almeno una volta a settimana.
-                          </p>
-                          <button
-                            onClick={() => {
-                              setActiveTab('export');
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }}
-                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
-                          >
-                            💾 Aggiorna Backup
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-                
-                // Backup recente - tutto ok
-                return (
-                  <div className="mb-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-lg p-4 border-2 border-green-300">
-                    <div className="flex items-center gap-3">
-                      <div className="text-3xl">✅</div>
-                      <div className="flex-1">
-                        <p className="text-green-800 font-semibold">
-                          Backup aggiornato • Ultimo: {backupDate}
-                        </p>
-                        <p className="text-sm text-green-600">
-                          I tuoi dati sono al sicuro ({daysSinceBackup === 0 ? 'oggi' : `${daysSinceBackup} ${daysSinceBackup === 1 ? 'giorno' : 'giorni'} fa`})
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
 
               {/* Grafici */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
