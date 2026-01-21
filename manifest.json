@@ -1,7 +1,7 @@
 {
-  "name": "Moreschi Gestionale Calcio",
-  "short_name": "Moreschi Calcio",
-  "description": "Gestione completa squadra calcio Under 18",
+  "name": "Moreschi Roberto - Gestionale Calcio",
+  "short_name": "Gestionale Calcio",
+  "description": "Gestione completa squadra calcio",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1e40af",
@@ -23,13 +23,13 @@
   ],
   "screenshots": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1080' height='1920' viewBox='0 0 1080 1920'%3E%3Crect fill='%23f0f9ff' width='1080' height='1920'/%3E%3Crect fill='%231a56db' width='1080' height='300'/%3E%3Ctext x='540' y='150' font-size='80' text-anchor='middle' fill='white' font-weight='bold'%3E⚽ Real D.O.R.%3C/text%3E%3Ctext x='540' y='220' font-size='40' text-anchor='middle' fill='%2393c5fd'%3EGestione Squadra%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1080' height='1920' viewBox='0 0 1080 1920'%3E%3Crect fill='%23f0f9ff' width='1080' height='1920'/%3E%3Crect fill='%231a56db' width='1080' height='300'/%3E%3Ctext x='540' y='150' font-size='80' text-anchor='middle' fill='white' font-weight='bold'%3E⚽ Gestionale Calcio%3C/text%3E%3Ctext x='540' y='220' font-size='40' text-anchor='middle' fill='%2393c5fd'%3EGestione Squadra%3C/text%3E%3C/svg%3E",
       "sizes": "1080x1920",
       "type": "image/svg+xml",
       "form_factor": "narrow"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080' viewBox='0 0 1920 1080'%3E%3Crect fill='%23f0f9ff' width='1920' height='1080'/%3E%3Crect fill='%231a56db' width='1920' height='200'/%3E%3Ctext x='960' y='120' font-size='70' text-anchor='middle' fill='white' font-weight='bold'%3E⚽ Real D.O.R.%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1920' height='1080' viewBox='0 0 1920 1080'%3E%3Crect fill='%23f0f9ff' width='1920' height='1080'/%3E%3Crect fill='%231a56db' width='1920' height='200'/%3E%3Ctext x='960' y='120' font-size='70' text-anchor='middle' fill='white' font-weight='bold'%3E⚽ Gestionale Calcio%3C/text%3E%3C/svg%3E",
       "sizes": "1920x1080",
       "type": "image/svg+xml",
       "form_factor": "wide"
