@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-  <title>⚽ Moreschi Gestionale Calcio</title>
+  <title>⚽ Gestionale Calcio</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1390,7 +1390,7 @@
     }
   </style>
   <meta name="theme-color" content="#1a56db">
-  <meta name="description" content="Moreschi Gestionale Calcio - Gestione Squadra Completa">
+  <meta name="description" content="Gestionale Calcio - Gestione Squadra Completa">
   <link rel="manifest" href="manifest.json">
   
   <!-- Firebase SDK -->
@@ -1459,7 +1459,7 @@ const LoginScreen = ({ onLogin }) => {
         <div className="text-center mb-8">
           <div className="text-7xl mb-4 animate-bounce">⚽</div>
           <h1 className="text-5xl font-black text-white mb-2" style={{textShadow: '3px 3px 6px rgba(0,0,0,0.4)'}}>
-            Moreschi Gestionale Calcio
+            Gestionale Calcio
           </h1>
           <p className="text-blue-200 text-lg">Gestione Squadra Completa</p>
         </div>
@@ -1513,7 +1513,7 @@ const LoginScreen = ({ onLogin }) => {
 
         <div className="text-center mt-6">
           <p className="text-blue-200 text-sm">
-            Moreschi Gestionale Calcio © 2025 - Mister Roberto
+            Gestionale Calcio © {new Date().getFullYear()}
           </p>
         </div>
       </div>
@@ -1710,7 +1710,7 @@ const SoccerTeamTracker = () => {
   const [playerSelectionModal, setPlayerSelectionModal] = useState(null);
   const [dragState, setDragState] = useState(null); // Per tracciare drag offset
   const [matchEnded, setMatchEnded] = useState(false);
-  const [appTitle, setAppTitle] = useState('Moreschi Roberto - Gestione squadra Real DOR Under 18');
+  const [appTitle, setAppTitle] = useState('Moreschi Roberto - Gestionale squadra');
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [enlargedPhoto, setEnlargedPhoto] = useState(null);
   const [halfTime, setHalfTime] = useState(1);
@@ -3223,7 +3223,7 @@ const SoccerTeamTracker = () => {
         doc.setPage(i);
         doc.setFontSize(8);
         doc.setTextColor(128, 128, 128);
-        doc.text(`Real D.O.R. Under 18 - Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
+        doc.text(`${appTitle} - Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
       }
       
       // Salva PDF
@@ -3373,7 +3373,7 @@ const SoccerTeamTracker = () => {
         doc.setPage(i);
         doc.setFontSize(8);
         doc.setTextColor(128, 128, 128);
-        doc.text(`Real D.O.R. Under 18 - Pagina ${i} di ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
+        doc.text(`${appTitle} - Pagina ${i} di ${pageCount}`, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
       }
       
       // Salva PDF
@@ -3763,7 +3763,7 @@ const SoccerTeamTracker = () => {
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.text(`Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
-      doc.text('Generato da Moreschi Roberto Gestionale Calcio', 105, 285, { align: 'center' });
+      doc.text(`Generato da ${appTitle}`, 105, 285, { align: 'center' });
     }
     
     // Salva PDF
@@ -4917,7 +4917,7 @@ const SoccerTeamTracker = () => {
     doc.setFontSize(20);
     doc.text('RISULTATI PARTITE', 105, 20, { align: 'center' });
     doc.setFontSize(14);
-    doc.text('Real DOR Under 18', 105, 28, { align: 'center' });
+    doc.text(appTitle, 105, 28, { align: 'center' });
     doc.setFontSize(12);
     doc.text('Stagione 2024/2025', 105, 35, { align: 'center' });
     
@@ -5038,7 +5038,7 @@ const SoccerTeamTracker = () => {
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
       doc.text(`Pagina ${i} di ${pageCount}`, 105, 290, { align: 'center' });
-      doc.text('Generato da Moreschi Roberto Gestionale Calcio', 105, 285, { align: 'center' });
+      doc.text(`Generato da ${appTitle}`, 105, 285, { align: 'center' });
     }
     
     // Salva PDF
@@ -5584,7 +5584,7 @@ const SoccerTeamTracker = () => {
     // Titolo - COMPATTO
     doc.setFontSize(18);
     doc.setFont(undefined, 'bold');
-    doc.text('REAL D.O.R. UNDER 18', 105, 15, { align: 'center' });
+    doc.text(appTitle.toUpperCase(), 105, 15, { align: 'center' });
     
     doc.setFontSize(12);
     doc.text(`Rosa Stagione ${currentYear}`, 105, 22, { align: 'center' });
@@ -5642,19 +5642,24 @@ const SoccerTeamTracker = () => {
       const nomeMax = player.nome.length > 30 ? player.nome.substring(0, 28) + '...' : player.nome;
       doc.text(nomeMax, 30, yPosition);
       
-      // Ruolo specifico
+      // Ruolo specifico + Piede preferito
       doc.setFont(undefined, 'normal');
       doc.setTextColor(100, 100, 100);
-      const ruoloText = player.ruolo || 'N/D';
-      const ruoloMax = ruoloText.length > 20 ? ruoloText.substring(0, 18) + '...' : ruoloText;
-      doc.text(`(${ruoloMax})`, 30 + doc.getTextWidth(nomeMax) + 2, yPosition);
       
-      // Numero maglia (se presente)
-      if (player.numero) {
-        doc.setTextColor(33, 150, 243);
-        doc.setFont(undefined, 'bold');
-        doc.text(`#${player.numero}`, 185, yPosition, { align: 'right' });
+      // Costruisci testo con ruolo e piede
+      let infoText = player.ruolo || 'N/D';
+      
+      // Aggiungi piede se presente
+      if (player.piede && player.piede !== 'Ambidestro') {
+        const piedeText = player.piede === 'Destro' ? 'Piede dx' : 'Piede sx';
+        infoText = `${infoText} - ${piedeText}`;
+      } else if (player.piede === 'Ambidestro') {
+        infoText = `${infoText} - Ambidestro`;
       }
+      
+      // Tronca se troppo lungo (max 50 caratteri)
+      const infoMax = infoText.length > 50 ? infoText.substring(0, 47) + '...' : infoText;
+      doc.text(`(${infoMax})`, 30 + doc.getTextWidth(nomeMax) + 2, yPosition);
       
       doc.setTextColor(0, 0, 0);
       
@@ -5667,8 +5672,9 @@ const SoccerTeamTracker = () => {
     doc.setTextColor(150, 150, 150);
     doc.text(`Generato il ${new Date().toLocaleDateString('it-IT')}`, 105, 285, { align: 'center' });
     
-    // Salva PDF
-    doc.save(`Rosa_Real_DOR_${currentYear}.pdf`);
+    // Salva PDF con nome dinamico basato su appTitle
+    const fileName = `Rosa_${appTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)}_${currentYear}.pdf`;
+    doc.save(fileName);
     showToast('PDF Rosa scaricato!', 'success');
   };
 
@@ -5938,7 +5944,7 @@ const SoccerTeamTracker = () => {
     doc.setFontSize(20);
     doc.text('DIVISIONE SQUADRE EQUILIBRATE', 105, 20, { align: 'center' });
     doc.setFontSize(12);
-    doc.text('Real DOR Under 18', 105, 30, { align: 'center' });
+    doc.text(appTitle, 105, 30, { align: 'center' });
     
     if (infortunati.size > 0) {
       doc.setFontSize(10);
@@ -6039,7 +6045,7 @@ const SoccerTeamTracker = () => {
     
     doc.setFontSize(11);
     doc.setFont(undefined, 'normal');
-    doc.text('Real DOR Under 18', 105, 26, { align: 'center' });
+    doc.text(appTitle, 105, 26, { align: 'center' });
 
     let yPos = 36;
 
@@ -6147,7 +6153,7 @@ const SoccerTeamTracker = () => {
     // Titolo compatto in linea con il logo
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text('Real D.O.R. - Lista Presenze', teamLogo ? 30 : 15, 15);
+    doc.text(`${appTitle} - Lista Presenze`, teamLogo ? 30 : 15, 15);
     
     yPos = 23;
 
@@ -6227,32 +6233,17 @@ const SoccerTeamTracker = () => {
   // ========== NUOVE FUNZIONI ESPORTAZIONE AVANZATE ==========
   
   // Export Report Stagionale Completo
-  const downloadSeasonReportPDF = () => {
+  const downloadSeasonReportPDF = async () => {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     
-    let yPos = 20;
-    
-    // Header
-    doc.setFontSize(22);
-    doc.setFont(undefined, 'bold');
-    doc.text('📊 REPORT STAGIONALE COMPLETO', 105, yPos, { align: 'center' });
-    yPos += 10;
-    
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'normal');
-    doc.text(appTitle, 105, yPos, { align: 'center' });
-    yPos += 5;
-    
-    doc.setFontSize(10);
-    doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT')}`, 105, yPos, { align: 'center' });
-    yPos += 15;
-    
-    // Statistiche Generali
+    // ========== CALCOLI STATISTICHE COMPLETE ==========
     const totalMatches = matches.length;
     const totalTrainings = trainings.length;
-    const activePlayers = players.filter(p => p.nome).length;
+    const activePlayers = players.filter(p => p.nome && !p.fuoriRosa).length;
+    const totalPlayers = players.filter(p => p.nome).length;
     
+    // Partite
     const victories = matches.filter(m => {
       const our = parseInt(m.golFatti ? Object.values(m.golFatti).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0) : 0);
       const their = Object.values(m.golSubiti || {}).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0);
@@ -6267,129 +6258,670 @@ const SoccerTeamTracker = () => {
     
     const defeats = totalMatches - victories - draws;
     
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('STATISTICHE GENERALI', 15, yPos);
-    yPos += 8;
+    // Gol totali
+    let totalGoalsScored = 0;
+    let totalGoalsConceded = 0;
+    matches.forEach(m => {
+      totalGoalsScored += parseInt(m.golFatti ? Object.values(m.golFatti).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0) : 0);
+      totalGoalsConceded += Object.values(m.golSubiti || {}).reduce((a, b) => parseInt(a || 0) + parseInt(b || 0), 0);
+    });
     
-    doc.setFontSize(11);
-    doc.setFont(undefined, 'normal');
-    doc.text(`• Giocatori in rosa: ${activePlayers}`, 20, yPos);
-    yPos += 6;
-    doc.text(`• Partite giocate: ${totalMatches} (V: ${victories}, P: ${draws}, S: ${defeats})`, 20, yPos);
-    yPos += 6;
-    doc.text(`• Allenamenti svolti: ${totalTrainings}`, 20, yPos);
-    yPos += 12;
-    
-    // Top 5 Marcatori
-    const goalScorers = {};
-    matches.forEach(match => {
-      if (match.golFatti) {
-        Object.entries(match.golFatti).forEach(([num, gol]) => {
-          const goals = parseInt(gol || 0);
-          if (goals > 0) {
-            goalScorers[num] = (goalScorers[num] || 0) + goals;
-          }
-        });
+    // MVP
+    const mvpCounts = {};
+    matches.forEach(m => {
+      if (m.mvp) {
+        mvpCounts[m.mvp] = (mvpCounts[m.mvp] || 0) + 1;
       }
     });
     
-    const topScorers = Object.entries(goalScorers)
-      .map(([num, gol]) => {
-        const player = players.find(p => p.numero === parseInt(num));
-        return { nome: player?.nome || `#${num}`, gol };
-      })
-      .sort((a, b) => b.gol - a.gol)
-      .slice(0, 5);
+    // ========== PAGINA 1: HEADER E STATISTICHE GENERALI ==========
+    let yPos = 15;
+    
+    doc.setFontSize(22);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 51, 153);
+    doc.text('REPORT STAGIONALE COMPLETO', 148.5, yPos, { align: 'center' });
+    yPos += 10;
+    
+    doc.setFontSize(14);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text(appTitle, 148.5, yPos, { align: 'center' });
+    yPos += 6;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Generato il: ${new Date().toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}`, 148.5, yPos, { align: 'center' });
+    yPos += 15;
+    
+    // ========== BOX STATISTICHE GENERALI ==========
+    doc.setFillColor(240, 248, 255);
+    doc.rect(15, yPos - 5, 267, 35, 'F');
     
     doc.setFontSize(14);
     doc.setFont(undefined, 'bold');
-    doc.text('🏆 TOP 5 MARCATORI', 15, yPos);
+    doc.setTextColor(0, 51, 153);
+    doc.text('STATISTICHE GENERALI', 20, yPos);
     yPos += 8;
     
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setFont(undefined, 'normal');
-    topScorers.forEach((scorer, i) => {
-      doc.text(`${i + 1}. ${scorer.nome}: ${scorer.gol} gol`, 20, yPos);
-      yPos += 6;
-    });
-    yPos += 8;
+    doc.setTextColor(0, 0, 0);
     
-    // Top 5 Assist
-    const assistProviders = {};
-    matches.forEach(match => {
-      if (match.assist) {
-        Object.entries(match.assist).forEach(([num, assists]) => {
-          const count = parseInt(assists || 0);
-          if (count > 0) {
-            assistProviders[num] = (assistProviders[num] || 0) + count;
+    // Riga 1
+    doc.text(`Giocatori attivi: ${activePlayers}`, 20, yPos);
+    doc.text(`Giocatori totali stagione: ${totalPlayers}`, 100, yPos);
+    doc.text(`Allenamenti svolti: ${totalTrainings}`, 200, yPos);
+    yPos += 6;
+    
+    // Riga 2
+    doc.text(`Partite giocate: ${totalMatches}`, 20, yPos);
+    doc.text(`Vittorie: ${victories}`, 100, yPos);
+    doc.text(`Pareggi: ${draws}`, 150, yPos);
+    doc.text(`Sconfitte: ${defeats}`, 200, yPos);
+    yPos += 6;
+    
+    // Riga 3
+    doc.text(`Gol fatti: ${totalGoalsScored}`, 20, yPos);
+    doc.text(`Gol subiti: ${totalGoalsConceded}`, 100, yPos);
+    doc.text(`Differenza reti: ${totalGoalsScored - totalGoalsConceded >= 0 ? '+' : ''}${totalGoalsScored - totalGoalsConceded}`, 200, yPos);
+    yPos += 10;
+    
+    // ========== FUNZIONE HELPER PER GRAFICI ==========
+    const addChartToPDF = async (chartConfig, x, y, width, height, isCircular = false) => {
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        // Per grafici circolari usa canvas quadrato, altrimenti rettangolare
+        if (isCircular) {
+          canvas.width = 600;
+          canvas.height = 600;
+        } else {
+          canvas.width = 800;
+          canvas.height = 400;
+        }
+        const ctx = canvas.getContext('2d');
+        
+        new Chart(ctx, chartConfig);
+        
+        setTimeout(() => {
+          const imgData = canvas.toDataURL('image/png');
+          doc.addImage(imgData, 'PNG', x, y, width, height);
+          canvas.remove();
+          resolve();
+        }, 500);
+      });
+    };
+    
+    // ========== GRAFICO 1: GOL CUMULATIVI ==========
+    if (matches.length > 0) {
+      const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }));
+      let totaleFatti = 0, totaleSubiti = 0;
+      const golFattiCumulativi = [];
+      const golSubitiCumulativi = [];
+      
+      matches.forEach(m => {
+        const fatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        const subiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        totaleFatti += fatti;
+        totaleSubiti += subiti;
+        golFattiCumulativi.push(totaleFatti);
+        golSubitiCumulativi.push(totaleSubiti);
+      });
+      
+      await addChartToPDF({
+        type: 'line',
+        data: {
+          labels: matchDates,
+          datasets: [
+            {
+              label: 'Gol Fatti',
+              data: golFattiCumulativi,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.4,
+              fill: true,
+              borderWidth: 2
+            },
+            {
+              label: 'Gol Subiti',
+              data: golSubitiCumulativi,
+              borderColor: '#ef4444',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              tension: 0.4,
+              fill: true,
+              borderWidth: 2
+            }
+          ]
+        },
+        options: {
+          responsive: false,
+          plugins: {
+            title: { display: true, text: 'ANDAMENTO GOL STAGIONALE', font: { size: 16, weight: 'bold' } },
+            legend: { position: 'top' }
+          },
+          scales: {
+            y: { beginAtZero: true, title: { display: true, text: 'Totale Gol' } }
+          }
+        }
+      }, 15, yPos, 120, 60);
+      
+      // ========== GRAFICO 2: RISULTATI ==========
+      await addChartToPDF({
+        type: 'doughnut',
+        data: {
+          labels: ['Vittorie', 'Pareggi', 'Sconfitte'],
+          datasets: [{
+            data: [victories, draws, defeats],
+            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: false,
+          maintainAspectRatio: true,
+          aspectRatio: 1,
+          plugins: {
+            title: { display: true, text: 'RISULTATI', font: { size: 16, weight: 'bold' } },
+            legend: { position: 'bottom' }
+          }
+        }
+      }, 145, yPos, 60, 60, true); // true = canvas quadrato per grafico circolare
+      
+      // ========== GRAFICO 3: PRESENZA MEDIA MENSILE (STAGIONE CALCISTICA) ==========
+      if (trainings.length > 0) {
+        // Raggruppa allenamenti per mese (stagione calcistica: Luglio-Giugno)
+        const monthlyData = {};
+        const mesiStagione = ['Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno'];
+        
+        trainings.forEach(t => {
+          const date = new Date(t.data);
+          const month = date.getMonth(); // 0-11 (0=Gennaio, 11=Dicembre)
+          // Converti mese calendario in indice stagione calcistica
+          const stagioneMeseIdx = (month + 6) % 12; // Luglio=0, Agosto=1, ..., Giugno=11
+          const monthName = mesiStagione[stagioneMeseIdx];
+          
+          if (!monthlyData[monthName]) {
+            monthlyData[monthName] = { totPresenze: 0, count: 0 };
+          }
+          
+          const presenze = Object.entries(t.presenze || {}).filter(([numero, presente]) => {
+            if (!presente) return false;
+            const player = players.find(p => p.numero === parseInt(numero));
+            if (!player || !player.nome || player.fuoriRosa) return false;
+            if (player.dataCreazione && new Date(player.dataCreazione) > new Date(t.data)) return false;
+            return true;
+          }).length;
+          
+          monthlyData[monthName].totPresenze += presenze;
+          monthlyData[monthName].count++;
+        });
+        
+        // Prepara dati per grafico (solo mesi con allenamenti, in ordine stagione calcistica)
+        const mesiConDati = [];
+        const mediaPresenze = [];
+        
+        mesiStagione.forEach(mese => {
+          if (monthlyData[mese] && monthlyData[mese].count > 0) {
+            mesiConDati.push(mese);
+            mediaPresenze.push(Math.round(monthlyData[mese].totPresenze / monthlyData[mese].count));
           }
         });
+        
+        await addChartToPDF({
+          type: 'bar',
+          data: {
+            labels: mesiConDati,
+            datasets: [{
+              label: 'Presenza Media',
+              data: mediaPresenze,
+              backgroundColor: '#3b82f6',
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: false,
+            plugins: {
+              title: { display: true, text: 'PRESENZA MEDIA MENSILE', font: { size: 16, weight: 'bold' } },
+              legend: { display: false }
+            },
+            scales: {
+              y: { beginAtZero: true, ticks: { stepSize: 2 }, title: { display: true, text: 'Giocatori' } }
+            }
+          }
+        }, 215, yPos, 65, 60);
       }
-    });
+    }
     
-    const topAssisters = Object.entries(assistProviders)
-      .map(([num, assists]) => {
-        const player = players.find(p => p.numero === parseInt(num));
-        return { nome: player?.nome || `#${num}`, assists };
-      })
-      .sort((a, b) => b.assists - a.assists)
-      .slice(0, 5);
-    
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('👟 TOP 5 ASSIST', 15, yPos);
-    yPos += 8;
-    
-    doc.setFontSize(11);
-    doc.setFont(undefined, 'normal');
-    topAssisters.forEach((assister, i) => {
-      doc.text(`${i + 1}. ${assister.nome}: ${assister.assists} assist`, 20, yPos);
-      yPos += 6;
-    });
-    
-    // Nuova pagina per lista completa giocatori
+    // ========== NUOVA PAGINA: TABELLA GIOCATORI ==========
     doc.addPage();
-    yPos = 20;
+    yPos = 15;
     
     doc.setFontSize(16);
     doc.setFont(undefined, 'bold');
-    doc.text('ROSA COMPLETA', 105, yPos, { align: 'center' });
-    yPos += 12;
+    doc.setTextColor(0, 51, 153);
+    doc.text('STATISTICHE COMPLETE GIOCATORI', 148.5, yPos, { align: 'center' });
+    yPos += 10;
     
-    const playersData = players
+    // ========== CALCOLO STATISTICHE GIOCATORI ==========
+    const playerStats = players
       .filter(p => p.nome)
       .map(p => {
-        const goals = goalScorers[p.numero] || 0;
-        const assists = assistProviders[p.numero] || 0;
-        return [
-          p.numero,
-          p.nome,
-          p.ruolo,
-          goals,
-          assists
-        ];
-      });
+        const playerTrainings = trainings.filter(t => !p.dataCreazione || new Date(t.data) >= new Date(p.dataCreazione));
+        const presenzeAllen = playerTrainings.filter(t => t.presenze && t.presenze[p.numero]).length;
+        const totAllen = playerTrainings.filter(t => t.presenze && (t.presenze[p.numero] !== undefined)).length;
+        const percPresenze = totAllen > 0 ? Math.round((presenzeAllen / totAllen) * 100) : 0;
+        
+        const infortuni = trainings.filter(t => t.infortuni && t.infortuni[p.numero]).length;
+        
+        const playerMatches = matches.filter(m => !p.dataCreazione || new Date(m.data) >= new Date(p.dataCreazione));
+        const convocato = playerMatches.filter(m => m.convocati && m.convocati[p.numero]).length;
+        const titolare = playerMatches.filter(m => m.titolari && m.titolari[p.numero]).length;
+        const percConvocazioni = playerMatches.length > 0 ? Math.round((convocato / playerMatches.length) * 100) : 0;
+        
+        let gol = 0, assist = 0, golSubiti = 0, minuti = 0, gialliTot = 0, rossiTot = 0;
+        
+        playerMatches.forEach(m => {
+          gol += parseInt(m.golFatti?.[p.numero] || 0);
+          assist += parseInt(m.assist?.[p.numero] || 0);
+          golSubiti += parseInt(m.golSubiti?.[p.numero] || 0);
+          minuti += parseInt(m.minutiGiocati?.[p.numero] || 0);
+          gialliTot += parseInt(m.gialliGioco?.[p.numero] || 0) + parseInt(m.gialliProtesta?.[p.numero] || 0);
+          rossiTot += parseInt(m.rossiGioco?.[p.numero] || 0) + parseInt(m.rossiProtesta?.[p.numero] || 0);
+        });
+        
+        const mvp = mvpCounts[p.numero] || 0;
+        
+        return {
+          numero: p.numero,
+          nome: p.nome,
+          ruolo: p.ruolo || '-',
+          presenzeAllen,
+          percPresenze,
+          infortuni,
+          convocato,
+          percConvocazioni,
+          titolare,
+          minuti,
+          gol,
+          assist,
+          golSubiti,
+          gialliTot,
+          rossiTot,
+          mvp
+        };
+      })
+      .sort((a, b) => a.numero - b.numero);
+    
+    // ========== TABELLA GIOCATORI CON ABBREVIAZIONI LEGGIBILI ==========
+    const tableData = playerStats.map(p => [
+      p.numero,
+      p.nome,
+      p.ruolo,
+      p.presenzeAllen,
+      p.percPresenze + '%',
+      p.infortuni > 0 ? p.infortuni : '-',
+      p.convocato,
+      p.percConvocazioni + '%',
+      p.titolare,
+      p.minuti,
+      p.gol > 0 ? p.gol : '-',
+      p.assist > 0 ? p.assist : '-',
+      p.golSubiti > 0 ? p.golSubiti : '-',
+      p.gialliTot > 0 ? p.gialliTot : '-',
+      p.rossiTot > 0 ? p.rossiTot : '-',
+      p.mvp > 0 ? p.mvp : '-'
+    ]);
     
     doc.autoTable({
       startY: yPos,
-      head: [['#', 'Nome', 'Ruolo', 'Gol', 'Assist']],
-      body: playersData,
-      theme: 'grid',
-      headStyles: { fillColor: [26, 86, 219], fontSize: 10, fontStyle: 'bold' },
-      bodyStyles: { fontSize: 9 },
+      head: [['N°', 'Nome', 'Ruolo', 'Pres', '%', 'Inf', 'Conv', '%', 'Tit', 'Min', 'Gol', 'Ass', 'Gol Sub', 'Gialli', 'Rossi', 'MVP']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { 
+        fillColor: [0, 51, 153],
+        fontSize: 9,
+        fontStyle: 'bold',
+        halign: 'center',
+        textColor: [255, 255, 255]
+      },
+      bodyStyles: { 
+        fontSize: 8,
+        cellPadding: 2
+      },
       columnStyles: {
-        0: { cellWidth: 15, halign: 'center' },
-        1: { cellWidth: 70 },
-        2: { cellWidth: 55 },
-        3: { cellWidth: 20, halign: 'center' },
-        4: { cellWidth: 20, halign: 'center' }
-      }
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 40 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 12, halign: 'center' },
+        4: { cellWidth: 12, halign: 'center' },
+        5: { cellWidth: 12, halign: 'center' },
+        6: { cellWidth: 12, halign: 'center' },
+        7: { cellWidth: 12, halign: 'center' },
+        8: { cellWidth: 12, halign: 'center' },
+        9: { cellWidth: 15, halign: 'center' },
+        10: { cellWidth: 12, halign: 'center' },
+        11: { cellWidth: 12, halign: 'center' },
+        12: { cellWidth: 18, halign: 'center' },
+        13: { cellWidth: 15, halign: 'center' },
+        14: { cellWidth: 15, halign: 'center' },
+        15: { cellWidth: 12, halign: 'center' }
+      },
+      margin: { left: 15, right: 15 }
     });
     
-    doc.save(`report_stagionale_${new Date().toISOString().split('T')[0]}.pdf`);
+    yPos = doc.lastAutoTable.finalY + 10;
+    
+    // ========== LEGENDA ==========
+    doc.setFontSize(8);
+    doc.setFont(undefined, 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Legenda: N° = Numero maglia, Pres = Presenze allenamenti, % = Percentuale, Inf = Infortuni, Conv = Convocazioni partite, Tit = Titolare, Min = Minuti giocati,', 15, yPos);
+    yPos += 4;
+    doc.text('Gol = Gol segnati, Ass = Assist, Gol Sub = Gol subiti (portieri), Gialli = Cartellini gialli, Rossi = Cartellini rossi, MVP = Migliore in campo', 15, yPos);
+    yPos += 10;
+    
+    // ========== NUOVA PAGINA: ELENCO RISULTATI PARTITE ==========
+    if (matches.length > 0) {
+      doc.addPage();
+      yPos = 15;
+      
+      doc.setFontSize(16);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(0, 51, 153);
+      doc.text('ELENCO RISULTATI PARTITE', 148.5, yPos, { align: 'center' });
+      yPos += 10;
+      
+      // Prepara dati partite
+      const matchResults = matches.map(m => {
+        const date = new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        
+        // Determina avversario
+        let opponent = '';
+        if (m.squadraCasa && m.squadraTrasferta) {
+          opponent = `${m.squadraCasa} vs ${m.squadraTrasferta}`;
+        } else if (m.avversario) {
+          opponent = m.avversario;
+        } else if (m.squadraTrasferta) {
+          opponent = m.squadraTrasferta;
+        } else {
+          opponent = 'N/D';
+        }
+        
+        // Calcola gol
+        const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+        
+        // Determina risultato
+        let risultato = '';
+        let esito = '';
+        if (golFatti > golSubiti) {
+          risultato = `${golFatti}-${golSubiti}`;
+          esito = 'V';
+        } else if (golFatti === golSubiti) {
+          risultato = `${golFatti}-${golSubiti}`;
+          esito = 'P';
+        } else {
+          risultato = `${golFatti}-${golSubiti}`;
+          esito = 'S';
+        }
+        
+        // MVP
+        const mvpPlayer = m.mvp ? players.find(p => p.numero === m.mvp) : null;
+        const mvpName = mvpPlayer?.nome || '-';
+        
+        return [date, opponent, risultato, esito, mvpName];
+      });
+      
+      // Tabella risultati
+      doc.autoTable({
+        startY: yPos,
+        head: [['Data', 'Avversario', 'Risultato', 'Esito', 'MVP']],
+        body: matchResults,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [0, 51, 153],
+          fontSize: 10,
+          fontStyle: 'bold',
+          halign: 'center',
+          textColor: [255, 255, 255]
+        },
+        bodyStyles: {
+          fontSize: 9,
+          cellPadding: 3
+        },
+        columnStyles: {
+          0: { cellWidth: 30, halign: 'center' },
+          1: { cellWidth: 120 },
+          2: { cellWidth: 30, halign: 'center', fontStyle: 'bold' },
+          3: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+          4: { cellWidth: 60 }
+        },
+        didParseCell: function(data) {
+          // Colora esito
+          if (data.column.index === 3 && data.section === 'body') {
+            const esito = data.cell.text[0];
+            if (esito === 'V') {
+              data.cell.styles.textColor = [16, 185, 129]; // Verde
+              data.cell.styles.fontStyle = 'bold';
+            } else if (esito === 'S') {
+              data.cell.styles.textColor = [239, 68, 68]; // Rosso
+              data.cell.styles.fontStyle = 'bold';
+            } else if (esito === 'P') {
+              data.cell.styles.textColor = [245, 158, 11]; // Giallo/Arancione
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+        margin: { left: 15, right: 15 }
+      });
+      
+      // Legenda esiti
+      yPos = doc.lastAutoTable.finalY + 8;
+      doc.setFontSize(8);
+      doc.setFont(undefined, 'italic');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Legenda Esiti: V = Vittoria, P = Pareggio, S = Sconfitta', 15, yPos);
+    }
+    
+    // ========== NUOVA PAGINA: GIOCATORI TOP (TOP 5 PER CATEGORIA) ==========
+    doc.addPage();
+    yPos = 15;
+    
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 51, 153);
+    doc.text('GIOCATORI TOP - CLASSIFICHE', 105, yPos, { align: 'center' });
+    yPos += 8;
+    
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.setTextColor(80, 80, 80);
+    doc.text('I migliori 5 giocatori per ogni categoria', 105, yPos, { align: 'center' });
+    yPos += 12;
+    
+    // ========== HELPER FUNZIONE PER MEDAGLIE ==========
+    const getMedal = (position) => {
+      const medals = ['(1°)', '(2°)', '(3°)', '(4°)', '(5°)'];
+      return medals[position] || `(${position + 1}°)`;
+    };
+    
+    // ========== INIZIALIZZA POSIZIONI COLONNE ==========
+    let leftYPos = yPos;
+    let rightYPos = yPos;
+    
+    // ========== COLONNA SINISTRA: TOP 5 PRESENZE ALLENAMENTI ==========
+    const topPresenze = playerStats
+      .sort((a, b) => b.presenzeAllen - a.presenzeAllen)
+      .slice(0, 5);
+    
+    doc.setFontSize(12);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 102, 204);
+    doc.text('TOP 5 PRESENZE ALLENAMENTI', 15, leftYPos);
+    leftYPos += 7;
+    
+    topPresenze.forEach((p, i) => {
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`${getMedal(i)} ${p.nome} - ${p.presenzeAllen} presenze (${p.percPresenze}%)`, 20, leftYPos);
+      leftYPos += 6;
+    });
+    leftYPos += 8;
+    
+    // ========== COLONNA DESTRA: TOP 5 GOL ==========
+    const topGol = playerStats
+      .filter(p => p.gol > 0)
+      .sort((a, b) => b.gol - a.gol)
+      .slice(0, 5);
+    
+    if (topGol.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(16, 185, 129);
+      doc.text('TOP 5 GOL', 115, rightYPos);
+      rightYPos += 7;
+      
+      topGol.forEach((p, i) => {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${getMedal(i)} ${p.nome} - ${p.gol} gol`, 120, rightYPos);
+        rightYPos += 6;
+      });
+      rightYPos += 8;
+    }
+    
+    // ========== COLONNA SINISTRA: TOP 5 ASSIST ==========
+    const topAssist = playerStats
+      .filter(p => p.assist > 0)
+      .sort((a, b) => b.assist - a.assist)
+      .slice(0, 5);
+    
+    if (topAssist.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(147, 51, 234);
+      doc.text('TOP 5 ASSIST', 15, leftYPos);
+      leftYPos += 7;
+      
+      topAssist.forEach((p, i) => {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${getMedal(i)} ${p.nome} - ${p.assist} assist`, 20, leftYPos);
+        leftYPos += 6;
+      });
+      leftYPos += 8;
+    }
+    
+    // ========== COLONNA DESTRA: TOP 5 MVP ==========
+    const topMVP = playerStats
+      .filter(p => p.mvp > 0)
+      .sort((a, b) => b.mvp - a.mvp)
+      .slice(0, 5);
+    
+    if (topMVP.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(245, 158, 11);
+      doc.text('TOP 5 MVP', 115, rightYPos);
+      rightYPos += 7;
+      
+      topMVP.forEach((p, i) => {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${getMedal(i)} ${p.nome} - ${p.mvp} MVP`, 120, rightYPos);
+        rightYPos += 6;
+      });
+      rightYPos += 8;
+    }
+    
+    // ========== COLONNA SINISTRA: TOP 5 MINUTI GIOCATI ==========
+    const topMinuti = playerStats
+      .filter(p => p.minuti > 0)
+      .sort((a, b) => b.minuti - a.minuti)
+      .slice(0, 5);
+    
+    if (topMinuti.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(99, 102, 241);
+      doc.text('TOP 5 MINUTI GIOCATI', 15, leftYPos);
+      leftYPos += 7;
+      
+      topMinuti.forEach((p, i) => {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${getMedal(i)} ${p.nome} - ${p.minuti} minuti`, 20, leftYPos);
+        leftYPos += 6;
+      });
+      leftYPos += 8;
+    }
+    
+    // ========== COLONNA DESTRA: TOP 5 CARTELLINI GIALLI ==========
+    const topGialli = playerStats
+      .filter(p => p.gialliTot > 0)
+      .sort((a, b) => b.gialliTot - a.gialliTot)
+      .slice(0, 5);
+    
+    if (topGialli.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(234, 179, 8);
+      doc.text('TOP 5 CARTELLINI GIALLI', 115, rightYPos);
+      rightYPos += 7;
+      
+      topGialli.forEach((p, i) => {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${getMedal(i)} ${p.nome} - ${p.gialliTot} gialli`, 120, rightYPos);
+        rightYPos += 6;
+      });
+      rightYPos += 8;
+    }
+    
+    // ========== COLONNA SINISTRA: TOP 5 CARTELLINI ROSSI ==========
+    const topRossi = playerStats
+      .filter(p => p.rossiTot > 0)
+      .sort((a, b) => b.rossiTot - a.rossiTot)
+      .slice(0, 5);
+    
+    if (topRossi.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont(undefined, 'bold');
+      doc.setTextColor(239, 68, 68);
+      doc.text('TOP 5 CARTELLINI ROSSI', 15, leftYPos);
+      leftYPos += 7;
+      
+      topRossi.forEach((p, i) => {
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(0, 0, 0);
+        doc.text(`${getMedal(i)} ${p.nome} - ${p.rossiTot} rossi`, 20, leftYPos);
+        leftYPos += 6;
+      });
+    }
+    
+    // ========== FOOTER SU TUTTE LE PAGINE ==========
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.setFont(undefined, 'italic');
+      doc.text(`${appTitle} - Report Stagionale - Pagina ${i} di ${pageCount}`, 148.5, 205, { align: 'center' });
+    }
+    
+    // ========== SALVA E MOSTRA MESSAGGIO ==========
+    const fileName = `report_stagionale_${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+    showToast('✅ Report stagionale scaricato con successo!', 'success', 4000);
   };
-  
+    
   // Export Scheda Singolo Giocatore - REPORT COMPLETO
   const downloadPlayerCardPDF = (playerNum) => {
     const player = players.find(p => p.numero === playerNum);
@@ -13033,17 +13565,17 @@ const SoccerTeamTracker = () => {
                         if (realDorInCasa) {
                           console.log('   ⚽ PARTITA IN CASA - Pre-compilazione automatica');
                           setInfoPartita({
-                            squadra1: match.squadraCasa || 'Real DOR Brescia',
+                            squadra1: match.squadraCasa || appTitle,
                             squadra2: match.avversario || match.squadraTrasferta || '',
                             dataPartita: match.data || '',
-                            oraRitrovo: '13:40',  // Automatico per casa
-                            indirizzoCompo: 'Via Chiappa 12 - Brescia'  // Automatico per casa
+                            oraRitrovo: match.oraRitrovo || '',  // Da compilare manualmente
+                            indirizzoCompo: match.campo || ''  // Da compilare manualmente
                           });
                         } else {
                           console.log('   🚌 PARTITA IN TRASFERTA - Pre-compilazione parziale');
                           setInfoPartita({
                             squadra1: match.squadraCasa || '',
-                            squadra2: match.avversario || match.squadraTrasferta || 'Real DOR Brescia',
+                            squadra2: match.avversario || match.squadraTrasferta || appTitle,
                             dataPartita: match.data || '',
                             oraRitrovo: match.oraRitrovo || '',  // Da compilare manualmente
                             indirizzoCompo: match.campo || ''  // Da compilare manualmente
@@ -13097,7 +13629,7 @@ const SoccerTeamTracker = () => {
                       value={infoPartita.squadra1}
                       onChange={(e) => setInfoPartita({...infoPartita, squadra1: e.target.value})}
                       className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-cyan-500"
-                      placeholder="Es: Real DOR"
+                      placeholder="Nome squadra casa"
                     />
                   </div>
                   <div>
@@ -13135,7 +13667,7 @@ const SoccerTeamTracker = () => {
                       value={infoPartita.indirizzoCompo}
                       onChange={(e) => setInfoPartita({...infoPartita, indirizzoCompo: e.target.value})}
                       className="w-full px-3 py-2 border rounded focus:ring-2 focus:ring-cyan-500"
-                      placeholder="Es: Via dello Sport 123, Brescia"
+                      placeholder="Es: Via dello Sport 123, Città"
                     />
                   </div>
                 </div>
@@ -13447,7 +13979,7 @@ const SoccerTeamTracker = () => {
               <div className="text-center mb-6">
                 <div className="text-6xl mb-3">📋</div>
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">Elenco Risultati Partite</h2>
-                <p className="text-gray-600">Real DOR Under 18 - Stagione 2024/2025</p>
+                <p className="text-gray-600">{appTitle} - Stagione {new Date().getFullYear()}/{new Date().getFullYear() + 1}</p>
               </div>
 
               {/* Statistiche Riepilogative */}
