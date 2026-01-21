@@ -8960,7 +8960,7 @@ const SoccerTeamTracker = () => {
               ...(userRole === 'admin' ? ['divisione'] : []),
               ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
               'calendar', 'injuries', 'roster',
-              ...(userRole === 'admin' ? ['export', 'sync', 'admin'] : [])
+              ...(userRole === 'admin' ? ['report', 'export', 'sync', 'admin'] : [])
             ].map(tab => (
               <button
                 key={tab}
@@ -9017,6 +9017,12 @@ const SoccerTeamTracker = () => {
                   <>
                     <span className="tab-text-portrait hidden sm:inline">👥 Gestione Rosa</span>
                     <span className="tab-icon-only sm:hidden">👥</span>
+                  </>
+                )}
+                {tab === 'report' && (
+                  <>
+                    <span className="tab-text-portrait hidden sm:inline">📄 Report</span>
+                    <span className="tab-icon-only sm:hidden">📄</span>
                   </>
                 )}
                 {tab === 'dashboard' && (
@@ -15936,6 +15942,99 @@ const SoccerTeamTracker = () => {
           </div>
         )}
 
+        {/* ============================================ */}
+        {/* TAB REPORT */}
+        {/* ============================================ */}
+        {activeTab === 'report' && (
+          <div className="animate-fade-in">
+            {userRole !== 'admin' ? (
+              // Accesso negato per user
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-12 text-center animate-fade-in">
+                <div className="text-6xl mb-4">🔒</div>
+                <h2 className="text-2xl font-bold text-red-900 mb-2">Accesso Negato</h2>
+                <p className="text-red-700 mb-4">
+                  Solo gli amministratori possono accedere ai report.
+                </p>
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                >
+                  ← Torna alla Dashboard
+                </button>
+              </div>
+            ) : (
+              // Contenuto normale per admin
+              <div>
+                <div className="mb-6">
+                  <h2 className="text-3xl font-bold text-gray-800 mb-2">📄 Report PDF</h2>
+                  <p className="text-gray-600">Genera report professionali in formato PDF</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-lg p-6 border-2 border-blue-200">
+                    <div className="text-4xl mb-4">📊</div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Report Stagionale</h3>
+                    <p className="text-gray-600 text-sm mb-4">
+                      Esporta un report completo con tutte le statistiche della stagione in PDF
+                    </p>
+                    <button
+                      onClick={downloadSeasonReportPDF}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                    >
+                      Scarica Report PDF
+                    </button>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-lg p-6 border-2 border-green-200">
+                    <div className="text-4xl mb-4">👤</div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Scheda Giocatore</h3>
+                    <p className="text-gray-600 text-sm mb-4">
+                      Esporta la scheda dettagliata di un singolo giocatore con tutte le sue statistiche
+                    </p>
+                    <select 
+                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg mb-3"
+                      id="playerSelect"
+                    >
+                      <option value="">Seleziona giocatore...</option>
+                      {players.filter(p => p.nome).map(p => (
+                        <option key={p.numero} value={p.numero}>#{p.numero} - {p.nome}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => {
+                        const select = document.getElementById('playerSelect');
+                        const playerNum = parseInt(select.value);
+                        if (playerNum) {
+                          downloadPlayerCardPDF(playerNum);
+                        } else {
+                          showToast('⚠️ Seleziona un giocatore!', 'warning');
+                        }
+                      }}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                    >
+                      Scarica Scheda PDF
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6">
+                  <div className="flex items-start gap-3">
+                    <div className="text-2xl">ℹ️</div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 mb-2">Informazioni sui Report:</h4>
+                      <ul className="text-sm text-gray-700 space-y-1">
+                        <li>• Il <strong>Report Stagionale</strong> include statistiche generali, top marcatori, assist e rosa completa</li>
+                        <li>• La <strong>Scheda Giocatore</strong> contiene foto, dati anagrafici e statistiche dettagliate individuali</li>
+                        <li>• I report sono ideali per presentazioni, archivio storico o condivisione con società/genitori</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {activeTab === 'export' && (
           <div className="space-y-6">
             {userRole !== 'admin' ? (
@@ -15958,55 +16057,10 @@ const SoccerTeamTracker = () => {
               <div>
             <h2 className="text-2xl font-bold text-gray-800 mb-6">💾 Esportazioni e Backup</h2>
             
-            {/* ========== SEZIONE ESPORTAZIONI ========== */}
+            {/* ========== SEZIONE BACKUP ========== */}
             <div>
-              <h3 className="text-xl font-bold text-gray-700 mb-4">📊 Esportazioni</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-lg p-6 border-2 border-blue-200">
-                  <div className="text-4xl mb-4">📊</div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Report Stagionale</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Esporta un report completo con tutte le statistiche della stagione in PDF
-                  </p>
-                  <button
-                    onClick={downloadSeasonReportPDF}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-                  >
-                    Scarica Report PDF
-                  </button>
-                </div>
-                
-                <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg shadow-lg p-6 border-2 border-green-200">
-                  <div className="text-4xl mb-4">👤</div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Scheda Giocatore</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Esporta la scheda dettagliata di un singolo giocatore con tutte le sue statistiche
-                  </p>
-                  <select 
-                    className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg mb-3"
-                    id="playerSelect"
-                  >
-                    <option value="">Seleziona giocatore...</option>
-                    {players.filter(p => p.nome).map(p => (
-                      <option key={p.numero} value={p.numero}>#{p.numero} - {p.nome}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={() => {
-                      const select = document.getElementById('playerSelect');
-                      const playerNum = parseInt(select.value);
-                      if (playerNum) {
-                        downloadPlayerCardPDF(playerNum);
-                      } else {
-                        alert('Seleziona un giocatore!');
-                      }
-                    }}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-                  >
-                    Scarica Scheda PDF
-                  </button>
-                </div>
-                
+              <h3 className="text-xl font-bold text-gray-700 mb-4">💾 Backup Dati</h3>
+              <div className="grid grid-cols-1 md:grid-cols-1 gap-6 max-w-md">
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-lg p-6 border-2 border-purple-200">
                   <div className="text-4xl mb-4">💾</div>
                   <h3 className="text-xl font-bold text-gray-800 mb-2">Backup Completo</h3>
@@ -16022,15 +16076,16 @@ const SoccerTeamTracker = () => {
                 </div>
               </div>
               
-              <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6 mt-6">
+              <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 mt-6">
                 <div className="flex items-start gap-3">
                   <div className="text-2xl">ℹ️</div>
                   <div>
-                    <h4 className="font-bold text-gray-800 mb-2">Note sulle esportazioni:</h4>
+                    <h4 className="font-bold text-gray-800 mb-2">Informazioni sul Backup:</h4>
                     <ul className="text-sm text-gray-700 space-y-1">
-                      <li>• Il <strong>Report Stagionale</strong> include statistiche generali, top marcatori, assist e rosa completa</li>
-                      <li>• La <strong>Scheda Giocatore</strong> contiene foto, dati anagrafici e statistiche dettagliate individuali</li>
-                      <li>• Il <strong>Backup JSON</strong> può essere reimportato in seguito per ripristinare tutti i dati</li>
+                      <li>• Il <strong>Backup JSON</strong> contiene TUTTI i dati: giocatori, allenamenti, partite, infortuni, formazioni</li>
+                      <li>• Puoi reimportare il backup in seguito per ripristinare completamente i dati</li>
+                      <li>• Consigliato fare un backup ogni 7 giorni per sicurezza</li>
+                      <li>• Salva il file in un luogo sicuro (Google Drive, Dropbox, ecc.)</li>
                     </ul>
                   </div>
                 </div>
