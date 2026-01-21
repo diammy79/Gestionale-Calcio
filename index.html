@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>⚽ Gestionale Calcio</title>
+  <!-- Google Font - Nunito (friendly e professionale) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1388,6 +1392,136 @@
         padding-bottom: 0.5rem !important;
       }
     }
+    
+    /* ========== PRELOADER ANIMATO ========== */
+    /* 🔴 INIZIO CODICE PRELOADER - PER RIMUOVERLO CANCELLA DA QUI... */
+    #preloader {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #2563eb 0%, #1e40af 50%, #1e3a8a 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+    }
+    
+    #preloader.fade-out {
+      opacity: 0;
+      visibility: hidden;
+    }
+    
+    /* Contenitore pallone + spinner */
+    .preloader-ball-container {
+      position: relative;
+      width: 120px;
+      height: 120px;
+      margin-bottom: 30px;
+    }
+    
+    /* Pallone rimbalzante */
+    .preloader-ball {
+      font-size: 64px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation: bounce 1.2s ease-in-out infinite;
+      filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+    }
+    
+    @keyframes bounce {
+      0%, 100% { 
+        transform: translate(-50%, -50%) translateY(0px);
+      }
+      50% { 
+        transform: translate(-50%, -50%) translateY(-25px);
+      }
+    }
+    
+    /* Spinner rotante */
+    .preloader-spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100px;
+      height: 100px;
+      border: 4px solid rgba(255, 255, 255, 0.2);
+      border-top: 4px solid #ffffff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: translate(-50%, -50%) rotate(0deg); }
+      100% { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    
+    /* Testo caricamento */
+    .preloader-text {
+      color: white;
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      animation: fadeInOut 2s ease-in-out infinite;
+      font-family: 'Nunito', sans-serif;
+    }
+    
+    @keyframes fadeInOut {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
+    }
+    
+    /* Titolo app */
+    .preloader-title {
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 28px;
+      font-weight: 700;
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      letter-spacing: 0.5px;
+      font-family: 'Nunito', sans-serif;
+    }
+    
+    /* Nome autore highlight */
+    .preloader-author {
+      color: #fbbf24;
+      font-weight: 800;
+    }
+    
+    /* Copyright */
+    .preloader-copyright {
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 11px;
+      font-weight: 400;
+      margin-top: 20px;
+      letter-spacing: 0.3px;
+      font-family: 'Nunito', sans-serif;
+    }
+    
+    /* Punti animati */
+    .preloader-dots {
+      display: inline-block;
+      width: 20px;
+      text-align: left;
+    }
+    
+    .preloader-dots::after {
+      content: '';
+      animation: dots 1.5s steps(4, end) infinite;
+    }
+    
+    @keyframes dots {
+      0%, 20% { content: ''; }
+      40% { content: '.'; }
+      60% { content: '..'; }
+      80%, 100% { content: '...'; }
+    }
+    /* 🔴 ...FINO A QUI per tornare alla versione precedente */
   </style>
   <meta name="theme-color" content="#1a56db">
   <meta name="description" content="Gestionale Calcio - Gestione Squadra Completa">
@@ -1400,6 +1534,24 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 </head>
 <body>
+  <!-- 🔴 INIZIO PRELOADER - PER RIMUOVERLO CANCELLA DA QUI... -->
+  <div id="preloader">
+    <div class="preloader-ball-container">
+      <div class="preloader-spinner"></div>
+      <div class="preloader-ball">⚽</div>
+    </div>
+    <div class="preloader-text">
+      Caricamento app<span class="preloader-dots"></span>
+    </div>
+    <div class="preloader-title">
+      <span class="preloader-author">Moreschi Roberto</span> - Gestionale Calcio
+    </div>
+    <div class="preloader-copyright">
+      © 2026 - Tutti i diritti riservati
+    </div>
+  </div>
+  <!-- 🔴 ...FINO A QUI -->
+  
   <div id="root"></div>
   <script type="text/babel">
 const { useState, useEffect, useMemo } = React;
@@ -16768,6 +16920,19 @@ const SoccerTeamTracker = () => {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<SoccerTeamTracker />);
+
+// 🔴 INIZIO SCRIPT PRELOADER - PER RIMUOVERLO CANCELLA DA QUI...
+// Nascondi preloader quando React è montato
+setTimeout(() => {
+  const preloader = document.getElementById('preloader');
+  if (preloader) {
+    preloader.classList.add('fade-out');
+    setTimeout(() => {
+      preloader.style.display = 'none';
+    }, 500);
+  }
+}, 100);
+// 🔴 ...FINO A QUI
   </script>
   
   <script>
