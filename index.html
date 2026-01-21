@@ -8807,9 +8807,14 @@ const SoccerTeamTracker = () => {
                 if (!lastBackupDate) {
                   return (
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🔘 Click badge backup header - vai a export');
                         setActiveTab('export');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setTimeout(() => {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 100);
                       }}
                       className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold hover:bg-orange-200 transition-colors"
                       title="Clicca per creare un backup"
@@ -8824,9 +8829,14 @@ const SoccerTeamTracker = () => {
                 if (daysSinceBackup > 7) {
                   return (
                     <button
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🔘 Click badge backup header - vai a export');
                         setActiveTab('export');
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setTimeout(() => {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }, 100);
                       }}
                       className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-semibold hover:bg-yellow-200 transition-colors"
                       title={`Ultimo backup: ${daysSinceBackup} giorni fa`}
@@ -8883,16 +8893,22 @@ const SoccerTeamTracker = () => {
             return (
               <div className="bg-orange-50 border border-orange-300 rounded-lg p-3 mb-4 animate-fade-in">
                 <div className="flex items-center gap-2">
-                  <span className="text-orange-600 text-xl">💾</span>
+                  <span className="text-orange-600 text-xl flex-shrink-0">💾</span>
                   <p className="text-sm text-orange-800 flex-1">
                     <strong>Backup consigliato:</strong> Oltre al salvataggio automatico, crea un backup locale ogni 7gg
                   </p>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('🔘 Click banner backup - vai a export');
                       setActiveTab('export');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }, 100);
                     }}
-                    className="text-xs bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded font-semibold transition-colors whitespace-nowrap"
+                    className="text-sm md:text-xs bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white px-4 py-2 md:px-3 md:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap flex-shrink-0 min-h-[44px] md:min-h-0"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
                   >
                     Crea →
                   </button>
@@ -8908,16 +8924,22 @@ const SoccerTeamTracker = () => {
             return (
               <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4 animate-fade-in">
                 <div className="flex items-center gap-2">
-                  <span className="text-yellow-600 text-xl">💾</span>
+                  <span className="text-yellow-600 text-xl flex-shrink-0">💾</span>
                   <p className="text-sm text-yellow-800 flex-1">
                     <strong>Backup datato:</strong> Ultimo backup {daysSinceBackup} giorni fa - consigliato ogni 7gg
                   </p>
                   <button
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('🔘 Click banner backup - vai a export');
                       setActiveTab('export');
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }, 100);
                     }}
-                    className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded font-semibold transition-colors whitespace-nowrap"
+                    className="text-sm md:text-xs bg-yellow-600 hover:bg-yellow-700 active:bg-yellow-800 text-white px-4 py-2 md:px-3 md:py-1.5 rounded-lg font-semibold transition-colors whitespace-nowrap flex-shrink-0 min-h-[44px] md:min-h-0"
+                    style={{ WebkitTapHighlightColor: 'transparent' }}
                   >
                     Aggiorna →
                   </button>
