@@ -28,6 +28,9 @@
       scroll-behavior: smooth;
       overscroll-behavior-y: contain; /* Disabilita pull-to-refresh su mobile */
       -webkit-overflow-scrolling: touch; /* Smooth scrolling iOS */
+      /* 🔵 SFONDO BLU FISSO - elimina schermata bianca iniziale */
+      background: linear-gradient(135deg, #2563eb 0%, #1e40af 50%, #1e3a8a 100%);
+      background-attachment: fixed;
     }
     
     /* Previeni overscroll su tutti i container principali */
@@ -16929,6 +16932,8 @@ setTimeout(() => {
     preloader.classList.add('fade-out');
     setTimeout(() => {
       preloader.style.display = 'none';
+      // Reset background body (torna trasparente quando app è caricata)
+      document.body.style.background = '';
     }, 500);
   }
 }, 100);
