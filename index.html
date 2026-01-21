@@ -3949,6 +3949,8 @@ const SoccerTeamTracker = () => {
         injuries,
         squadreGirone,        // ✅ AGGIUNTO: Squadre del girone
         risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
+        appTitle,             // ✅ AGGIUNTO: Titolo app
+        teamLogo,             // ✅ AGGIUNTO: Logo squadra
         timestamp: new Date().toISOString(),
         deviceId: generateDeviceId(),
         deviceName: getDeviceName(),
@@ -3964,6 +3966,8 @@ const SoccerTeamTracker = () => {
         squadreGirone: squadreGirone.length,
         risultatiCampionato: risultatiCampionato.length,
         fuoriRosa: playersWithFuoriRosa.filter(p => p.fuoriRosa).length,
+        appTitle: appTitle,
+        hasTeamLogo: !!teamLogo,
         timestamp: data.timestamp
       });
       
@@ -4046,6 +4050,8 @@ const SoccerTeamTracker = () => {
         squadreGirone: (data.squadreGirone || []).length,
         risultatiCampionato: (data.risultatiCampionato || []).length,
         fuoriRosa: (data.players || []).filter(p => p.fuoriRosa).length,
+        appTitle: data.appTitle,
+        hasTeamLogo: !!data.teamLogo,
         timestamp: data.timestamp,
         deviceId: data.deviceId,
         deviceName: data.deviceName
@@ -4083,6 +4089,8 @@ const SoccerTeamTracker = () => {
       if (data.injuries) setInjuries(data.injuries);
       if (data.squadreGirone) setSquadreGirone(data.squadreGirone);              // ✅ AGGIUNTO
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
+      if (data.appTitle) setAppTitle(data.appTitle);                             // ✅ AGGIUNTO: Titolo app
+      if (data.teamLogo) setTeamLogo(data.teamLogo);                             // ✅ AGGIUNTO: Logo squadra
       
       // Log DOPO aver settato gli state
       console.log('✅ State AGGIORNATI dopo caricamento cloud:', {
@@ -4100,7 +4108,9 @@ const SoccerTeamTracker = () => {
         matches: data.matches || [],
         injuries: data.injuries || [],
         squadreGirone: data.squadreGirone || [],              // ✅ AGGIUNTO
-        risultatiCampionato: data.risultatiCampionato || []   // ✅ AGGIUNTO
+        risultatiCampionato: data.risultatiCampionato || [],  // ✅ AGGIUNTO
+        appTitle: data.appTitle || appTitle,                  // ✅ AGGIUNTO: Titolo app
+        teamLogo: data.teamLogo || teamLogo                   // ✅ AGGIUNTO: Logo squadra
       });
       
       showToast('✅ Dati caricati da cloud!', 'success');
