@@ -8802,8 +8802,8 @@ const SoccerTeamTracker = () => {
                   Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
                 </span>
               )}
-              {/* Promemoria Backup */}
-              {(() => {
+              {/* Promemoria Backup - SOLO ADMIN */}
+              {userRole === 'admin' && (() => {
                 if (!lastBackupDate) {
                   return (
                     <button
@@ -14191,10 +14191,10 @@ const SoccerTeamTracker = () => {
 
         {showInstructionsModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b sticky top-0 bg-white">
+            <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b sticky top-0 bg-white z-10">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-2xl font-bold text-gray-800">📖 Istruzioni d'uso</h3>
+                  <h3 className="text-2xl font-bold text-gray-800">📖 Guida Completa - Gestionale Calcio</h3>
                   <button
                     onClick={() => setShowInstructionsModal(false)}
                     className="text-gray-600 hover:text-gray-800 text-2xl"
@@ -14208,143 +14208,264 @@ const SoccerTeamTracker = () => {
                 <div className="bg-green-50 border-2 border-green-400 rounded-lg p-4">
                   <h4 className="font-bold text-green-800 mb-2">✅ SALVATAGGIO AUTOMATICO ATTIVO</h4>
                   <p className="text-green-900 text-sm">
-                    Tutti i dati vengono salvati automaticamente sul tuo dispositivo ogni volta che apporti modifiche. Non devi fare nulla! L'app funziona anche offline.
+                    Tutti i dati vengono salvati automaticamente in locale ogni volta che apporti modifiche. L'app funziona anche offline. Gli ADMIN possono sincronizzare su cloud Firebase per condividere con altri utenti.
                   </p>
                 </div>
 
                 <div className="border-l-4 border-blue-500 pl-4">
-                  <h4 className="font-bold text-blue-800 mb-3 text-lg">📱 1. GESTIONE ROSA</h4>
+                  <h4 className="font-bold text-blue-800 mb-3 text-lg">📊 1. DASHBOARD</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Aggiungi giocatori:</strong> Clicca "Aggiungi Giocatore" e compila nome, ruolo, numero maglia</li>
-                    <li><strong>Foto giocatore:</strong> Clicca sull'icona 📷 per aggiungere foto dal dispositivo (si comprime automaticamente)</li>
-                    <li><strong>Modifica:</strong> Clicca "Modifica" per aggiornare i dati, poi "Salva" per confermare</li>
-                    <li><strong>Infortuni:</strong> Segna i giocatori infortunati cliccando sull'icona 🤕</li>
-                    <li><strong>Logo squadra:</strong> Clicca sul logo in alto per caricarne uno personalizzato</li>
-                  </ul>
-                </div>
-
-                <div className="border-l-4 border-green-500 pl-4">
-                  <h4 className="font-bold text-green-800 mb-3 text-lg">⚽ 2. ALLENAMENTI</h4>
-                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Crea allenamento:</strong> Clicca "Aggiungi Nuovo Allenamento" e seleziona la data</li>
-                    <li><strong>Presenze:</strong> Segna P (Presente), A (Assente), o I (Infortunato) per ogni giocatore</li>
-                    <li><strong>Lista presenze PDF:</strong> Clicca "📋 Stampa Lista Presenze" per generare un foglio da compilare sul campo</li>
-                    <li><strong>Statistiche:</strong> Le presenze vengono conteggiate automaticamente nelle statistiche</li>
-                  </ul>
-                </div>
-
-                <div className="border-l-4 border-purple-500 pl-4">
-                  <h4 className="font-bold text-purple-800 mb-3 text-lg">⚖️ 3. DIVISIONE SQUADRE</h4>
-                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Squadre equilibrate:</strong> Seleziona i giocatori disponibili e scegli il numero di squadre (2-6)</li>
-                    <li><strong>Algoritmo automatico:</strong> Il sistema divide i giocatori per creare squadre bilanciate</li>
-                    <li><strong>PDF stampabile:</strong> Genera un PDF con le squadre divise da portare in campo</li>
-                    <li><strong>Perfetto per:</strong> Partitelle in allenamento, tornei interni, allenamenti specifici</li>
-                  </ul>
-                </div>
-
-                <div className="border-l-4 border-red-500 pl-4">
-                  <h4 className="font-bold text-red-800 mb-3 text-lg">🏆 4. PARTITE</h4>
-                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Crea partita:</strong> Clicca "Aggiungi Nuova Partita", compila avversario, data e campo</li>
-                    <li><strong>Convoca giocatori:</strong> Seleziona i convocati e scegli i titolari (max 11)</li>
-                    <li><strong>Modalità Live ⚡:</strong> Durante la partita, usa la modalità live per registrare tutto in tempo reale</li>
-                    <li><strong>Eventi live:</strong> Registra gol, assist, cartellini gialli/rossi, sostituzioni (max 5)</li>
-                    <li><strong>Timer:</strong> Timer integrato con tempo di recupero e avviso sonoro a fine tempo</li>
-                    <li><strong>Modulo tattico:</strong> Scegli il modulo (4-4-2, 4-3-3, 3-5-2, ecc.) e visualizza lo schema</li>
-                  </ul>
-                </div>
-
-                <div className="border-l-4 border-indigo-500 pl-4">
-                  <h4 className="font-bold text-indigo-800 mb-3 text-lg">🎯 5. ANALISI TATTICA</h4>
-                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Studia avversari:</strong> Inserisci il modulo dell'avversario per vedere i punti deboli</li>
-                    <li><strong>Moduli consigliati:</strong> Il sistema suggerisce i 3 moduli migliori con efficacia in %</li>
-                    <li><strong>Tattiche dettagliate:</strong> Per ogni modulo consigliato trovi vantaggi, tattiche e contromosse</li>
-                    <li><strong>Ruoli chiave:</strong> Scopri quali giocatori sono fondamentali e che caratteristiche devono avere</li>
-                    <li><strong>8 moduli disponibili:</strong> 4-4-2, 4-3-3, 3-5-2, 4-2-3-1, 3-4-3, 5-3-2, 4-1-4-1, 4-3-1-2</li>
-                  </ul>
-                </div>
-
-                <div className="border-l-4 border-cyan-500 pl-4">
-                  <h4 className="font-bold text-cyan-800 mb-3 text-lg">📋 6. CONVOCAZIONI</h4>
-                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Lista convocati:</strong> Seleziona fino a 20 giocatori per la prossima partita</li>
-                    <li><strong>Infortunati:</strong> Puoi convocare anche gli infortunati (sono evidenziati con badge rosso)</li>
-                    <li><strong>Info partita:</strong> Inserisci squadre, data, ora ritrovo e indirizzo campo</li>
-                    <li><strong>PDF ufficiale:</strong> Genera un PDF professionale con tutti i dettagli da stampare e distribuire</li>
+                    <li><strong>Panoramica stagione:</strong> Vedi subito partite giocate, allenamenti, gol fatti/subiti</li>
+                    <li><strong>Grafici interattivi:</strong> Andamento gol, risultati partite, presenze allenamenti</li>
+                    <li><strong>Top 5 marcatori:</strong> Classifica veloce dei migliori goleador</li>
+                    <li><strong>Report mensile:</strong> Statistiche automatiche del mese corrente</li>
+                    <li><strong>Avviso backup:</strong> (Solo ADMIN) Promemoria se backup non fatto da 7+ giorni</li>
                   </ul>
                 </div>
 
                 <div className="border-l-4 border-yellow-500 pl-4">
-                  <h4 className="font-bold text-yellow-800 mb-3 text-lg">📊 7. STATISTICHE</h4>
+                  <h4 className="font-bold text-yellow-800 mb-3 text-lg">🥇 2. CLASSIFICA CAMPIONATO</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Dati completi:</strong> Presenze allenamenti, partite giocate, minuti, gol, assist, cartellini</li>
-                    <li><strong>Percentuali:</strong> % convocazioni, % titolarità, media minuti, media gol per partita</li>
-                    <li><strong>Ordinamento:</strong> Clicca sulle intestazioni delle colonne per ordinare i dati</li>
-                    <li><strong>Calcolo automatico:</strong> Le statistiche si aggiornano automaticamente ad ogni evento</li>
+                    <li><strong>Gestione girone:</strong> Aggiungi tutte le squadre del campionato</li>
+                    <li><strong>Risultati giornata:</strong> Inserisci i risultati per ogni giornata</li>
+                    <li><strong>Classifica automatica:</strong> Punteggi, differenza reti, vittorie/pareggi/sconfitte</li>
+                    <li><strong>Import veloce:</strong> Importa risultati dalle tue partite salvate</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-cyan-500 pl-4">
+                  <h4 className="font-bold text-cyan-800 mb-3 text-lg">📅 3. CALENDARIO</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Vista mensile:</strong> Visualizza allenamenti e partite in calendario</li>
+                    <li><strong>Indicatori colorati:</strong> Verde = allenamento, Rosso = partita</li>
+                    <li><strong>Navigazione rapida:</strong> Cambia mese/anno facilmente</li>
+                    <li><strong>Click su data:</strong> Vedi dettagli eventi del giorno selezionato</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-indigo-500 pl-4">
+                  <h4 className="font-bold text-indigo-800 mb-3 text-lg">👥 4. GESTIONE ROSA</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Aggiungi giocatori:</strong> Nome, cognome, data nascita, ruolo, numero maglia, altezza, peso, piede</li>
+                    <li><strong>Foto giocatore:</strong> Upload foto con crop automatico (aspect ratio 3:4)</li>
+                    <li><strong>Fuori rosa:</strong> Segna giocatori temporaneamente non disponibili</li>
+                    <li><strong>Filtri e ricerca:</strong> Filtra per ruolo, cerca per nome, ordina per numero/età/alfabetico</li>
+                    <li><strong>Vista card/lista:</strong> Scegli la visualizzazione che preferisci</li>
+                    <li><strong>Logo squadra:</strong> Clicca sul logo in alto per personalizzarlo</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-green-500 pl-4">
+                  <h4 className="font-bold text-green-800 mb-3 text-lg">🏋️ 5. ALLENAMENTI</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Crea allenamento:</strong> Seleziona data (gli infortunati sono pre-segnati come assenti)</li>
+                    <li><strong>Presenze:</strong> Toggle ON/OFF per ogni giocatore (verde = presente)</li>
+                    <li><strong>Esercizi dettagliati:</strong> Aggiungi nome, durata, descrizione di ogni esercizio</li>
+                    <li><strong>Template predefiniti:</strong> Riscaldamento, Possesso palla, Partitella, ecc.</li>
+                    <li><strong>Duplica esercizi:</strong> Copia esercizi da allenamenti precedenti</li>
+                    <li><strong>PDF esercizi:</strong> Stampa il piano allenamento completo</li>
+                    <li><strong>Calendario mensile:</strong> Vista allenamenti del mese con totale presenze</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-purple-500 pl-4">
+                  <h4 className="font-bold text-purple-800 mb-3 text-lg">⚖️ 6. DIVISIONE SQUADRE</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Importa presenze:</strong> Seleziona un allenamento per caricare i presenti</li>
+                    <li><strong>Selezione giocatori:</strong> Scegli chi dividere (anche manualmente)</li>
+                    <li><strong>Numero squadre:</strong> Da 2 a 6 squadre (con/senza portieri)</li>
+                    <li><strong>Algoritmo bilanciato:</strong> Divisione equa automatica</li>
+                    <li><strong>PDF stampabile:</strong> Porta il foglio con le squadre in campo</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-red-500 pl-4">
+                  <h4 className="font-bold text-red-800 mb-3 text-lg">⚽ 7. PARTITE</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Crea partita:</strong> Data, avversario, casa/trasferta</li>
+                    <li><strong>Eventi live:</strong> ⚽ Gol, 🅰️ Assist, 🟨 Giallo, 🟥 Rosso con minuto esatto</li>
+                    <li><strong>Timeline eventi:</strong> Cronologia completa con possibilità di cancellare</li>
+                    <li><strong>Votazione MVP:</strong> Al termine seleziona Top 3 (Oro 3pt, Argento 2pt, Bronzo 1pt)</li>
+                    <li><strong>Statistiche automatiche:</strong> Gol, assist, cartellini contati in tempo reale</li>
+                    <li><strong>PDF dettaglio partita:</strong> Report completo con tutti gli eventi</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-teal-500 pl-4">
+                  <h4 className="font-bold text-teal-800 mb-3 text-lg">📋 8. CONVOCAZIONI</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Seleziona convocati:</strong> Fino a 20 giocatori per partita</li>
+                    <li><strong>Info partita:</strong> Squadre, data, ora ritrovo, indirizzo campo</li>
+                    <li><strong>Infortunati evidenziati:</strong> Badge rosso per giocatori con infortunio attivo</li>
+                    <li><strong>PDF professionale:</strong> Foglio convocazione ufficiale da stampare</li>
                   </ul>
                 </div>
 
                 <div className="border-l-4 border-orange-500 pl-4">
-                  <h4 className="font-bold text-orange-800 mb-3 text-lg">🏆 8. GIOCATORI TOP</h4>
+                  <h4 className="font-bold text-orange-800 mb-3 text-lg">🎯 9. ANALISI TATTICA</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Classifiche automatiche:</strong> Top 10 per ogni categoria prestazionale</li>
-                    <li><strong>Categorie:</strong> Presenze, minuti giocati, gol segnati, assist forniti, MVP stagione</li>
-                    <li><strong>Motivazione:</strong> Usa queste classifiche per premiare i migliori e motivare la squadra</li>
+                    <li><strong>Modulo avversario:</strong> Inserisci il modulo della squadra avversaria</li>
+                    <li><strong>3 moduli consigliati:</strong> Sistema calcola i migliori contro-moduli con % efficacia</li>
+                    <li><strong>Tattiche dettagliate:</strong> Vantaggi, strategie, contromosse, ruoli chiave</li>
+                    <li><strong>8 moduli disponibili:</strong> 4-4-2, 4-3-3, 3-5-2, 4-2-3-1, 3-4-3, 5-3-2, 4-1-4-1, 4-3-1-2</li>
                   </ul>
                 </div>
 
-                <div className="border-l-4 border-gray-500 pl-4">
-                  <h4 className="font-bold text-gray-800 mb-3 text-lg">💾 9. GESTIONE BACKUP</h4>
+                <div className="border-l-4 border-pink-500 pl-4">
+                  <h4 className="font-bold text-pink-800 mb-3 text-lg">🎨 10. FORMAZIONI TATTICHE</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Esporta JSON:</strong> Scarica un backup di tutti i dati in formato JSON</li>
-                    <li><strong>Importa JSON:</strong> Carica un backup per trasferire dati su altro dispositivo</li>
-                    <li><strong>Cloud storage:</strong> Salva il backup su Google Drive/Dropbox per sicurezza extra</li>
-                    <li><strong>Sincronizza:</strong> Usa backup per sincronizzare tra PC e tablet</li>
-                    <li><strong>Note:</strong> Il backup è opzionale, i dati sono già salvati automaticamente</li>
+                    <li><strong>Drag & Drop:</strong> Trascina giocatori sulle posizioni del campo</li>
+                    <li><strong>Moduli tattici:</strong> Scegli tra 5 moduli predefiniti</li>
+                    <li><strong>Visualizzazione grafica:</strong> Campo da calcio con posizioni giocatori</li>
+                    <li><strong>Salvataggio formazioni:</strong> Salva più formazioni per diverse partite</li>
+                    <li><strong>PDF formazione:</strong> Stampa lo schema tattico</li>
                   </ul>
                 </div>
 
                 <div className="border-l-4 border-red-600 pl-4">
-                  <h4 className="font-bold text-red-800 mb-3 text-lg">🔄 10. RESET DATABASE - NUOVA STAGIONE</h4>
+                  <h4 className="font-bold text-red-700 mb-3 text-lg">🤕 11. INFORTUNI</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Reset Stagione (consigliato):</strong> Cancella allenamenti/partite ma mantiene la rosa giocatori</li>
-                    <li><strong>Reset Completo:</strong> Cancella tutto e ricomincia da zero (usa con cautela!)</li>
-                    <li><strong>Procedura consigliata:</strong> Fai backup → Reset Stagione → Riparti con stessa squadra</li>
-                    <li><strong>Sicurezza:</strong> Multiple conferme prima di ogni operazione di reset</li>
+                    <li><strong>Registra infortunio:</strong> Giocatore, tipo, data, gravità (lieve/media/grave), note</li>
+                    <li><strong>Monitoraggio recupero:</strong> Aggiungi aggiornamenti progressi con data e note</li>
+                    <li><strong>Timeline completa:</strong> Vedi storico di tutti gli aggiornamenti</li>
+                    <li><strong>Stato attivo/recuperato:</strong> Segna quando il giocatore torna disponibile</li>
+                    <li><strong>Statistiche:</strong> Infortuni per tipo, giocatori più colpiti</li>
+                    <li><strong>PDF storico:</strong> Report completo infortuni stagione</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-blue-600 pl-4">
+                  <h4 className="font-bold text-blue-700 mb-3 text-lg">📊 12. STATISTICHE</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Overview completa:</strong> Tutti i dati di ogni giocatore in una tabella</li>
+                    <li><strong>Metriche:</strong> Presenze, partite, minuti, gol, assist, cartellini, MVP</li>
+                    <li><strong>Percentuali:</strong> % presenze allenamenti, media gol/partita</li>
+                    <li><strong>Ordinamento:</strong> Clicca su colonne per ordinare</li>
+                    <li><strong>Aggiornamento automatico:</strong> Calcolo in tempo reale</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-yellow-600 pl-4">
+                  <h4 className="font-bold text-yellow-700 mb-3 text-lg">🏆 13. GIOCATORI TOP</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Top 10 automatiche:</strong> Classifiche per ogni categoria</li>
+                    <li><strong>Categorie:</strong> Presenze allenamenti, minuti giocati, gol, assist, MVP</li>
+                    <li><strong>Medaglie visive:</strong> Oro, argento, bronzo per i primi 3</li>
+                    <li><strong>Motivazione squadra:</strong> Usa per premiare e stimolare giocatori</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-green-600 pl-4">
+                  <h4 className="font-bold text-green-700 mb-3 text-lg">📄 14. REPORT PDF (Solo ADMIN)</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Report Stagionale:</strong> PDF completo con tutte le statistiche stagione</li>
+                    <li><strong>Scheda Giocatore:</strong> PDF individuale con foto, dati e statistiche personali</li>
+                    <li><strong>Qualità professionale:</strong> Report ideali per presentazioni o archivio</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-purple-600 pl-4">
+                  <h4 className="font-bold text-purple-700 mb-3 text-lg">💾 15. ESPORTAZIONI E BACKUP (Solo ADMIN)</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Backup completo JSON:</strong> Include TUTTI i dati (giocatori, partite, allenamenti, infortuni, formazioni)</li>
+                    <li><strong>Import JSON:</strong> Carica backup per ripristinare o trasferire dati</li>
+                    <li><strong>Versione 3.0:</strong> Backup con statistiche integrità incorporate</li>
+                    <li><strong>Promemoria automatico:</strong> Avviso ogni 7 giorni se backup non fatto</li>
+                    <li><strong>Cloud storage:</strong> Salva su Google Drive/Dropbox per sicurezza extra</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-cyan-600 pl-4">
+                  <h4 className="font-bold text-cyan-700 mb-3 text-lg">☁️ 16. SINCRONIZZAZIONE CLOUD (Solo ADMIN)</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Firebase Firestore:</strong> Salva dati su cloud per condividerli</li>
+                    <li><strong>Scarica da Cloud:</strong> Sincronizza dati dal database cloud</li>
+                    <li><strong>Carica su Cloud:</strong> Invia modifiche locali al cloud</li>
+                    <li><strong>Gestione conflitti:</strong> Sistema risoluzione automatica con timestamp</li>
+                    <li><strong>Sync automatico:</strong> Opzionale ogni 5 minuti (disabilitato di default per sicurezza)</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-indigo-600 pl-4">
+                  <h4 className="font-bold text-indigo-700 mb-3 text-lg">👑 17. GESTIONE UTENTI (Solo ADMIN)</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Ruoli utente:</strong> ADMIN (gestione completa) e USER (sola lettura)</li>
+                    <li><strong>Crea utenti:</strong> Admin può creare account per allenatori/staff</li>
+                    <li><strong>USER auto-sync:</strong> Utenti USER scaricano automaticamente dati aggiornati al login</li>
+                    <li><strong>Visualizzazione dati:</strong> USER vedono tutto ma non possono modificare</li>
+                    <li><strong>Banner distintivi:</strong> USER vedono "Modalità Sola Lettura"</li>
+                  </ul>
+                </div>
+
+                <div className="border-l-4 border-red-700 pl-4">
+                  <h4 className="font-bold text-red-800 mb-3 text-lg">🔄 18. RESET DATABASE (Solo ADMIN)</h4>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
+                    <li><strong>Reset Stagione:</strong> Cancella allenamenti/partite MA mantiene rosa giocatori e logo</li>
+                    <li><strong>Reset Completo:</strong> Cancella TUTTO (usa con estrema cautela!)</li>
+                    <li><strong>Procedura consigliata:</strong> Backup → Reset Stagione → Riparti con stessa squadra</li>
+                    <li><strong>Triple conferme:</strong> Protezione da cancellazioni accidentali</li>
                   </ul>
                 </div>
 
                 <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-4 mt-6">
                   <h4 className="font-bold text-blue-800 mb-2">💡 CONSIGLI PRATICI</h4>
                   <ul className="list-disc ml-6 text-sm text-blue-900 space-y-1">
-                    <li>Usa il tablet durante le partite per la modalità Live</li>
-                    <li>Stampa le liste presenze prima degli allenamenti</li>
-                    <li>Studia i moduli avversari prima delle partite importanti</li>
-                    <li>Scarica backup periodici come sicurezza</li>
-                    <li>Usa le classifiche TOP per motivare i giocatori</li>
-                    <li>Al cambio stagione: Backup → Reset Stagione → Continua</li>
+                    <li>Controlla la Dashboard all'inizio di ogni sessione per panoramica veloce</li>
+                    <li>Usa il Calendario per pianificare allenamenti e partite in anticipo</li>
+                    <li>Registra presenze allenamenti subito per statistiche accurate</li>
+                    <li>Durante partite usa gli Eventi Live per cronaca dettagliata</li>
+                    <li>Vota MVP dopo ogni partita per classifica motivazionale</li>
+                    <li>Monitora infortuni costantemente per gestione rosa ottimale</li>
+                    <li><strong>ADMIN:</strong> Fai backup JSON ogni 7 giorni per sicurezza</li>
+                    <li><strong>ADMIN:</strong> Sincronizza su cloud per condividere con staff</li>
+                    <li>A fine stagione: Backup → Reset Stagione → Continua con stessa rosa</li>
                   </ul>
                 </div>
 
                 <div className="bg-purple-50 border-2 border-purple-400 rounded-lg p-4">
                   <h4 className="font-bold text-purple-800 mb-2">📱 COMPATIBILITÀ</h4>
                   <p className="text-purple-900 text-sm">
-                    <strong>PC:</strong> Chrome, Firefox, Edge, Safari<br/>
-                    <strong>Tablet/Smartphone:</strong> Android, iOS, iPad<br/>
-                    <strong>Offline:</strong> Funziona senza connessione internet<br/>
-                    <strong>Sincronizzazione:</strong> Usa backup JSON per trasferire dati tra dispositivi
+                    <strong>Desktop:</strong> Chrome, Firefox, Edge, Safari (consigliato Chrome)<br/>
+                    <strong>Mobile:</strong> Android, iOS, iPad (ottimizzato per tablet)<br/>
+                    <strong>PWA:</strong> Installabile come app su tutti i dispositivi<br/>
+                    <strong>Offline:</strong> Funziona senza internet (sync richiede connessione)<br/>
+                    <strong>Risoluzione:</strong> Da smartphone a desktop 4K
                   </p>
+                </div>
+
+                <div className="bg-green-50 border-2 border-green-400 rounded-lg p-4">
+                  <h4 className="font-bold text-green-800 mb-2">🎯 WORKFLOW CONSIGLIATO</h4>
+                  <p className="text-green-900 text-sm mb-2"><strong>Setup iniziale (ADMIN):</strong></p>
+                  <ol className="list-decimal ml-6 text-sm text-green-900 space-y-1">
+                    <li>Aggiungi tutti i giocatori nella Rosa con foto</li>
+                    <li>Carica logo squadra personalizzato</li>
+                    <li>Crea utenti USER per staff (opzionale)</li>
+                    <li>Configura sincronizzazione cloud (opzionale)</li>
+                  </ol>
+                  <p className="text-green-900 text-sm mt-3 mb-2"><strong>Durante la stagione:</strong></p>
+                  <ol className="list-decimal ml-6 text-sm text-green-900 space-y-1">
+                    <li>Registra presenze ad ogni allenamento + esercizi svolti</li>
+                    <li>Gestisci infortuni appena accadono</li>
+                    <li>Registra eventi durante le partite + vota MVP</li>
+                    <li>Controlla Dashboard e Statistiche regolarmente</li>
+                    <li>Fai backup ogni 7 giorni</li>
+                  </ol>
+                  <p className="text-green-900 text-sm mt-3 mb-2"><strong>Fine stagione:</strong></p>
+                  <ol className="list-decimal ml-6 text-sm text-green-900 space-y-1">
+                    <li>Genera Report Stagionale PDF per archivio</li>
+                    <li>Scarica Backup JSON completo</li>
+                    <li>Reset Stagione (mantiene rosa)</li>
+                    <li>Ricomincia con stessa squadra!</li>
+                  </ol>
                 </div>
               </div>
 
               <div className="p-6 border-t bg-gray-50">
                 <button
                   onClick={() => setShowInstructionsModal(false)}
-                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold text-lg"
                 >
-                  Ho capito, iniziamo!
+                  ✅ Perfetto, ho capito tutto!
                 </button>
               </div>
             </div>
