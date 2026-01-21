@@ -1959,6 +1959,9 @@ const SoccerTeamTracker = () => {
   const [showMVPModal, setShowMVPModal] = useState(false);
   const [selectedMatchForMVP, setSelectedMatchForMVP] = useState(null);
 
+  // ========== SISTEMA BACKUP ==========
+  const [lastBackupDate, setLastBackupDate] = useState(null);
+
   // ========== GESTIONE DISPOSITIVI E AUTO-SYNC ==========
   const [deviceRole, setDeviceRole] = useState(null); // 'primary' | 'secondary' | null
   const [showDeviceModal, setShowDeviceModal] = useState(false);
@@ -2137,6 +2140,14 @@ const SoccerTeamTracker = () => {
     
     saveData();
   }, [players, trainings, matches, appTitle, teamLogo, injuries, squadreGirone, risultatiCampionato, isLoading]);
+
+  // ========== CARICAMENTO DATA ULTIMO BACKUP ==========
+  useEffect(() => {
+    const savedDate = localStorage.getItem('lastBackupDate');
+    if (savedDate) {
+      setLastBackupDate(savedDate);
+    }
+  }, []);
 
   useEffect(() => {
     if (isTimerRunning) {
@@ -4323,13 +4334,24 @@ const SoccerTeamTracker = () => {
   };
 
   const exportToJSON = () => {
+    const now = new Date().toISOString();
+    
+    // ✅ BACKUP COMPLETO anche per vecchia funzione
     const data = {
+      version: '3.0',
       players,
       trainings,
       matches,
+      injuries, // ✅ AGGIUNTO
       appTitle,
       teamLogo,
-      exportDate: new Date().toISOString()
+      exportDate: now,
+      stats: {
+        totalPlayers: players.filter(p => p.nome).length,
+        totalTrainings: trainings.length,
+        totalMatches: matches.length,
+        totalInjuries: injuries.length
+      }
     };
     const jsonString = JSON.stringify(data, null, 2);
     
@@ -4344,7 +4366,11 @@ const SoccerTeamTracker = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    alert('✅ File JSON scaricato con successo! Conservalo come backup di sicurezza.');
+    // ✅ Salva data ultimo backup
+    setLastBackupDate(now);
+    localStorage.setItem('lastBackupDate', now);
+    
+    showToast(`✅ File JSON scaricato! Include ${data.stats.totalPlayers} giocatori, ${data.stats.totalTrainings} allenamenti, ${data.stats.totalMatches} partite`, 'success');
   };
 
   const handleFileImport = (event) => {
@@ -4356,26 +4382,51 @@ const SoccerTeamTracker = () => {
       try {
         const data = JSON.parse(e.target.result);
         
+        // Validazione base
         if (!data.players || !data.trainings || !data.matches) {
-          alert('❌ File JSON non valido! Assicurati di aver selezionato il file corretto.');
+          showToast('❌ File JSON non valido! Assicurati di aver selezionato il file corretto.', 'error');
           return;
         }
         
+        // ✅ RIPRISTINO COMPLETO - Include tutto
         setPlayers(data.players);
         setTrainings(data.trainings);
         setMatches(data.matches);
+        
+        // ✅ Ripristina injuries (con controllo retrocompatibilità)
+        if (data.injuries) {
+          setInjuries(data.injuries);
+        }
+        
+        // ✅ Ripristina formazioni (con controllo retrocompatibilità)
+        if (data.formationPositions) {
+          setFormationPositions(data.formationPositions);
+        }
+        
+        // Ripristina impostazioni
         if (data.appTitle) setAppTitle(data.appTitle);
         if (data.teamLogo) setTeamLogo(data.teamLogo);
+        if (data.infoPartita) setInfoPartita(data.infoPartita);
+        if (data.moduloTattico) setModuloTattico(data.moduloTattico);
         
-        alert('✅ Dati importati con successo!');
+        // Report importazione
+        const stats = data.stats || {
+          totalPlayers: data.players.filter(p => p.nome).length,
+          totalTrainings: data.trainings.length,
+          totalMatches: data.matches.length,
+          totalInjuries: data.injuries?.length || 0
+        };
+        
+        showToast(`✅ Dati importati con successo! ${stats.totalPlayers} giocatori, ${stats.totalTrainings} allenamenti, ${stats.totalMatches} partite, ${stats.totalInjuries} infortuni`, 'success');
         event.target.value = '';
       } catch (error) {
-        alert('❌ Errore nel caricamento del file! Verifica che sia un file JSON valido.');
+        console.error('Errore import:', error);
+        showToast('❌ Errore nel caricamento del file! Verifica che sia un file JSON valido.', 'error');
         event.target.value = '';
       }
     };
     reader.onerror = () => {
-      alert('❌ Errore nella lettura del file. Riprova.');
+      showToast('❌ Errore nella lettura del file. Riprova.', 'error');
       event.target.value = '';
     };
     reader.readAsText(file);
@@ -4385,22 +4436,47 @@ const SoccerTeamTracker = () => {
     try {
       const data = JSON.parse(manualImportData);
       
+      // Validazione base
       if (!data.players || !data.trainings || !data.matches) {
-        alert('❌ File JSON non valido! Assicurati di aver copiato tutto il contenuto correttamente.');
+        showToast('❌ File JSON non valido! Assicurati di aver copiato tutto il contenuto correttamente.', 'error');
         return;
       }
       
+      // ✅ RIPRISTINO COMPLETO - Include tutto
       setPlayers(data.players);
       setTrainings(data.trainings);
       setMatches(data.matches);
+      
+      // ✅ Ripristina injuries (con controllo retrocompatibilità)
+      if (data.injuries) {
+        setInjuries(data.injuries);
+      }
+      
+      // ✅ Ripristina formazioni (con controllo retrocompatibilità)
+      if (data.formationPositions) {
+        setFormationPositions(data.formationPositions);
+      }
+      
+      // Ripristina impostazioni
       if (data.appTitle) setAppTitle(data.appTitle);
       if (data.teamLogo) setTeamLogo(data.teamLogo);
+      if (data.infoPartita) setInfoPartita(data.infoPartita);
+      if (data.moduloTattico) setModuloTattico(data.moduloTattico);
+      
+      // Report importazione
+      const stats = data.stats || {
+        totalPlayers: data.players.filter(p => p.nome).length,
+        totalTrainings: data.trainings.length,
+        totalMatches: data.matches.length,
+        totalInjuries: data.injuries?.length || 0
+      };
       
       setShowManualImport(false);
       setManualImportData('');
-      alert('✅ Dati importati con successo!');
+      showToast(`✅ Dati importati con successo! ${stats.totalPlayers} giocatori, ${stats.totalTrainings} allenamenti, ${stats.totalMatches} partite, ${stats.totalInjuries} infortuni`, 'success');
     } catch (error) {
-      alert('❌ Errore nel parsing del JSON! Verifica che il formato sia corretto.');
+      console.error('Errore parsing JSON:', error);
+      showToast('❌ Errore nel parsing del JSON! Verifica che il formato sia corretto.', 'error');
     }
   };
 
@@ -7431,18 +7507,30 @@ const SoccerTeamTracker = () => {
     showToast(`Report PDF di ${player.nome} scaricato!`, 'success');
   };
   
-  // Download Backup JSON
+  // Download Backup JSON - VERSIONE COMPLETA CON TUTTI I DATI
   const downloadBackupJSON = () => {
+    const now = new Date().toISOString();
+    
+    // ✅ BACKUP COMPLETO - Include TUTTO
     const backupData = {
-      version: '2.0',
-      exportDate: new Date().toISOString(),
+      version: '3.0', // ⬆️ Versione aggiornata per backup completo
+      exportDate: now,
       appTitle,
       teamLogo,
       players,
       trainings,
       matches,
+      injuries, // ✅ AGGIUNTO: infortuni
       infoPartita,
-      moduloTattico
+      moduloTattico,
+      formationPositions, // ✅ AGGIUNTO: posizioni formazioni salvate
+      // Statistiche aggiuntive per verifica integrità
+      stats: {
+        totalPlayers: players.filter(p => p.nome).length,
+        totalTrainings: trainings.length,
+        totalMatches: matches.length,
+        totalInjuries: injuries.length
+      }
     };
     
     const dataStr = JSON.stringify(backupData, null, 2);
@@ -7454,7 +7542,11 @@ const SoccerTeamTracker = () => {
     link.click();
     URL.revokeObjectURL(url);
     
-    alert('✅ Backup completato! File salvato.');
+    // ✅ Salva data ultimo backup
+    setLastBackupDate(now);
+    localStorage.setItem('lastBackupDate', now);
+    
+    showToast(`✅ Backup completo scaricato! Include ${backupData.stats.totalPlayers} giocatori, ${backupData.stats.totalTrainings} allenamenti, ${backupData.stats.totalMatches} partite`, 'success');
   };
 
   // ========== FUNZIONI PER ANALISI TATTICA ==========
@@ -8951,6 +9043,94 @@ const SoccerTeamTracker = () => {
                   </div>
                 </div>
               </div>
+
+              {/* ========== CARD AVVISO BACKUP ========== */}
+              {(() => {
+                if (!lastBackupDate) {
+                  // Nessun backup mai fatto
+                  return (
+                    <div className="mb-6 bg-gradient-to-br from-red-50 to-orange-50 rounded-lg shadow-lg p-6 border-2 border-red-300 animate-shake">
+                      <div className="flex items-start gap-4">
+                        <div className="text-5xl animate-pulse-slow">⚠️</div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-bold text-red-800 mb-2">
+                            🔴 Nessun backup trovato!
+                          </h3>
+                          <p className="text-red-700 mb-3">
+                            Non hai ancora creato un backup di sicurezza. È <strong>fortemente consigliato</strong> fare un backup per proteggere i tuoi dati.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setActiveTab('export');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                          >
+                            💾 Crea Backup Ora
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                const daysSinceBackup = Math.floor((new Date() - new Date(lastBackupDate)) / (1000 * 60 * 60 * 24));
+                const backupDate = new Date(lastBackupDate).toLocaleDateString('it-IT', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                
+                if (daysSinceBackup > 7) {
+                  // Backup vecchio > 7 giorni
+                  return (
+                    <div className="mb-6 bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg shadow-lg p-6 border-2 border-yellow-300">
+                      <div className="flex items-start gap-4">
+                        <div className="text-4xl">⚠️</div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-bold text-yellow-800 mb-2">
+                            ⏰ Backup non recente
+                          </h3>
+                          <p className="text-yellow-700 mb-2">
+                            Ultimo backup: <strong>{backupDate}</strong> ({daysSinceBackup} giorni fa)
+                          </p>
+                          <p className="text-sm text-yellow-600 mb-3">
+                            È consigliato fare un backup almeno una volta a settimana.
+                          </p>
+                          <button
+                            onClick={() => {
+                              setActiveTab('export');
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }}
+                            className="bg-yellow-600 hover:bg-yellow-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors text-sm"
+                          >
+                            💾 Aggiorna Backup
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                
+                // Backup recente - tutto ok
+                return (
+                  <div className="mb-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg shadow-lg p-4 border-2 border-green-300">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">✅</div>
+                      <div className="flex-1">
+                        <p className="text-green-800 font-semibold">
+                          Backup aggiornato • Ultimo: {backupDate}
+                        </p>
+                        <p className="text-sm text-green-600">
+                          I tuoi dati sono al sicuro ({daysSinceBackup === 0 ? 'oggi' : `${daysSinceBackup} ${daysSinceBackup === 1 ? 'giorno' : 'giorni'} fa`})
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Grafici */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
