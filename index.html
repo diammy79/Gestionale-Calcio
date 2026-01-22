@@ -1822,11 +1822,15 @@ const SoccerTeamTracker = () => {
   const [matches, setMatches] = useState([]);
   const [activeTab, setActiveTab] = useState('dashboard'); // Apre sulla dashboard
   const [exerciseModalTraining, setExerciseModalTraining] = useState(null); // Modal esercizi rapido
+  const [photoModalTraining, setPhotoModalTraining] = useState(null); // Modal foto allenamento
+  const [photoModalMatch, setPhotoModalMatch] = useState(null); // Modal foto partita
   
   // Reset modal esercizi quando cambio tab
   useEffect(() => {
     console.log('🔄 activeTab changed to:', activeTab);
     setExerciseModalTraining(null);
+    setPhotoModalTraining(null);
+    setPhotoModalMatch(null);
   }, [activeTab]);
   
   // Log quando exerciseModalTraining cambia
@@ -3100,7 +3104,8 @@ const SoccerTeamTracker = () => {
       data: new Date().toISOString().split('T')[0],
       presenze: presenzePrecompilate,
       infortuni: infortuniPrecompilati,
-      esercizi: []  // NUOVO CAMPO per esercizi
+      esercizi: [],  // CAMPO per esercizi
+      foto: []  // ✅ NUOVO: Array per massimo 3 foto
     };
     setTrainings([...trainings, newTraining]);
   };
@@ -3125,7 +3130,8 @@ const SoccerTeamTracker = () => {
       rossi_gioco: {},
       rossi_protesta: {},
       ordineDistinta: {},
-      mvp: null // Numero del giocatore MVP
+      mvp: null, // Numero del giocatore MVP
+      foto: []  // ✅ NUOVO: Array per massimo 3 foto
     };
     setMatches([...matches, newMatch]);
   };
@@ -3270,6 +3276,222 @@ const SoccerTeamTracker = () => {
   const calcolaTotaleMinuti = (esercizi) => {
     if (!esercizi || esercizi.length === 0) return 0;
     return esercizi.reduce((tot, e) => tot + (parseInt(e.durata) || 0), 0);
+  };
+
+  // ========== FUNZIONI GESTIONE FOTO ALLENAMENTI/PARTITE ==========
+  
+  const handleAddTrainingPhoto = (e, trainingId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validazione tipo file
+    if (!file.type.startsWith('image/')) {
+      showToast('❌ Seleziona un file immagine valido (JPG, PNG, ecc.)', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    // Validazione dimensione (max 500KB)
+    const maxSize = 500 * 1024;
+    if (file.size > maxSize) {
+      showToast(`❌ File troppo grande (${(file.size / 1024).toFixed(0)}KB). Max: 500KB`, 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Ridimensiona mantenendo aspect ratio (max 800x600)
+        const maxWidth = 800;
+        const maxHeight = 600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width / maxWidth > height / maxHeight) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          } else {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        
+        // Verifica dimensione finale
+        const finalSize = resizedDataUrl.length;
+        if (finalSize > 200 * 1024) {
+          showToast('❌ Impossibile ridurre sufficientemente l\'immagine', 'error');
+          e.target.value = '';
+          return;
+        }
+
+        // Aggiungi foto all'allenamento
+        setTrainings(trainings.map(t => {
+          if (t.id === trainingId) {
+            const currentFoto = t.foto || [];
+            if (currentFoto.length >= 3) {
+              showToast('❌ Massimo 3 foto per allenamento', 'warning');
+              return t;
+            }
+            return {
+              ...t,
+              foto: [...currentFoto, {
+                id: Date.now(),
+                data: resizedDataUrl,
+                timestamp: new Date().toISOString()
+              }]
+            };
+          }
+          return t;
+        }));
+        
+        showToast('✅ Foto aggiunta!', 'success');
+        e.target.value = '';
+      };
+      img.onerror = () => {
+        showToast('❌ Errore caricamento immagine', 'error');
+        e.target.value = '';
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      showToast('❌ Errore lettura file', 'error');
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveTrainingPhoto = (trainingId, photoId) => {
+    if (!window.confirm('🗑️ Vuoi eliminare questa foto?')) return;
+    
+    setTrainings(trainings.map(t => {
+      if (t.id === trainingId) {
+        return {
+          ...t,
+          foto: (t.foto || []).filter(f => f.id !== photoId)
+        };
+      }
+      return t;
+    }));
+    
+    showToast('✅ Foto eliminata', 'success');
+  };
+
+  const handleAddMatchPhoto = (e, matchId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // Validazione tipo file
+    if (!file.type.startsWith('image/')) {
+      showToast('❌ Seleziona un file immagine valido (JPG, PNG, ecc.)', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    // Validazione dimensione (max 500KB)
+    const maxSize = 500 * 1024;
+    if (file.size > maxSize) {
+      showToast(`❌ File troppo grande (${(file.size / 1024).toFixed(0)}KB). Max: 500KB`, 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Ridimensiona mantenendo aspect ratio (max 800x600)
+        const maxWidth = 800;
+        const maxHeight = 600;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width / maxWidth > height / maxHeight) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          } else {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        
+        // Verifica dimensione finale
+        const finalSize = resizedDataUrl.length;
+        if (finalSize > 200 * 1024) {
+          showToast('❌ Impossibile ridurre sufficientemente l\'immagine', 'error');
+          e.target.value = '';
+          return;
+        }
+
+        // Aggiungi foto alla partita
+        setMatches(matches.map(m => {
+          if (m.id === matchId) {
+            const currentFoto = m.foto || [];
+            if (currentFoto.length >= 3) {
+              showToast('❌ Massimo 3 foto per partita', 'warning');
+              return m;
+            }
+            return {
+              ...m,
+              foto: [...currentFoto, {
+                id: Date.now(),
+                data: resizedDataUrl,
+                timestamp: new Date().toISOString()
+              }]
+            };
+          }
+          return m;
+        }));
+        
+        showToast('✅ Foto aggiunta!', 'success');
+        e.target.value = '';
+      };
+      img.onerror = () => {
+        showToast('❌ Errore caricamento immagine', 'error');
+        e.target.value = '';
+      };
+      img.src = event.target.result;
+    };
+    reader.onerror = () => {
+      showToast('❌ Errore lettura file', 'error');
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveMatchPhoto = (matchId, photoId) => {
+    if (!window.confirm('🗑️ Vuoi eliminare questa foto?')) return;
+    
+    setMatches(matches.map(m => {
+      if (m.id === matchId) {
+        return {
+          ...m,
+          foto: (m.foto || []).filter(f => f.id !== photoId)
+        };
+      }
+      return m;
+    }));
+    
+    showToast('✅ Foto eliminata', 'success');
   };
 
   // Esporta esercizi allenamento in PDF
@@ -10686,6 +10908,17 @@ const SoccerTeamTracker = () => {
                                     ⏱️ {training.esercizi.length} esercizi - {calcolaTotaleMinuti(training.esercizi)} min
                                   </button>
                                 )}
+                                {training.foto && training.foto.length > 0 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPhotoModalTraining(training);
+                                    }}
+                                    className="ml-3 text-blue-600 font-semibold hover:text-blue-800 hover:underline transition-all cursor-pointer"
+                                  >
+                                    📷 {training.foto.length} foto
+                                  </button>
+                                )}
                               </span>
                             </div>
                           </div>
@@ -10730,6 +10963,16 @@ const SoccerTeamTracker = () => {
                               }`}
                             >
                               📝 Esercizi ({training.esercizi?.length || 0})
+                            </button>
+                            <button
+                              onClick={() => setTrainingTabActive({...trainingTabActive, [training.id]: 'foto'})}
+                              className={`flex-1 px-6 py-3 font-semibold transition-colors ${
+                                trainingTabActive[training.id] === 'foto'
+                                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+                                  : 'text-gray-600 hover:text-blue-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              📷 Foto ({training.foto?.length || 0}/3)
                             </button>
                           </div>
 
@@ -11131,6 +11374,74 @@ const SoccerTeamTracker = () => {
                           )}
                         </div>
                       )}
+
+                      {/* TAB CONTENT - FOTO */}
+                      {trainingTabActive[training.id] === 'foto' && (
+                        <div className="p-6 bg-gray-50">
+                          <div className="mb-6">
+                            <h4 className="font-bold text-lg text-gray-800 mb-3">📷 Foto Allenamento</h4>
+                            <p className="text-sm text-gray-600 mb-4">
+                              Carica fino a 3 foto per ricordare i momenti salienti di questo allenamento (max 500KB per foto)
+                            </p>
+
+                            {/* Upload foto */}
+                            {(!training.foto || training.foto.length < 3) && userRole === 'admin' && (
+                              <div className="mb-6">
+                                <label className="flex items-center justify-center gap-3 p-6 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors bg-white">
+                                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  <span className="font-semibold text-blue-600">Aggiungi Foto ({training.foto?.length || 0}/3)</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleAddTrainingPhoto(e, training.id)}
+                                    className="hidden"
+                                  />
+                                </label>
+                              </div>
+                            )}
+
+                            {/* Griglia foto */}
+                            {training.foto && training.foto.length > 0 ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {training.foto.map((foto) => (
+                                  <div key={foto.id} className="relative group">
+                                    <img
+                                      src={foto.data}
+                                      alt="Foto allenamento"
+                                      className="w-full h-48 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                      onClick={() => setEnlargedPhoto(foto.data)}
+                                    />
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      {userRole === 'admin' && (
+                                        <button
+                                          onClick={() => handleRemoveTrainingPhoto(training.id, foto.id)}
+                                          className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 shadow-lg"
+                                          title="Elimina foto"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      )}
+                                    </div>
+                                    <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                                      {new Date(foto.timestamp).toLocaleDateString('it-IT')}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                                <div className="text-6xl mb-3">📷</div>
+                                <p className="text-gray-600">Nessuna foto caricata</p>
+                                <p className="text-sm text-gray-500 mt-1">Aggiungi foto per ricordare questo allenamento</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -11407,6 +11718,20 @@ const SoccerTeamTracker = () => {
                               )}
                             </button>
                           )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPhotoModalMatch(match);
+                            }}
+                            className={`px-4 py-2 rounded-lg transition-colors font-semibold flex items-center gap-2 ${
+                              match.foto && match.foto.length > 0
+                                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                            }`}
+                          >
+                            <span>📷</span>
+                            <span className="hidden sm:inline">Foto{match.foto && match.foto.length > 0 ? ` (${match.foto.length})` : ''}</span>
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -11738,6 +12063,70 @@ const SoccerTeamTracker = () => {
                               </div>
                             </div>
                           )}
+
+                          {/* SEZIONE FOTO PARTITA */}
+                          <div className="p-6 bg-gray-50 border-t">
+                            <h4 className="font-bold text-lg text-gray-800 mb-3">📷 Foto Partita</h4>
+                            <p className="text-sm text-gray-600 mb-4">
+                              Carica fino a 3 foto per ricordare i momenti salienti di questa partita (max 500KB per foto)
+                            </p>
+
+                            {/* Upload foto */}
+                            {(!match.foto || match.foto.length < 3) && userRole === 'admin' && (
+                              <div className="mb-6">
+                                <label className="flex items-center justify-center gap-3 p-6 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors bg-white">
+                                  <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                  <span className="font-semibold text-blue-600">Aggiungi Foto ({match.foto?.length || 0}/3)</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleAddMatchPhoto(e, match.id)}
+                                    className="hidden"
+                                  />
+                                </label>
+                              </div>
+                            )}
+
+                            {/* Griglia foto */}
+                            {match.foto && match.foto.length > 0 ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {match.foto.map((foto) => (
+                                  <div key={foto.id} className="relative group">
+                                    <img
+                                      src={foto.data}
+                                      alt="Foto partita"
+                                      className="w-full h-48 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                      onClick={() => setEnlargedPhoto(foto.data)}
+                                    />
+                                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      {userRole === 'admin' && (
+                                        <button
+                                          onClick={() => handleRemoveMatchPhoto(match.id, foto.id)}
+                                          className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 shadow-lg"
+                                          title="Elimina foto"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      )}
+                                    </div>
+                                    <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                                      {new Date(foto.timestamp).toLocaleDateString('it-IT')}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                                <div className="text-6xl mb-3">📷</div>
+                                <p className="text-gray-600">Nessuna foto caricata</p>
+                                <p className="text-sm text-gray-500 mt-1">Aggiungi foto per ricordare questa partita</p>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -17253,6 +17642,213 @@ const SoccerTeamTracker = () => {
           </div>
           );
         })()}
+        
+        {/* ========== MODAL FOTO ALLENAMENTO ========== */}
+        {photoModalTraining && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]"
+            onClick={() => setPhotoModalTraining(null)}
+          >
+            <div 
+              className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-bold">📷 Foto Allenamento</h3>
+                  <p className="text-sm text-purple-100 mt-1">
+                    {new Date(photoModalTraining.data).toLocaleDateString('it-IT', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPhotoModalTraining(null)}
+                  className="text-white hover:bg-purple-800 rounded-full p-2 transition-colors text-2xl font-bold"
+                  title="Chiudi"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {/* Body */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                {photoModalTraining.foto && photoModalTraining.foto.length > 0 ? (
+                  <div>
+                    {/* Counter */}
+                    <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-6">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-3xl font-bold text-purple-700">
+                          {photoModalTraining.foto.length}
+                        </span>
+                        <span className="text-gray-700 text-lg">
+                          {photoModalTraining.foto.length === 1 ? 'foto caricata' : 'foto caricate'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Griglia foto */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {photoModalTraining.foto.map((foto) => (
+                        <div key={foto.id} className="relative group">
+                          <img
+                            src={foto.data}
+                            alt="Foto allenamento"
+                            className="w-full h-64 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setEnlargedPhoto(foto.data)}
+                          />
+                          <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-sm px-3 py-1 rounded">
+                            {new Date(foto.timestamp).toLocaleDateString('it-IT', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => setEnlargedPhoto(foto.data)}
+                              className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 shadow-lg"
+                              title="Ingrandisci"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-6xl mb-3">📷</div>
+                    <p className="text-lg">Nessuna foto per questo allenamento</p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="bg-gray-50 p-4 flex justify-end items-center border-t">
+                <button
+                  onClick={() => setPhotoModalTraining(null)}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+                >
+                  Chiudi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* ========== MODAL FOTO PARTITA ========== */}
+        {photoModalMatch && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]"
+            onClick={() => setPhotoModalMatch(null)}
+          >
+            <div 
+              className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-bold">📷 Foto Partita</h3>
+                  <p className="text-sm text-purple-100 mt-1">
+                    {photoModalMatch.squadraCasa && photoModalMatch.squadraTrasferta 
+                      ? `${photoModalMatch.squadraCasa} vs ${photoModalMatch.squadraTrasferta}`
+                      : new Date(photoModalMatch.data).toLocaleDateString('it-IT', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })
+                    }
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPhotoModalMatch(null)}
+                  className="text-white hover:bg-purple-800 rounded-full p-2 transition-colors text-2xl font-bold"
+                  title="Chiudi"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              {/* Body */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                {photoModalMatch.foto && photoModalMatch.foto.length > 0 ? (
+                  <div>
+                    {/* Counter */}
+                    <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4 mb-6">
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="text-3xl font-bold text-purple-700">
+                          {photoModalMatch.foto.length}
+                        </span>
+                        <span className="text-gray-700 text-lg">
+                          {photoModalMatch.foto.length === 1 ? 'foto caricata' : 'foto caricate'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Griglia foto */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {photoModalMatch.foto.map((foto) => (
+                        <div key={foto.id} className="relative group">
+                          <img
+                            src={foto.data}
+                            alt="Foto partita"
+                            className="w-full h-64 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => setEnlargedPhoto(foto.data)}
+                          />
+                          <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-sm px-3 py-1 rounded">
+                            {new Date(foto.timestamp).toLocaleDateString('it-IT', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => setEnlargedPhoto(foto.data)}
+                              className="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 shadow-lg"
+                              title="Ingrandisci"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <div className="text-6xl mb-3">📷</div>
+                    <p className="text-lg">Nessuna foto per questa partita</p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Footer */}
+              <div className="bg-gray-50 p-4 flex justify-end items-center border-t">
+                <button
+                  onClick={() => setPhotoModalMatch(null)}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+                >
+                  Chiudi
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* ========== TOAST NOTIFICATIONS ========== */}
         <div className="toast-container">
