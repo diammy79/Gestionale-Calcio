@@ -1875,6 +1875,7 @@ const SoccerTeamTracker = () => {
   const [halfTime, setHalfTime] = useState(1);
   const [showVictoryCelebration, setShowVictoryCelebration] = useState(false);
   const [teamLogo, setTeamLogo] = useState('');
+  const [teamLogoStorageUrl, setTeamLogoStorageUrl] = useState('');
   const [showManualImport, setShowManualImport] = useState(false);
   const [manualImportData, setManualImportData] = useState('');
   const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null });
@@ -2072,6 +2073,7 @@ const SoccerTeamTracker = () => {
           setMatches(savedData.matches || []);
           setAppTitle(savedData.appTitle || appTitle);
           setTeamLogo(savedData.teamLogo || '');
+          setTeamLogoStorageUrl(savedData.teamLogoStorageUrl || '');
           setInjuries(savedData.injuries || []);
           setSquadreGirone(savedData.squadreGirone || []);
           setRisultatiCampionato(savedData.risultatiCampionato || []);
@@ -2130,6 +2132,7 @@ const SoccerTeamTracker = () => {
         matches,
         appTitle,
         teamLogo,
+        teamLogoStorageUrl,
         injuries,
         squadreGirone,
         risultatiCampionato,
@@ -2143,7 +2146,7 @@ const SoccerTeamTracker = () => {
     };
     
     saveData();
-  }, [players, trainings, matches, appTitle, teamLogo, injuries, squadreGirone, risultatiCampionato, isLoading]);
+  }, [players, trainings, matches, appTitle, teamLogo, teamLogoStorageUrl, injuries, squadreGirone, risultatiCampionato, isLoading]);
 
   // ========== CARICAMENTO DATA ULTIMO BACKUP ==========
   useEffect(() => {
@@ -2996,79 +2999,139 @@ const SoccerTeamTracker = () => {
     }
   };
 
-  const handleLogoUpload = (e) => {
+  const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('❌ Per favore seleziona un file immagine valido (JPG, PNG, ecc.)');
+      showToast('❌ Seleziona un file immagine valido (JPG, PNG, ecc.)', 'error');
       e.target.value = '';
       return;
     }
 
-    const maxSize = 500 * 1024;
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      alert(`❌ Il file è troppo grande (${(file.size / 1024).toFixed(0)}KB). Dimensione massima: 500KB.\n\n💡 Prova a ridimensionare l'immagine prima di caricarla.`);
+      showToast(`❌ File troppo grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Max: 5MB`, 'error');
       e.target.value = '';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        const maxWidth = 200;
-        const maxHeight = 200;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        
-        const finalSize = resizedDataUrl.length;
-        if (finalSize > 100 * 1024) {
-          alert('❌ Impossibile ridurre sufficientemente l\'immagine. Prova con un\'immagine più piccola.');
-          e.target.value = '';
-          return;
-        }
-
-        setTeamLogo(resizedDataUrl);
-        alert('✅ Logo caricato con successo!');
-      };
-      img.onerror = () => {
-        alert('❌ Errore nel caricamento dell\'immagine. Prova con un altro file.');
-        e.target.value = '';
-      };
-      img.src = event.target.result;
-    };
-    reader.onerror = () => {
-      alert('❌ Errore nella lettura del file.');
+    // Verifica autenticazione
+    if (!user) {
+      showToast('❌ Devi essere autenticato per caricare il logo', 'error');
       e.target.value = '';
-    };
-    reader.readAsDataURL(file);
+      return;
+    }
+
+    try {
+      showLoadingWithProgress('📤 Caricamento logo squadra...', 0);
+      
+      // Comprimi logo (200x200px)
+      const compressedBlob = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxWidth = 200;
+            const maxHeight = 200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('Errore compressione'));
+              }
+            }, 'image/png', 0.9);
+          };
+          img.onerror = () => reject(new Error('Errore caricamento immagine'));
+          img.src = event.target.result;
+        };
+        reader.onerror = () => reject(new Error('Errore lettura file'));
+        reader.readAsDataURL(file);
+      });
+
+      setLoadingProgress(30);
+
+      // Elimina vecchio logo da Storage se presente
+      if (teamLogo && teamLogo.startsWith('https://firebasestorage')) {
+        try {
+          const oldRef = storage.refFromURL(teamLogo);
+          await oldRef.delete();
+        } catch (err) {
+          console.log('Vecchio logo non trovato o già eliminato');
+        }
+      }
+
+      // Upload su Firebase Storage
+      const storageRef = storage.ref();
+      const fileName = `team-logos/${user.uid}/logo_${Date.now()}.png`;
+      const fileRef = storageRef.child(fileName);
+      
+      const uploadTask = await fileRef.put(compressedBlob);
+      const downloadURL = await fileRef.getDownloadURL();
+      
+      setLoadingProgress(80);
+
+      // Salva URL logo
+      setTeamLogo(downloadURL);
+      setTeamLogoStorageUrl(fileName);
+      
+      setLoadingProgress(100);
+      setTimeout(() => hideLoading(), 500);
+      
+      const sizeKB = Math.round((uploadTask.bytesTransferred || 0) / 1024);
+      showToast(`✅ Logo caricato su cloud! (${sizeKB}KB)`, 'success');
+      e.target.value = '';
+      
+    } catch (error) {
+      hideLoading();
+      console.error('Errore upload logo:', error);
+      showToast('❌ Errore caricamento logo: ' + error.message, 'error', 5000);
+      e.target.value = '';
+    }
   };
 
-  const removeLogo = () => {
-    if (window.confirm('Sei sicuro di voler rimuovere il logo?')) {
+  const removeLogo = async () => {
+    if (!window.confirm('Sei sicuro di voler rimuovere il logo?')) return;
+    
+    try {
+      // Elimina da Storage se è un URL Storage
+      if (teamLogo && teamLogo.startsWith('https://firebasestorage')) {
+        try {
+          const storageRef = storage.refFromURL(teamLogo);
+          await storageRef.delete();
+        } catch (err) {
+          console.log('Logo non trovato su Storage o già eliminato');
+        }
+      }
+      
       setTeamLogo('');
-      alert('✅ Logo rimosso!');
+      setTeamLogoStorageUrl('');
+      showToast('✅ Logo rimosso!', 'success');
+      
+    } catch (error) {
+      console.error('Errore rimozione logo:', error);
+      showToast('❌ Errore rimozione logo', 'error');
     }
   };
 
@@ -3280,7 +3343,7 @@ const SoccerTeamTracker = () => {
 
   // ========== FUNZIONI GESTIONE FOTO ALLENAMENTI/PARTITE ==========
   
-  const handleAddTrainingPhoto = (e, trainingId) => {
+  const handleAddTrainingPhoto = async (e, trainingId) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -3291,103 +3354,148 @@ const SoccerTeamTracker = () => {
       return;
     }
 
-    // Validazione dimensione (max 500KB)
-    const maxSize = 500 * 1024;
+    // Validazione dimensione (max 5MB prima compressione)
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      showToast(`❌ File troppo grande (${(file.size / 1024).toFixed(0)}KB). Max: 500KB`, 'error');
+      showToast(`❌ File troppo grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Max: 5MB`, 'error');
       e.target.value = '';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Ridimensiona mantenendo aspect ratio (max 800x600)
-        const maxWidth = 800;
-        const maxHeight = 600;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth || height > maxHeight) {
-          if (width / maxWidth > height / maxHeight) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          } else {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        
-        // Verifica dimensione finale
-        const finalSize = resizedDataUrl.length;
-        if (finalSize > 200 * 1024) {
-          showToast('❌ Impossibile ridurre sufficientemente l\'immagine', 'error');
-          e.target.value = '';
-          return;
-        }
-
-        // Aggiungi foto all'allenamento
-        setTrainings(trainings.map(t => {
-          if (t.id === trainingId) {
-            const currentFoto = t.foto || [];
-            if (currentFoto.length >= 3) {
-              showToast('❌ Massimo 3 foto per allenamento', 'warning');
-              return t;
-            }
-            return {
-              ...t,
-              foto: [...currentFoto, {
-                id: Date.now(),
-                data: resizedDataUrl,
-                timestamp: new Date().toISOString()
-              }]
-            };
-          }
-          return t;
-        }));
-        
-        showToast('✅ Foto aggiunta!', 'success');
-        e.target.value = '';
-      };
-      img.onerror = () => {
-        showToast('❌ Errore caricamento immagine', 'error');
-        e.target.value = '';
-      };
-      img.src = event.target.result;
-    };
-    reader.onerror = () => {
-      showToast('❌ Errore lettura file', 'error');
+    // Verifica autenticazione
+    if (!user) {
+      showToast('❌ Devi essere autenticato per caricare foto su Firebase Storage', 'error');
       e.target.value = '';
-    };
-    reader.readAsDataURL(file);
+      return;
+    }
+
+    // Verifica limite 3 foto
+    const training = trainings.find(t => t.id === trainingId);
+    if (training && training.foto && training.foto.length >= 3) {
+      showToast('❌ Massimo 3 foto per allenamento', 'warning');
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      showLoadingWithProgress('Caricamento foto in corso...', 2000);
+
+      // Comprimi immagine
+      const compressedBlob = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxWidth = 800;
+            const maxHeight = 600;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth || height > maxHeight) {
+              if (width / maxWidth > height / maxHeight) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              } else {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Errore compressione'));
+            }, 'image/jpeg', 0.8);
+          };
+          img.onerror = () => reject(new Error('Errore caricamento immagine'));
+          img.src = event.target.result;
+        };
+        reader.onerror = () => reject(new Error('Errore lettura file'));
+        reader.readAsDataURL(file);
+      });
+
+      // Upload su Firebase Storage
+      const storageRef = storage.ref();
+      const fileName = `training-photos/${user.uid}/${trainingId}_${Date.now()}.jpg`;
+      const fileRef = storageRef.child(fileName);
+      
+      const uploadTask = await fileRef.put(compressedBlob);
+      const downloadURL = await fileRef.getDownloadURL();
+      
+      // Aggiungi foto all'allenamento
+      setTrainings(trainings.map(t => {
+        if (t.id === trainingId) {
+          const currentFoto = t.foto || [];
+          return {
+            ...t,
+            foto: [...currentFoto, {
+              id: Date.now(),
+              url: downloadURL,  // ← URL Storage invece di base64
+              storageRef: fileName,  // ← Path per eliminazione
+              timestamp: new Date().toISOString()
+            }]
+          };
+        }
+        return t;
+      }));
+      
+      hideLoading();
+      const sizeKB = Math.round((uploadTask.bytesTransferred || 0) / 1024);
+      showToast(`✅ Foto caricata su cloud! (${sizeKB}KB)`, 'success');
+      e.target.value = '';
+      
+    } catch (error) {
+      hideLoading();
+      console.error('Errore upload foto allenamento:', error);
+      showToast('❌ Errore caricamento foto: ' + error.message, 'error', 5000);
+      e.target.value = '';
+    }
   };
 
-  const handleRemoveTrainingPhoto = (trainingId, photoId) => {
+  const handleRemoveTrainingPhoto = async (trainingId, photoId) => {
     if (!window.confirm('🗑️ Vuoi eliminare questa foto?')) return;
     
-    setTrainings(trainings.map(t => {
-      if (t.id === trainingId) {
-        return {
-          ...t,
-          foto: (t.foto || []).filter(f => f.id !== photoId)
-        };
+    try {
+      const training = trainings.find(t => t.id === trainingId);
+      const foto = training?.foto?.find(f => f.id === photoId);
+      
+      // Elimina da Storage se presente
+      if (foto?.storageRef) {
+        try {
+          const storageRef = storage.ref();
+          const fileRef = storageRef.child(foto.storageRef);
+          await fileRef.delete();
+          console.log('✅ Foto eliminata da Storage');
+        } catch (err) {
+          console.log('⚠️ Foto non trovata su Storage (già eliminata?)');
+        }
       }
-      return t;
-    }));
-    
-    showToast('✅ Foto eliminata', 'success');
+      
+      // Rimuovi da state
+      setTrainings(trainings.map(t => {
+        if (t.id === trainingId) {
+          return {
+            ...t,
+            foto: (t.foto || []).filter(f => f.id !== photoId)
+          };
+        }
+        return t;
+      }));
+      
+      showToast('✅ Foto eliminata', 'success');
+      
+    } catch (error) {
+      console.error('Errore eliminazione foto:', error);
+      showToast('❌ Errore eliminazione foto', 'error');
+    }
   };
 
-  const handleAddMatchPhoto = (e, matchId) => {
+  const handleAddMatchPhoto = async (e, matchId) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -3398,100 +3506,151 @@ const SoccerTeamTracker = () => {
       return;
     }
 
-    // Validazione dimensione (max 500KB)
-    const maxSize = 500 * 1024;
+    // Validazione dimensione (max 5MB per upload)
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      showToast(`❌ File troppo grande (${(file.size / 1024).toFixed(0)}KB). Max: 500KB`, 'error');
+      showToast(`❌ File troppo grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Max: 5MB`, 'error');
       e.target.value = '';
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
-        // Ridimensiona mantenendo aspect ratio (max 800x600)
-        const maxWidth = 800;
-        const maxHeight = 600;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth || height > maxHeight) {
-          if (width / maxWidth > height / maxHeight) {
-            height = (height * maxWidth) / width;
-            width = maxWidth;
-          } else {
-            width = (width * maxHeight) / height;
-            height = maxHeight;
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        
-        // Verifica dimensione finale
-        const finalSize = resizedDataUrl.length;
-        if (finalSize > 200 * 1024) {
-          showToast('❌ Impossibile ridurre sufficientemente l\'immagine', 'error');
-          e.target.value = '';
-          return;
-        }
-
-        // Aggiungi foto alla partita
-        setMatches(matches.map(m => {
-          if (m.id === matchId) {
-            const currentFoto = m.foto || [];
-            if (currentFoto.length >= 3) {
-              showToast('❌ Massimo 3 foto per partita', 'warning');
-              return m;
-            }
-            return {
-              ...m,
-              foto: [...currentFoto, {
-                id: Date.now(),
-                data: resizedDataUrl,
-                timestamp: new Date().toISOString()
-              }]
-            };
-          }
-          return m;
-        }));
-        
-        showToast('✅ Foto aggiunta!', 'success');
-        e.target.value = '';
-      };
-      img.onerror = () => {
-        showToast('❌ Errore caricamento immagine', 'error');
-        e.target.value = '';
-      };
-      img.src = event.target.result;
-    };
-    reader.onerror = () => {
-      showToast('❌ Errore lettura file', 'error');
+    // Verifica autenticazione
+    if (!user) {
+      showToast('❌ Devi essere autenticato per caricare foto', 'error');
       e.target.value = '';
-    };
-    reader.readAsDataURL(file);
+      return;
+    }
+
+    try {
+      showLoadingWithProgress('📤 Caricamento foto partita...', 0);
+      
+      // Comprimi immagine
+      const compressedBlob = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            // Ridimensiona mantenendo aspect ratio (max 1200x900)
+            const maxWidth = 1200;
+            const maxHeight = 900;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth || height > maxHeight) {
+              if (width / maxWidth > height / maxHeight) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              } else {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error('Errore compressione'));
+              }
+            }, 'image/jpeg', 0.85);
+          };
+          img.onerror = () => reject(new Error('Errore caricamento immagine'));
+          img.src = event.target.result;
+        };
+        reader.onerror = () => reject(new Error('Errore lettura file'));
+        reader.readAsDataURL(file);
+      });
+
+      setLoadingProgress(30);
+
+      // Upload su Firebase Storage
+      const storageRef = storage.ref();
+      const photoId = Date.now();
+      const fileName = `match-photos/${user.uid}/${matchId}_${photoId}.jpg`;
+      const fileRef = storageRef.child(fileName);
+      
+      const uploadTask = await fileRef.put(compressedBlob);
+      const downloadURL = await fileRef.getDownloadURL();
+      
+      setLoadingProgress(70);
+
+      // Aggiungi URL alla partita
+      setMatches(matches.map(m => {
+        if (m.id === matchId) {
+          const currentFoto = m.foto || [];
+          if (currentFoto.length >= 3) {
+            showToast('❌ Massimo 3 foto per partita', 'warning');
+            return m;
+          }
+          return {
+            ...m,
+            foto: [...currentFoto, {
+              id: photoId,
+              url: downloadURL,
+              storageUrl: fileName,
+              timestamp: new Date().toISOString()
+            }]
+          };
+        }
+        return m;
+      }));
+      
+      setLoadingProgress(100);
+      setTimeout(() => hideLoading(), 500);
+      
+      const sizeKB = Math.round((uploadTask.bytesTransferred || 0) / 1024);
+      showToast(`✅ Foto caricata su cloud! (${sizeKB}KB)`, 'success');
+      e.target.value = '';
+      
+    } catch (error) {
+      hideLoading();
+      console.error('Errore upload foto partita:', error);
+      showToast('❌ Errore caricamento: ' + error.message, 'error', 5000);
+      e.target.value = '';
+    }
   };
 
-  const handleRemoveMatchPhoto = (matchId, photoId) => {
+  const handleRemoveMatchPhoto = async (matchId, photoId) => {
     if (!window.confirm('🗑️ Vuoi eliminare questa foto?')) return;
     
-    setMatches(matches.map(m => {
-      if (m.id === matchId) {
-        return {
-          ...m,
-          foto: (m.foto || []).filter(f => f.id !== photoId)
-        };
+    try {
+      const match = matches.find(m => m.id === matchId);
+      const foto = match?.foto?.find(f => f.id === photoId);
+      
+      // Elimina da Storage se ha storageUrl
+      if (foto?.storageUrl) {
+        try {
+          const storageRef = storage.ref();
+          const fileRef = storageRef.child(foto.storageUrl);
+          await fileRef.delete();
+        } catch (err) {
+          console.log('Foto non trovata su Storage o già eliminata:', err);
+        }
       }
-      return m;
-    }));
-    
-    showToast('✅ Foto eliminata', 'success');
+      
+      // Rimuovi da match
+      setMatches(matches.map(m => {
+        if (m.id === matchId) {
+          return {
+            ...m,
+            foto: (m.foto || []).filter(f => f.id !== photoId)
+          };
+        }
+        return m;
+      }));
+      
+      showToast('✅ Foto eliminata', 'success');
+      
+    } catch (error) {
+      console.error('Errore eliminazione foto:', error);
+      showToast('❌ Errore eliminazione foto', 'error');
+    }
   };
 
   // Esporta esercizi allenamento in PDF
@@ -4339,6 +4498,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
         appTitle,             // ✅ AGGIUNTO: Titolo app
         teamLogo,             // ✅ AGGIUNTO: Logo squadra
+        teamLogoStorageUrl,   // ✅ AGGIUNTO: Path Storage logo
         timestamp: new Date().toISOString(),
         deviceId: generateDeviceId(),
         deviceName: getDeviceName(),
@@ -4479,6 +4639,7 @@ const SoccerTeamTracker = () => {
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
       if (data.appTitle) setAppTitle(data.appTitle);                             // ✅ AGGIUNTO: Titolo app
       if (data.teamLogo) setTeamLogo(data.teamLogo);                             // ✅ AGGIUNTO: Logo squadra
+      if (data.teamLogoStorageUrl) setTeamLogoStorageUrl(data.teamLogoStorageUrl); // ✅ AGGIUNTO: Path Storage logo
       
       // Log DOPO aver settato gli state
       console.log('✅ State AGGIORNATI dopo caricamento cloud:', {
@@ -4498,7 +4659,8 @@ const SoccerTeamTracker = () => {
         squadreGirone: data.squadreGirone || [],              // ✅ AGGIUNTO
         risultatiCampionato: data.risultatiCampionato || [],  // ✅ AGGIUNTO
         appTitle: data.appTitle || appTitle,                  // ✅ AGGIUNTO: Titolo app
-        teamLogo: data.teamLogo || teamLogo                   // ✅ AGGIUNTO: Logo squadra
+        teamLogo: data.teamLogo || teamLogo,                  // ✅ AGGIUNTO: Logo squadra
+        teamLogoStorageUrl: data.teamLogoStorageUrl || ''     // ✅ AGGIUNTO: Path Storage logo
       });
       
       showToast('✅ Dati caricati da cloud!', 'success');
@@ -11408,10 +11570,10 @@ const SoccerTeamTracker = () => {
                                 {training.foto.map((foto) => (
                                   <div key={foto.id} className="relative group">
                                     <img
-                                      src={foto.data}
+                                      src={foto.url || foto.data}
                                       alt="Foto allenamento"
                                       className="w-full h-48 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                      onClick={() => setEnlargedPhoto(foto.data)}
+                                      onClick={() => setEnlargedPhoto(foto.url || foto.data)}
                                     />
                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                       {userRole === 'admin' && (
@@ -12095,10 +12257,10 @@ const SoccerTeamTracker = () => {
                                 {match.foto.map((foto) => (
                                   <div key={foto.id} className="relative group">
                                     <img
-                                      src={foto.data}
+                                      src={foto.url || foto.data}
                                       alt="Foto partita"
                                       className="w-full h-48 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
-                                      onClick={() => setEnlargedPhoto(foto.data)}
+                                      onClick={() => setEnlargedPhoto(foto.url || foto.data)}
                                     />
                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                       {userRole === 'admin' && (
@@ -17277,28 +17439,43 @@ const SoccerTeamTracker = () => {
 
         {enlargedPhoto && (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[100] p-4"
+            className="fixed inset-0 bg-black bg-opacity-95 flex flex-col items-center justify-center z-[100] p-4"
             onClick={() => setEnlargedPhoto(null)}
           >
-            <div className="relative max-w-4xl max-h-[90vh] w-full">
+            {/* Header con bottone chiudi e nome (se presente) */}
+            <div className="w-full max-w-6xl flex justify-between items-center mb-4 px-4">
+              {/* Nome giocatore (solo per foto profilo) */}
+              {typeof enlargedPhoto === 'object' && enlargedPhoto.nome ? (
+                <div className="text-white text-2xl font-bold">
+                  {enlargedPhoto.nome}
+                </div>
+              ) : (
+                <div></div>
+              )}
+              
+              {/* Bottone chiudi */}
               <button 
                 onClick={() => setEnlargedPhoto(null)}
-                className="absolute -top-12 right-0 text-white text-4xl font-bold hover:text-gray-300 transition-colors"
+                className="text-white text-5xl font-bold hover:text-gray-300 transition-colors leading-none"
+                title="Chiudi"
               >
                 ✕
               </button>
-              {/* Nome giocatore (solo per foto profilo) */}
-              {typeof enlargedPhoto === 'object' && enlargedPhoto.nome && (
-                <div className="absolute -top-12 left-0 text-white text-xl font-semibold">
-                  {enlargedPhoto.nome}
-                </div>
-              )}
+            </div>
+            
+            {/* Immagine ingrandita */}
+            <div className="relative w-full max-w-6xl max-h-[85vh] flex items-center justify-center">
               <img 
                 src={typeof enlargedPhoto === 'string' ? enlargedPhoto : enlargedPhoto.foto} 
                 alt={typeof enlargedPhoto === 'object' && enlargedPhoto.nome ? enlargedPhoto.nome : 'Foto'} 
-                className="w-full h-full object-contain rounded-lg"
+                className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               />
+            </div>
+            
+            {/* Footer con istruzioni */}
+            <div className="mt-4 text-white text-sm opacity-70">
+              Click fuori dall'immagine o sulla ✕ per chiudere
             </div>
           </div>
         )}
@@ -17697,10 +17874,10 @@ const SoccerTeamTracker = () => {
                       {photoModalTraining.foto.map((foto) => (
                         <div key={foto.id} className="relative group">
                           <img
-                            src={foto.data}
+                            src={foto.url || foto.data}
                             alt="Foto allenamento"
                             className="w-full h-64 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => setEnlargedPhoto(foto.data)}
+                            onClick={() => setEnlargedPhoto(foto.url || foto.data)}
                           />
                           <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-sm px-3 py-1 rounded">
                             {new Date(foto.timestamp).toLocaleDateString('it-IT', {
@@ -17802,10 +17979,10 @@ const SoccerTeamTracker = () => {
                       {photoModalMatch.foto.map((foto) => (
                         <div key={foto.id} className="relative group">
                           <img
-                            src={foto.data}
+                            src={foto.url || foto.data}
                             alt="Foto partita"
                             className="w-full h-64 object-cover rounded-lg shadow-lg cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => setEnlargedPhoto(foto.data)}
+                            onClick={() => setEnlargedPhoto(foto.url || foto.data)}
                           />
                           <div className="absolute bottom-2 left-2 bg-black bg-opacity-70 text-white text-sm px-3 py-1 rounded">
                             {new Date(foto.timestamp).toLocaleDateString('it-IT', {
