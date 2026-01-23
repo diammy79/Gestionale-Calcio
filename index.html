@@ -17287,14 +17287,15 @@ const SoccerTeamTracker = () => {
               >
                 ✕
               </button>
-              {enlargedPhoto.nome && (
+              {/* Nome giocatore (solo per foto profilo) */}
+              {typeof enlargedPhoto === 'object' && enlargedPhoto.nome && (
                 <div className="absolute -top-12 left-0 text-white text-xl font-semibold">
                   {enlargedPhoto.nome}
                 </div>
               )}
               <img 
-                src={enlargedPhoto.foto} 
-                alt={enlargedPhoto.nome || 'Giocatore'} 
+                src={typeof enlargedPhoto === 'string' ? enlargedPhoto : enlargedPhoto.foto} 
+                alt={typeof enlargedPhoto === 'object' && enlargedPhoto.nome ? enlargedPhoto.nome : 'Foto'} 
                 className="w-full h-full object-contain rounded-lg"
                 onClick={(e) => e.stopPropagation()}
               />
