@@ -1,0 +1,60 @@
+<svg width="1125" height="2436" viewBox="0 0 1125 2436" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradiente di sfondo blu identico al manifest originale -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e40af;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#1c3d99;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e3a8a;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Filtro ombra per il pallone -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="10"/>
+      <feOffset dx="0" dy="10" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.3"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Sfondo gradiente -->
+  <rect width="1125" height="2436" fill="url(#bgGradient)"/>
+  
+  <!-- Cerchio spinner -->
+  <circle cx="562.5" cy="1100" r="80" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="6"/>
+  <circle cx="562.5" cy="1100" r="80" fill="none" stroke="#ffffff" stroke-width="6" 
+          stroke-dasharray="251.2" stroke-dashoffset="188.4" 
+          transform="rotate(-90 562.5 1100)">
+    <animateTransform attributeName="transform" type="rotate" 
+                      from="0 562.5 1100" to="360 562.5 1100" 
+                      dur="1s" repeatCount="indefinite"/>
+  </circle>
+  
+  <!-- Pallone emoji -->
+  <text x="562.5" y="1130" font-size="120" text-anchor="middle" filter="url(#shadow)">⚽</text>
+  
+  <!-- Testo "Caricamento app..." -->
+  <text x="562.5" y="1280" font-family="system-ui, -apple-system, sans-serif" 
+        font-size="36" font-weight="600" fill="white" text-anchor="middle" opacity="0.9">
+    Caricamento app...
+  </text>
+  
+  <!-- Titolo: "Moreschi Roberto - Gestionale Calcio" -->
+  <text x="562.5" y="1360" font-family="system-ui, -apple-system, sans-serif" 
+        font-size="52" font-weight="700" fill="rgba(255,255,255,0.95)" text-anchor="middle"
+        style="text-shadow: 2px 2px 4px rgba(0,0,0,0.3)">
+    <tspan fill="#fbbf24" font-weight="800">Moreschi Roberto</tspan>
+    <tspan dx="10">-</tspan>
+    <tspan dx="10">Gestionale Calcio</tspan>
+  </text>
+  
+  <!-- Copyright -->
+  <text x="562.5" y="1450" font-family="system-ui, -apple-system, sans-serif" 
+        font-size="24" font-weight="400" fill="rgba(255,255,255,0.6)" text-anchor="middle">
+    © 2026 - Tutti i diritti riservati
+  </text>
+</svg>
