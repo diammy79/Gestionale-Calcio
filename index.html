@@ -29,7 +29,7 @@
       overscroll-behavior-y: contain; /* Disabilita pull-to-refresh su mobile */
       -webkit-overflow-scrolling: touch; /* Smooth scrolling iOS */
       /* 🔵 SFONDO BLU FISSO - elimina schermata bianca iniziale */
-      background: linear-gradient(135deg, #2563eb 0%, #1e40af 50%, #1e3a8a 100%);
+      background: linear-gradient(135deg, #1e40af 0%, #1c3d99 50%, #1e3a8a 100%);
       background-attachment: fixed;
     }
     
@@ -1404,7 +1404,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: linear-gradient(135deg, #2563eb 0%, #1e40af 50%, #1e3a8a 100%);
+      background: linear-gradient(135deg, #1e40af 0%, #1c3d99 50%, #1e3a8a 100%);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -1656,6 +1656,26 @@
   <meta name="theme-color" content="#1a56db">
   <meta name="description" content="Gestionale Calcio - Gestione Squadra Completa">
   <link rel="manifest" href="manifest.json">
+  
+  <!-- iOS Splash Screens -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gestionale Calcio">
+  
+  <!-- iPhone X/11/12/13/14 (1125x2436) -->
+  <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" href="splash-iphone-x.png">
+  
+  <!-- iPhone XS Max/11 Pro Max/12 Pro Max/13 Pro Max/14 Plus (1242x2688) -->
+  <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" href="splash-iphone-max.png">
+  
+  <!-- iPhone XR/11 (828x1792) -->
+  <link rel="apple-touch-startup-image" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" href="splash-iphone-xr.png">
+  
+  <!-- iPhone 6/7/8 (750x1334) -->
+  <link rel="apple-touch-startup-image" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" href="splash-iphone-8.png">
+  
+  <!-- Fallback icon -->
+  <link rel="apple-touch-icon" href="icon-512.png">
   
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
