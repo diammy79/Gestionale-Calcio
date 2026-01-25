@@ -2017,6 +2017,7 @@ const SoccerTeamTracker = () => {
   const [dragState, setDragState] = useState(null); // Per tracciare drag offset
   const [matchEnded, setMatchEnded] = useState(false);
   const [appTitle, setAppTitle] = useState('Moreschi Roberto - Gestionale squadra');
+  const [teamName, setTeamName] = useState(''); // Nome squadra per identificare casa/trasferta
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [enlargedPhoto, setEnlargedPhoto] = useState(null);
   const [halfTime, setHalfTime] = useState(1);
@@ -2219,6 +2220,7 @@ const SoccerTeamTracker = () => {
           setTrainings(savedData.trainings || []);
           setMatches(savedData.matches || []);
           setAppTitle(savedData.appTitle || appTitle);
+          setTeamName(savedData.teamName || '');
           setTeamLogo(savedData.teamLogo || '');
           setTeamLogoStorageUrl(savedData.teamLogoStorageUrl || '');
           setInjuries(savedData.injuries || []);
@@ -2278,6 +2280,7 @@ const SoccerTeamTracker = () => {
         trainings,
         matches,
         appTitle,
+        teamName,
         teamLogo,
         teamLogoStorageUrl,
         injuries,
@@ -2293,7 +2296,7 @@ const SoccerTeamTracker = () => {
     };
     
     saveData();
-  }, [players, trainings, matches, appTitle, teamLogo, teamLogoStorageUrl, injuries, squadreGirone, risultatiCampionato, isLoading]);
+  }, [players, trainings, matches, appTitle, teamName, teamLogo, teamLogoStorageUrl, injuries, squadreGirone, risultatiCampionato, isLoading]);
 
   // ========== CARICAMENTO DATA ULTIMO BACKUP ==========
   useEffect(() => {
@@ -2824,6 +2827,42 @@ const SoccerTeamTracker = () => {
 
   const handleCancelExit = () => {
     setShowExitModal(false);
+  };
+
+  // ========== FUNZIONE HELPER: MATCHING INTELLIGENTE CASA/TRASFERTA ==========
+  /**
+   * Determina se la squadra gioca in casa o trasferta
+   * @param {Object} match - L'oggetto partita
+   * @returns {boolean} - true se giochi in casa, false se in trasferta
+   */
+  const isTeamPlayingHome = (match) => {
+    // Se non c'è teamName configurato, usa campo luogo come fallback
+    if (!teamName || !teamName.trim()) {
+      return match.luogo === 'Casa';
+    }
+    
+    // Match esatto con squadraCasa
+    if (match.squadraCasa && match.squadraCasa.toLowerCase().trim() === teamName.toLowerCase().trim()) {
+      return true;
+    }
+    
+    // Match parziale intelligente (almeno 2 parole significative in comune)
+    if (match.squadraCasa) {
+      const teamWords = teamName.toLowerCase().trim().split(/\s+/).filter(w => w.length > 2);
+      const casaWords = match.squadraCasa.toLowerCase().trim().split(/\s+/).filter(w => w.length > 2);
+      
+      const commonWords = teamWords.filter(tw => 
+        casaWords.some(cw => cw.includes(tw) || tw.includes(cw))
+      );
+      
+      // Se ci sono almeno 2 parole in comune, consideriamo match positivo
+      if (commonWords.length >= 2) {
+        return true;
+      }
+    }
+    
+    // Fallback al campo luogo se nessun match trovato
+    return match.luogo === 'Casa';
   };
 
   const quickAddGoal = (matchId, playerNum, minuto = null) => {
@@ -4644,6 +4683,7 @@ const SoccerTeamTracker = () => {
         squadreGirone,        // ✅ AGGIUNTO: Squadre del girone
         risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
         appTitle,             // ✅ AGGIUNTO: Titolo app
+        teamName,             // ✅ AGGIUNTO: Nome squadra
         teamLogo,             // ✅ AGGIUNTO: Logo squadra
         teamLogoStorageUrl,   // ✅ AGGIUNTO: Path Storage logo
         timestamp: new Date().toISOString(),
@@ -4785,6 +4825,7 @@ const SoccerTeamTracker = () => {
       if (data.squadreGirone) setSquadreGirone(data.squadreGirone);              // ✅ AGGIUNTO
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
       if (data.appTitle) setAppTitle(data.appTitle);                             // ✅ AGGIUNTO: Titolo app
+      if (data.teamName) setTeamName(data.teamName);                             // ✅ AGGIUNTO: Nome squadra
       if (data.teamLogo) setTeamLogo(data.teamLogo);                             // ✅ AGGIUNTO: Logo squadra
       if (data.teamLogoStorageUrl) setTeamLogoStorageUrl(data.teamLogoStorageUrl); // ✅ AGGIUNTO: Path Storage logo
       
@@ -4806,6 +4847,7 @@ const SoccerTeamTracker = () => {
         squadreGirone: data.squadreGirone || [],              // ✅ AGGIUNTO
         risultatiCampionato: data.risultatiCampionato || [],  // ✅ AGGIUNTO
         appTitle: data.appTitle || appTitle,                  // ✅ AGGIUNTO: Titolo app
+        teamName: data.teamName || '',                        // ✅ AGGIUNTO: Nome squadra
         teamLogo: data.teamLogo || teamLogo,                  // ✅ AGGIUNTO: Logo squadra
         teamLogoStorageUrl: data.teamLogoStorageUrl || ''     // ✅ AGGIUNTO: Path Storage logo
       });
@@ -4875,6 +4917,7 @@ const SoccerTeamTracker = () => {
       matches,
       injuries, // ✅ AGGIUNTO
       appTitle,
+      teamName,
       teamLogo,
       exportDate: now,
       stats: {
@@ -4936,6 +4979,7 @@ const SoccerTeamTracker = () => {
         
         // Ripristina impostazioni
         if (data.appTitle) setAppTitle(data.appTitle);
+        if (data.teamName) setTeamName(data.teamName);
         if (data.teamLogo) setTeamLogo(data.teamLogo);
         if (data.infoPartita) setInfoPartita(data.infoPartita);
         if (data.moduloTattico) setModuloTattico(data.moduloTattico);
@@ -4990,6 +5034,7 @@ const SoccerTeamTracker = () => {
       
       // Ripristina impostazioni
       if (data.appTitle) setAppTitle(data.appTitle);
+      if (data.teamName) setTeamName(data.teamName);
       if (data.teamLogo) setTeamLogo(data.teamLogo);
       if (data.infoPartita) setInfoPartita(data.infoPartita);
       if (data.moduloTattico) setModuloTattico(data.moduloTattico);
@@ -8047,6 +8092,7 @@ const SoccerTeamTracker = () => {
       version: '3.0', // ⬆️ Versione aggiornata per backup completo
       exportDate: now,
       appTitle,
+      teamName,
       teamLogo,
       players,
       trainings,
@@ -9220,6 +9266,70 @@ const SoccerTeamTracker = () => {
                   />
                 ) : (
                   <h1 className="text-xl md:text-3xl font-bold text-gray-800 break-words">{appTitle}</h1>
+                )}
+                
+                {/* Campo Nome Squadra - Solo Admin */}
+                {userRole === 'admin' && (
+                  <div className="mt-3">
+                    <label className="text-xs md:text-sm text-gray-600 mb-1 block font-semibold">
+                      ⚽ Nome Squadra (per identificare casa/trasferta)
+                    </label>
+                    <input
+                      type="text"
+                      list="squadre-girone-list"
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                      placeholder="Seleziona o digita il nome della tua squadra..."
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm md:text-base focus:border-blue-500 focus:outline-none"
+                    />
+                    <datalist id="squadre-girone-list">
+                      {squadreGirone.map((squadra, idx) => (
+                        <option key={idx} value={squadra.nome} />
+                      ))}
+                    </datalist>
+                    
+                    {/* Validazione Live */}
+                    {teamName && (
+                      <div className="mt-1 text-xs md:text-sm">
+                        {squadreGirone.some(s => s.nome === teamName) ? (
+                          <span className="text-green-600 font-semibold">✅ Trovata in campionato</span>
+                        ) : (
+                          (() => {
+                            // Trova match parziale intelligente
+                            const teamLower = teamName.toLowerCase().trim();
+                            const suggestions = squadreGirone.filter(s => {
+                              const squadraLower = s.nome.toLowerCase().trim();
+                              return squadraLower.includes(teamLower) || teamLower.includes(squadraLower);
+                            });
+                            
+                            if (suggestions.length > 0) {
+                              return (
+                                <span className="text-orange-600">
+                                  ⚠️ Non trovata. Intendevi:{' '}
+                                  {suggestions.map((s, idx) => (
+                                    <button
+                                      key={idx}
+                                      onClick={() => setTeamName(s.nome)}
+                                      className="text-blue-600 hover:underline font-semibold ml-1"
+                                    >
+                                      "{s.nome}"
+                                    </button>
+                                  ))}
+                                  ?
+                                </span>
+                              );
+                            } else {
+                              return (
+                                <span className="text-red-600">
+                                  ❌ Non trovata nel campionato. Aggiungi prima la squadra nel girone.
+                                </span>
+                              );
+                            }
+                          })()
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -14632,14 +14742,13 @@ const SoccerTeamTracker = () => {
                         const nuoviConvocati = new Set(convocatiNomi);
                         setConvocati(nuoviConvocati);
                         
-                        // Determina se la partita è in casa o trasferta
-                        const realDorInCasa = (match.squadraCasa && match.squadraCasa.toLowerCase().includes('real dor')) ||
-                                              (match.squadraCasa && match.squadraCasa.toLowerCase().includes('brescia'));
+                        // Determina se la partita è in casa o trasferta usando funzione helper
+                        const siamoInCasa = isTeamPlayingHome(match);
                         
-                        console.log('   Real DOR in casa?', realDorInCasa);
+                        console.log('   Squadra in casa?', siamoInCasa);
                         
                         // Pre-compila info partita con automazione casa/trasferta
-                        if (realDorInCasa) {
+                        if (siamoInCasa) {
                           console.log('   ⚽ PARTITA IN CASA - Pre-compilazione automatica');
                           setInfoPartita({
                             squadra1: match.squadraCasa || appTitle,
@@ -14660,7 +14769,7 @@ const SoccerTeamTracker = () => {
                         }
                         
                         // Toast feedback
-                        const tipoPartita = realDorInCasa ? '🏠 Casa' : '🚌 Trasferta';
+                        const tipoPartita = siamoInCasa ? '🏠 Casa' : '🚌 Trasferta';
                         showToast(`✅ Caricati ${nuoviConvocati.size} convocati! ${tipoPartita}`, 'success');
                       }}
                       disabled={!selectedMatchForConvocazioni || userRole !== 'admin'}
@@ -14910,6 +15019,19 @@ const SoccerTeamTracker = () => {
                   </p>
                 </div>
 
+                <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-4">
+                  <h4 className="font-bold text-blue-800 mb-2">⚽ IMPORTANTE: NOME SQUADRA</h4>
+                  <p className="text-blue-900 text-sm mb-2">
+                    <strong>Per visualizzare correttamente i risultati casa/trasferta</strong>, imposta il "Nome Squadra" nell'header in alto.
+                  </p>
+                  <ul className="list-disc ml-6 text-sm text-blue-900 space-y-1">
+                    <li><strong>Il nome DEVE coincidere</strong> con quello inserito nella Classifica Campionato</li>
+                    <li>Esempio: se nel girone hai "Real DOR Brescia", usa esattamente "Real DOR Brescia"</li>
+                    <li>L'app ti suggerirà automaticamente i nomi disponibili mentre digiti</li>
+                    <li>Validazione live: ✅ Verde = trovato, ⚠️ Arancione = suggerimento, ❌ Rosso = non trovato</li>
+                  </ul>
+                </div>
+
                 <div className="border-l-4 border-blue-500 pl-4">
                   <h4 className="font-bold text-blue-800 mb-3 text-lg">📊 1. DASHBOARD</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
@@ -14924,7 +15046,7 @@ const SoccerTeamTracker = () => {
                 <div className="border-l-4 border-yellow-500 pl-4">
                   <h4 className="font-bold text-yellow-800 mb-3 text-lg">🥇 2. CLASSIFICA CAMPIONATO</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Gestione girone:</strong> Aggiungi tutte le squadre del campionato</li>
+                    <li><strong>Gestione girone:</strong> Aggiungi tutte le squadre del campionato (inclusa la tua squadra!)</li>
                     <li><strong>Risultati giornata:</strong> Inserisci i risultati per ogni giornata</li>
                     <li><strong>Classifica automatica:</strong> Punteggi, differenza reti, vittorie/pareggi/sconfitte</li>
                     <li><strong>Import veloce:</strong> Importa risultati dalle tue partite salvate</li>
@@ -15258,6 +15380,12 @@ const SoccerTeamTracker = () => {
                         .map((m, idx) => {
                           const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
                           const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+                          
+                          // Determina se siamo casa o trasferta usando funzione helper
+                          const siamoInCasa = isTeamPlayingHome(m);
+                          
+                          // Calcola esito basandosi sulla nostra prospettiva
+                          // golFatti = nostri gol, golSubiti = gol avversario (già salvati correttamente)
                           const risultato = golFatti > golSubiti ? 'Vittoria' : golFatti === golSubiti ? 'Pareggio' : 'Sconfitta';
                           const esitoColor = risultato === 'Vittoria' ? 'bg-green-50 text-green-700' : risultato === 'Pareggio' ? 'bg-yellow-50 text-yellow-700' : 'bg-red-50 text-red-700';
                           const esitoIcon = risultato === 'Vittoria' ? '✅' : risultato === 'Pareggio' ? '🟡' : '❌';
@@ -15275,7 +15403,16 @@ const SoccerTeamTracker = () => {
                                 </div>
                               </td>
                               <td className="p-3 text-center">
-                                <span className="text-lg font-bold text-gray-800">{golFatti} - {golSubiti}</span>
+                                <span className="text-lg font-bold text-gray-800">
+                                  {(() => {
+                                    // Calcola gol casa e trasferta per visualizzazione
+                                    const golCasa = siamoInCasa ? golFatti : golSubiti;
+                                    const golTrasferta = siamoInCasa ? golSubiti : golFatti;
+                                    
+                                    return `${golCasa} - ${golTrasferta}`;
+                                  })()}
+                                  })()}
+                                </span>
                               </td>
                               <td className="p-3 text-center">
                                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-bold ${esitoColor}`}>
@@ -15394,9 +15531,9 @@ const SoccerTeamTracker = () => {
                                   📊 {(() => {
                                     const golFatti = Object.values(match.golFatti || {}).reduce((sum, gol) => sum + parseInt(gol || 0), 0);
                                     const golSubiti = Object.values(match.golSubiti || {}).reduce((sum, gol) => sum + parseInt(gol || 0), 0);
-                                    const realDorInCasa = match.squadraCasa && match.squadraCasa.toLowerCase().includes('real dor');
-                                    const golCasa = realDorInCasa ? golFatti : golSubiti;
-                                    const golTrasferta = realDorInCasa ? golSubiti : golFatti;
+                                    const siamoInCasa = isTeamPlayingHome(match);
+                                    const golCasa = siamoInCasa ? golFatti : golSubiti;
+                                    const golTrasferta = siamoInCasa ? golSubiti : golFatti;
                                     return `${golCasa} - ${golTrasferta}`;
                                   })()}
                                 </div>
@@ -15416,9 +15553,9 @@ const SoccerTeamTracker = () => {
                               {matchEnded && (() => {
                                 const golFatti = Object.values(match.golFatti || {}).reduce((sum, gol) => sum + parseInt(gol || 0), 0);
                                 const golSubiti = Object.values(match.golSubiti || {}).reduce((sum, gol) => sum + parseInt(gol || 0), 0);
-                                const realDorInCasa = match.squadraCasa && match.squadraCasa.toLowerCase().includes('real dor');
-                                const golCasa = realDorInCasa ? golFatti : golSubiti;
-                                const golTrasferta = realDorInCasa ? golSubiti : golFatti;
+                                const siamoInCasa = isTeamPlayingHome(match);
+                                const golCasa = siamoInCasa ? golFatti : golSubiti;
+                                const golTrasferta = siamoInCasa ? golSubiti : golFatti;
                                 const abbiamovinto = golCasa > golTrasferta;
                                 
                                 if (abbiamovinto) {
