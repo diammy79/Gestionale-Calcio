@@ -9293,7 +9293,7 @@ const SoccerTeamTracker = () => {
                     <img 
                       src={teamLogo} 
                       alt="Logo squadra" 
-                      className="w-16 h-16 md:w-32 md:h-32 object-contain rounded-lg"
+                      className="w-20 h-20 md:w-32 md:h-32 object-contain rounded-lg"
                     />
                     {userRole === 'admin' && (
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-lg transition-all flex items-center justify-center gap-1">
@@ -9317,7 +9317,7 @@ const SoccerTeamTracker = () => {
                   </div>
                 ) : (
                   userRole === 'admin' ? (
-                    <label className="w-16 h-16 md:w-32 md:h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all group">
+                    <label className="w-20 h-20 md:w-32 md:h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all group">
                       <input
                         type="file"
                         accept="image/*"
@@ -9330,7 +9330,7 @@ const SoccerTeamTracker = () => {
                       </div>
                     </label>
                   ) : (
-                    <div className="w-16 h-16 md:w-32 md:h-32 border-2 border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
+                    <div className="w-20 h-20 md:w-32 md:h-32 border-2 border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
                       <div className="text-2xl md:text-4xl text-gray-400">🖼️</div>
                     </div>
                   )
