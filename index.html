@@ -4654,13 +4654,23 @@ const SoccerTeamTracker = () => {
    * Salva dati su cloud Firebase
    */
   const saveDataToCloud = async (silent = false) => {
+    // 🔍 LOG DEBUG PRIMISSIMO - Verifica se funzione viene chiamata
+    console.log('🚀 saveDataToCloud CHIAMATA!', { 
+      silent, 
+      userPresente: !!user, 
+      teamIdPresente: !!teamId,
+      teamNameAttuale: teamName || '(vuoto)'
+    });
+    
     if (!user) {
       console.error('❌ saveDataToCloud: user non presente');
+      showToast('❌ Devi essere autenticato per salvare su cloud', 'error');
       return;
     }
     
     if (!teamId) {
       console.error('❌ saveDataToCloud: teamId non presente');
+      showToast('❌ Team ID non trovato', 'error');
       return;
     }
     
@@ -5164,6 +5174,7 @@ const SoccerTeamTracker = () => {
         trainings,
         matches,
         appTitle,
+        teamName,          // ✅ AGGIUNTO: Nome squadra
         teamLogo,
         injuries,
         squadreGirone,
@@ -5174,6 +5185,17 @@ const SoccerTeamTracker = () => {
 
       // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
       const cleanedData = cleanUndefinedFields(dataToSync);
+
+      console.log('📤 SYNC TO FIRESTORE - Dati da salvare:', {
+        players: cleanedData.players?.length || 0,
+        trainings: cleanedData.trainings?.length || 0,
+        matches: cleanedData.matches?.length || 0,
+        appTitle: cleanedData.appTitle,
+        teamName: cleanedData.teamName || '(vuoto)',  // ✅ LOG DEBUG
+        hasTeamLogo: !!cleanedData.teamLogo,
+        squadreGirone: cleanedData.squadreGirone?.length || 0,
+        risultatiCampionato: cleanedData.risultatiCampionato?.length || 0
+      });
 
       // Salva su Firestore (con Storage, le foto sono URL quindi documento leggero)
       await db.collection('teamData').doc(user.uid).set(cleanedData, { merge: true });
@@ -5313,6 +5335,10 @@ const SoccerTeamTracker = () => {
         setMatches(cloudData.matches);
       }
       if (cloudData.appTitle) setAppTitle(cloudData.appTitle);
+      if (cloudData.hasOwnProperty('teamName')) {
+        console.log('   ✅ Carico Team Name:', cloudData.teamName || '(vuoto)');
+        setTeamName(cloudData.teamName || '');
+      }
       if (cloudData.teamLogo) setTeamLogo(cloudData.teamLogo);
       if (cloudData.injuries) {
         console.log('   ✅ Carico Injuries:', cloudData.injuries.length);
