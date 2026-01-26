@@ -1728,7 +1728,7 @@ try {
     console.log('Persistenza:', err.code);
   });
 } catch (error) {
-  console.error('Errore inizializzazione Firebase:', error);
+  console.error('Errore inizializzazione cloud:', error);
 }
 
 // ============================================
@@ -2248,14 +2248,14 @@ const SoccerTeamTracker = () => {
         return;
       }
 
-      console.log('🔄 Migrazione logo a Firebase Storage...');
+      console.log('🔄 Migrazione logo su cloud...');
       
       try {
         // Converti base64 a blob
         const response = await fetch(teamLogo);
         const blob = await response.blob();
         
-        // Upload su Firebase Storage
+        // Upload su cloud
         const storageRef = storage.ref();
         const fileName = `team-logos/${user.uid}/logo_migrated_${Date.now()}.png`;
         const fileRef = storageRef.child(fileName);
@@ -2267,7 +2267,7 @@ const SoccerTeamTracker = () => {
         setTeamLogo(downloadURL);
         
         console.log('✅ Logo migrato su Storage:', downloadURL);
-        showToast('✅ Logo migrato su cloud Storage!', 'success');
+        showToast('✅ Logo migrato su cloud!', 'success');
         
       } catch (error) {
         console.error('❌ Errore migrazione logo:', error);
@@ -3150,7 +3150,7 @@ const SoccerTeamTracker = () => {
     }
 
     if (!user) {
-      alert('❌ Devi essere autenticato per caricare foto su Firebase Storage');
+      alert('❌ Devi essere autenticato per caricare foto su cloud');
       e.target.value = '';
       return;
     }
@@ -3201,7 +3201,7 @@ const SoccerTeamTracker = () => {
         reader.readAsDataURL(file);
       });
 
-      // Upload su Firebase Storage
+      // Upload su cloud
       const storageRef = storage.ref();
       const fileName = `players/${user.uid}/${numero}_${Date.now()}.jpg`;
       const fileRef = storageRef.child(fileName);
@@ -3317,7 +3317,7 @@ const SoccerTeamTracker = () => {
         }
       }
 
-      // Upload su Firebase Storage
+      // Upload su cloud
       const storageRef = storage.ref();
       const fileName = `team-logos/${user.uid}/logo_${Date.now()}.png`;
       const fileRef = storageRef.child(fileName);
@@ -3599,7 +3599,7 @@ const SoccerTeamTracker = () => {
 
     // Verifica autenticazione
     if (!user) {
-      showToast('❌ Devi essere autenticato per caricare foto su Firebase Storage', 'error');
+      showToast('❌ Devi essere autenticato per caricare foto su cloud', 'error');
       e.target.value = '';
       return;
     }
@@ -3654,7 +3654,7 @@ const SoccerTeamTracker = () => {
         reader.readAsDataURL(file);
       });
 
-      // Upload su Firebase Storage
+      // Upload su cloud
       const storageRef = storage.ref();
       const fileName = `training-photos/${user.uid}/${trainingId}_${Date.now()}.jpg`;
       const fileRef = storageRef.child(fileName);
@@ -3804,7 +3804,7 @@ const SoccerTeamTracker = () => {
 
       setLoadingProgress(30);
 
-      // Upload su Firebase Storage
+      // Upload su cloud
       const storageRef = storage.ref();
       const photoId = Date.now();
       const fileName = `match-photos/${user.uid}/${matchId}_${photoId}.jpg`;
@@ -4722,7 +4722,7 @@ const SoccerTeamTracker = () => {
     }
     
     try {
-      console.log('📤 Inizio preparazione dati per Firebase...', {
+      console.log('📤 Inizio preparazione dati per cloud...', {
         userId: user.uid,
         teamId: teamId,
         saveLocation: `teamData/${teamId}`
@@ -4766,13 +4766,13 @@ const SoccerTeamTracker = () => {
         timestamp: data.timestamp
       });
       
-      // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
+      // CRITICAL: Pulisci tutti gli undefined prima di salvare su cloud
       const cleanedData = cleanUndefinedFields(data);
       
-      console.log('🧹 Dati puliti, invio a Firebase...');
+      console.log('🧹 Dati puliti, invio a cloud...');
       // ⚠️ USA TEAMID invece di user.uid
       await db.collection('teamData').doc(teamId).set(cleanedData);
-      console.log('✅ Firebase set() completato con successo!');
+      console.log('✅ Salvataggio cloud completato con successo!');
       
       if (!silent) {
         showToast('✅ Dati salvati su cloud!', 'success');
@@ -4812,7 +4812,7 @@ const SoccerTeamTracker = () => {
     }
     
     try {
-      console.log('📡 Inizio caricamento da Firebase...', {
+      console.log('📡 Inizio caricamento da cloud...', {
         userId: userToUse.uid,
         teamId: teamIdToUse,
         loadLocation: `teamData/${teamIdToUse}`,
@@ -4823,7 +4823,7 @@ const SoccerTeamTracker = () => {
       // ⚠️ USA TEAMID invece di user.uid
       const doc = await db.collection('teamData').doc(teamIdToUse).get();
       
-      console.log('📄 Documento Firebase ricevuto:', {
+      console.log('📄 Documento cloud ricevuto:', {
         exists: doc.exists,
         id: doc.id
       });
@@ -5231,7 +5231,7 @@ const SoccerTeamTracker = () => {
         userId: user.uid
       };
 
-      // CRITICAL: Pulisci tutti gli undefined prima di salvare su Firestore
+      // CRITICAL: Pulisci tutti gli undefined prima di salvare su cloud
       const cleanedData = cleanUndefinedFields(dataToSync);
 
       console.log('📤 SYNC TO FIRESTORE - Dati da salvare:', {
@@ -5247,7 +5247,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato: cleanedData.risultatiCampionato?.length || 0
       });
 
-      // Salva su Firestore (con Storage, le foto sono URL quindi documento leggero)
+      // Salva su cloud (con Storage, le foto sono URL quindi documento leggero)
       await db.collection('teamData').doc(user.uid).set(cleanedData, { merge: true });
       
       setLastSynced(new Date());
@@ -5294,7 +5294,7 @@ const SoccerTeamTracker = () => {
       setSyncStatus('syncing');
       setSyncError('');
       
-      console.log('📡 Connessione a Firestore...');
+      console.log('📡 Connessione al database cloud...');
       const docRef = db.collection('teamData').doc(user.uid);
       const doc = await docRef.get();
       
@@ -5590,7 +5590,7 @@ const SoccerTeamTracker = () => {
 
     setLoadingUsers(true);
     try {
-      // Carica utenti da Firestore (contiene ruoli)
+      // Carica utenti da database cloud (contiene ruoli)
       const usersSnapshot = await db.collection('users').get();
       const usersData = [];
       
@@ -5647,7 +5647,7 @@ const SoccerTeamTracker = () => {
       // CRITICO: Ora sei loggato come il NUOVO utente, non più come admin!
       // Ma possiamo comunque scrivere perché usiamo l'UID che abbiamo appena creato
       
-      // Salva ruolo in Firestore
+      // Salva ruolo nel database cloud
       await db.collection('users').doc(newUser.uid).set({
         email: newUserEmail,
         role: newUserRole,
@@ -5678,7 +5678,7 @@ const SoccerTeamTracker = () => {
       } else if (error.code === 'auth/weak-password') {
         errorMsg = 'Password troppo debole';
       } else if (error.code === 'permission-denied') {
-        errorMsg = 'Errore permessi Firestore. Controlla le regole!';
+        errorMsg = 'Errore permessi database. Contatta l\'amministratore!';
       }
       showToast('❌ ' + errorMsg, 'error');
     } finally {
@@ -5766,16 +5766,16 @@ const SoccerTeamTracker = () => {
       return;
     }
 
-    if (!window.confirm(`⚠️ ATTENZIONE!\n\nEliminare utente?\nEmail: ${userEmail}\n\nQuesta azione rimuoverà il ruolo da Firestore.\nPer eliminare completamente l'account, vai su Firebase Console → Authentication.`)) {
+    if (!window.confirm(`⚠️ ATTENZIONE!\n\nEliminare utente?\nEmail: ${userEmail}\n\nQuesta azione rimuoverà il ruolo dal database cloud.\nPer eliminare completamente l'account, contatta l'amministratore.`)) {
       return;
     }
 
     setUserActionLoading(true);
     try {
-      // Elimina documento da Firestore
+      // Elimina documento dal database cloud
       await db.collection('users').doc(userId).delete();
 
-      showToast('✅ Utente rimosso da Firestore', 'success');
+      showToast('✅ Utente rimosso dal database', 'success');
       
       // Ricarica lista
       await loadAllUsers();
@@ -6592,11 +6592,11 @@ const SoccerTeamTracker = () => {
     const playersWithBase64 = players.filter(p => p.foto && !p.foto.startsWith('https://'));
     
     if (playersWithBase64.length === 0) {
-      showToast('✅ Tutte le foto sono già su Firebase Storage!', 'success');
+      showToast('✅ Tutte le foto sono già su cloud!', 'success');
       return;
     }
     
-    if (!window.confirm(`🚀 Vuoi migrare ${playersWithBase64.length} foto su Firebase Storage?\n\nQuesta operazione:\n✅ Libera spazio nel database Firestore\n✅ Migliora le prestazioni\n✅ Permette sync senza problemi limite 1MB\n✅ Foto qualità migliore (300x300px)\n\n⚠️ Richiede connessione internet\n⚠️ Durata: ~1-2 minuti per 30 foto`)) {
+    if (!window.confirm(`🚀 Vuoi migrare ${playersWithBase64.length} foto su cloud?\n\nQuesta operazione:\n✅ Libera spazio nel database\n✅ Migliora le prestazioni\n✅ Permette sync senza problemi\n✅ Foto qualità migliore (300x300px)\n\n⚠️ Richiede connessione internet\n⚠️ Durata: ~1-2 minuti per 30 foto`)) {
       return;
     }
     
@@ -6640,7 +6640,7 @@ const SoccerTeamTracker = () => {
     
     if (errors === 0) {
       showToast(
-        `✅ Migrazione completata!\n🚀 ${migrated} foto su Firebase Storage\n💾 Database Firestore ora leggero!\n☁️ Ora puoi sincronizzare senza problemi`,
+        `✅ Migrazione completata!\n🚀 ${migrated} foto su cloud\n💾 Database ora leggero!\n☁️ Ora puoi sincronizzare senza problemi`,
         'success',
         8000
       );
@@ -9351,14 +9351,14 @@ const SoccerTeamTracker = () => {
                     autoFocus
                   />
                 ) : (
-                  <h1 className="text-xl md:text-3xl font-bold text-gray-800 break-words">{appTitle}</h1>
+                  <h1 className="text-2xl md:text-4xl font-bold text-gray-800 break-words">{appTitle}</h1>
                 )}
                 
                 {/* Campo Nome Squadra - Solo Admin */}
                 {userRole === 'admin' && (
                   <div className="mt-3">
                     <label className="text-xs md:text-sm text-gray-600 mb-1 block font-semibold">
-                      ⚽ Nome Squadra (per identificare casa/trasferta)
+                      ⚽ Scegli la tua squadra (Obbl. per calcoli corretti)
                     </label>
                     <input
                       type="text"
@@ -9366,7 +9366,7 @@ const SoccerTeamTracker = () => {
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                       placeholder="Seleziona o digita il nome della tua squadra..."
-                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-sm md:text-base focus:border-blue-500 focus:outline-none"
+                      className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg text-base md:text-lg font-bold focus:border-blue-500 focus:outline-none"
                     />
                     <datalist id="squadre-girone-list">
                       {squadreGirone.map((squadra, idx) => (
@@ -9521,9 +9521,7 @@ const SoccerTeamTracker = () => {
           <div className="hidden md:flex justify-between items-center">
             <div className="flex items-center gap-3">
               <p className="text-gray-600">Sistema di tracciamento allenamenti, partite e statistiche</p>
-              <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold badge-animated">
-                💾 Salvataggio Automatico Attivo
-              </span>
+              {/* Badge Salvataggio Automatico rimosso */}
               {lastSaved && (
                 <span className="text-xs text-gray-500">
                   Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
@@ -9574,8 +9572,8 @@ const SoccerTeamTracker = () => {
                 }
                 
                 return (
-                  <span className="text-xs text-gray-500" title={`Ultimo backup: ${new Date(lastBackupDate).toLocaleDateString('it-IT')}`}>
-                    💾 Backup OK ({daysSinceBackup === 0 ? 'oggi' : `${daysSinceBackup}gg fa`})
+                  <span className="text-xs text-gray-500" title={`Ultimo backup JSON: ${new Date(lastBackupDate).toLocaleString('it-IT')}`}>
+                    💾 Ultimo Backup locale (json): {new Date(lastBackupDate).toLocaleDateString('it-IT')} {new Date(lastBackupDate).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 );
               })()}
@@ -15314,7 +15312,7 @@ const SoccerTeamTracker = () => {
                 <div className="border-l-4 border-cyan-600 pl-4">
                   <h4 className="font-bold text-cyan-700 mb-3 text-lg">☁️ 16. SINCRONIZZAZIONE CLOUD (Solo ADMIN)</h4>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Firebase Firestore:</strong> Salva dati su cloud per condividerli</li>
+                    <li><strong>Database Cloud:</strong> Salva dati su cloud per condividerli</li>
                     <li><strong>Scarica da Cloud:</strong> Sincronizza dati dal database cloud</li>
                     <li><strong>Carica su Cloud:</strong> Invia modifiche locali al cloud</li>
                     <li><strong>Gestione conflitti:</strong> Sistema risoluzione automatica con timestamp</li>
@@ -15513,9 +15511,43 @@ const SoccerTeamTracker = () => {
                               </td>
                               <td className="p-3">
                                 <div className="font-semibold text-gray-800">
-                                  {m.squadraCasa && m.squadraTrasferta 
-                                    ? `${m.squadraCasa} vs ${m.squadraTrasferta}`
-                                    : m.avversario || m.squadraTrasferta || 'Avversario'}
+                                  {(() => {
+                                    if (m.squadraCasa && m.squadraTrasferta) {
+                                      // Funzione helper per evidenziare il nome squadra
+                                      const highlightTeamName = (squadraNome) => {
+                                        if (!teamName || !teamName.trim()) return squadraNome;
+                                        
+                                        const teamLower = teamName.toLowerCase().trim();
+                                        const squadraLower = squadraNome.toLowerCase().trim();
+                                        
+                                        // Match esatto
+                                        if (squadraLower === teamLower) {
+                                          return <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">{squadraNome}</span>;
+                                        }
+                                        
+                                        // Match parziale (almeno 2 parole in comune)
+                                        const teamWords = teamLower.split(/\s+/).filter(w => w.length > 2);
+                                        const squadraWords = squadraLower.split(/\s+/).filter(w => w.length > 2);
+                                        const commonWords = teamWords.filter(tw => 
+                                          squadraWords.some(sw => sw.includes(tw) || tw.includes(sw))
+                                        );
+                                        
+                                        if (commonWords.length >= 2) {
+                                          return <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded font-bold">{squadraNome}</span>;
+                                        }
+                                        
+                                        return squadraNome;
+                                      };
+                                      
+                                      return (
+                                        <span>
+                                          {highlightTeamName(m.squadraCasa)} vs {highlightTeamName(m.squadraTrasferta)}
+                                        </span>
+                                      );
+                                    }
+                                    
+                                    return m.avversario || m.squadraTrasferta || 'Avversario';
+                                  })()}
                                 </div>
                               </td>
                               <td className="p-3 text-center">
@@ -17574,8 +17606,8 @@ const SoccerTeamTracker = () => {
                   <ul className="text-sm text-gray-700 space-y-1">
                     <li>• <strong>Crea Utente:</strong> Ti farà logout temporaneamente. Dovrai rifare login come admin.</li>
                     <li>• <strong>Reset Password:</strong> Invia email all'utente con link per cambiare password.</li>
-                    <li>• <strong>Elimina Utente:</strong> Rimuove solo da Firestore. Per eliminare completamente, usa Firebase Console.</li>
-                    <li>• <strong>Cambio Email:</strong> Per cambiare email, usa Firebase Console → Authentication → Edit user.</li>
+                    <li>• <strong>Elimina Utente:</strong> Rimuove dal database. Per eliminare completamente, contatta l'amministratore.</li>
+                    <li>• <strong>Cambio Email:</strong> Per cambiare email, contatta l'amministratore.</li>
                   </ul>
                 </div>
               </div>
@@ -17669,17 +17701,10 @@ const SoccerTeamTracker = () => {
               <div className="flex items-start gap-3">
                 <span className="text-2xl">💡</span>
                 <div>
-                  <h4 className="font-bold text-gray-800 mb-2">Per Gestione Avanzata: Firebase Console</h4>
+                  <h4 className="font-bold text-gray-800 mb-2">Per Gestione Avanzata</h4>
                   <p className="text-sm text-gray-700 mb-2">
-                    Per operazioni avanzate come cambio email, vai su Firebase Console:
+                    Per operazioni avanzate come cambio email, elimina account o altre modifiche, contatta l'amministratore del sistema.
                   </p>
-                  <ol className="text-sm text-gray-700 space-y-1 ml-4 list-decimal">
-                    <li>Vai su <strong>console.firebase.google.com</strong></li>
-                    <li>Seleziona il progetto</li>
-                    <li>Menu → <strong>Authentication</strong> → Tab <strong>Users</strong></li>
-                    <li>Click <strong>⋮</strong> sull'utente → <strong>Edit user</strong></li>
-                    <li>Modifica email, disabilita account, o elimina completamente</li>
-                  </ol>
                 </div>
               </div>
             </div>
@@ -17989,7 +18014,7 @@ const SoccerTeamTracker = () => {
                 <div className="border-2 border-green-300 rounded-lg p-4 bg-green-50">
                   <div className="flex items-center gap-2 mb-3">
                     <span className="text-3xl">☁️</span>
-                    <h3 className="text-xl font-bold text-gray-800">Dati Cloud (Firebase)</h3>
+                    <h3 className="text-xl font-bold text-gray-800">Dati Cloud</h3>
                   </div>
                   <div className="space-y-2 text-sm mb-4">
                     <div className="flex justify-between">
