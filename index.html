@@ -12253,7 +12253,28 @@ const SoccerTeamTracker = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (userRole === 'admin') deleteMatch(match.id);
+                              if (userRole === 'admin') {
+                                const dataPartita = new Date(match.data).toLocaleDateString('it-IT', { 
+                                  day: '2-digit', 
+                                  month: 'long', 
+                                  year: 'numeric' 
+                                });
+                                const nomePartita = match.squadraCasa && match.squadraTrasferta 
+                                  ? `${match.squadraCasa} vs ${match.squadraTrasferta}`
+                                  : match.avversario || 'Partita';
+                                
+                                if (window.confirm(
+                                  `⚠️ ATTENZIONE!\n\n` +
+                                  `Eliminare definitivamente questa partita?\n\n` +
+                                  `📅 Data: ${dataPartita}\n` +
+                                  `⚽ Partita: ${nomePartita}\n` +
+                                  `📍 Luogo: ${match.luogo || 'Non specificato'}\n\n` +
+                                  `Questa azione NON può essere annullata!`
+                                )) {
+                                  deleteMatch(match.id);
+                                  showToast('🗑️ Partita eliminata', 'success');
+                                }
+                              }
                             }}
                             disabled={userRole !== 'admin'}
                             className={`p-2 ${
@@ -12261,7 +12282,7 @@ const SoccerTeamTracker = () => {
                                 ? 'text-red-600 hover:text-red-700'
                                 : 'text-gray-400 cursor-not-allowed'
                             }`}
-                            title={userRole !== 'admin' ? 'Solo Admin può eliminare' : ''}
+                            title={userRole !== 'admin' ? 'Solo Admin può eliminare' : 'Elimina partita'}
                           >
                             <Trash2 size={20} />
                           </button>
