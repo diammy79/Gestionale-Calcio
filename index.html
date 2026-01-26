@@ -2023,7 +2023,7 @@ const SoccerTeamTracker = () => {
   const [halfTime, setHalfTime] = useState(1);
   const [showVictoryCelebration, setShowVictoryCelebration] = useState(false);
   const [teamLogo, setTeamLogo] = useState('');
-  const [teamLogoStorageUrl, setTeamLogoStorageUrl] = useState('');
+  // const [teamLogoStorageUrl, setTeamLogoStorageUrl] = useState(''); // ⚠️ DEPRECATO - Ora teamLogo contiene direttamente l'URL Storage
   const [showManualImport, setShowManualImport] = useState(false);
   const [manualImportData, setManualImportData] = useState('');
   const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null });
@@ -2222,7 +2222,7 @@ const SoccerTeamTracker = () => {
           setAppTitle(savedData.appTitle || appTitle);
           setTeamName(savedData.teamName || '');
           setTeamLogo(savedData.teamLogo || '');
-          setTeamLogoStorageUrl(savedData.teamLogoStorageUrl || '');
+          // setTeamLogoStorageUrl(savedData.teamLogoStorageUrl || ''); // ⚠️ RIMOSSO
           setInjuries(savedData.injuries || []);
           setSquadreGirone(savedData.squadreGirone || []);
           setRisultatiCampionato(savedData.risultatiCampionato || []);
@@ -2236,6 +2236,53 @@ const SoccerTeamTracker = () => {
     };
     loadData();
   }, []);
+
+  // ========== MIGRAZIONE AUTOMATICA LOGO A STORAGE ==========
+  useEffect(() => {
+    const migrateLogoToStorage = async () => {
+      // Solo se:
+      // 1. User autenticato
+      // 2. teamLogo esiste
+      // 3. teamLogo è base64 (NON URL Storage)
+      if (!user || !teamLogo || teamLogo.startsWith('https://firebasestorage')) {
+        return;
+      }
+
+      console.log('🔄 Migrazione logo a Firebase Storage...');
+      
+      try {
+        // Converti base64 a blob
+        const response = await fetch(teamLogo);
+        const blob = await response.blob();
+        
+        // Upload su Firebase Storage
+        const storageRef = storage.ref();
+        const fileName = `team-logos/${user.uid}/logo_migrated_${Date.now()}.png`;
+        const fileRef = storageRef.child(fileName);
+        
+        await fileRef.put(blob);
+        const downloadURL = await fileRef.getDownloadURL();
+        
+        // Sostituisci teamLogo con URL Storage
+        setTeamLogo(downloadURL);
+        
+        console.log('✅ Logo migrato su Storage:', downloadURL);
+        showToast('✅ Logo migrato su cloud Storage!', 'success');
+        
+      } catch (error) {
+        console.error('❌ Errore migrazione logo:', error);
+        // Non mostrare toast di errore per non confondere l'utente
+        // Il logo base64 continuerà a funzionare
+      }
+    };
+
+    // Esegui migrazione dopo 2 secondi dall'avvio (per non bloccare caricamento iniziale)
+    const timeout = setTimeout(() => {
+      migrateLogoToStorage();
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [user, teamLogo]);
 
   // ========== CHECK DEVICE CONFIG ALL'AVVIO ==========
   useEffect(() => {
@@ -2281,8 +2328,8 @@ const SoccerTeamTracker = () => {
         matches,
         appTitle,
         teamName,
-        teamLogo,
-        teamLogoStorageUrl,
+        teamLogo,  // Ora contiene direttamente URL Storage o base64
+        // teamLogoStorageUrl, // ⚠️ RIMOSSO - Campo ridondante
         injuries,
         squadreGirone,
         risultatiCampionato,
@@ -2296,7 +2343,7 @@ const SoccerTeamTracker = () => {
     };
     
     saveData();
-  }, [players, trainings, matches, appTitle, teamName, teamLogo, teamLogoStorageUrl, injuries, squadreGirone, risultatiCampionato, isLoading]);
+  }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, isLoading]);
 
   // ========== CARICAMENTO DATA ULTIMO BACKUP ==========
   useEffect(() => {
@@ -3280,9 +3327,9 @@ const SoccerTeamTracker = () => {
       
       setLoadingProgress(80);
 
-      // Salva URL logo
+      // Salva URL logo (ora contiene direttamente l'URL Storage)
       setTeamLogo(downloadURL);
-      setTeamLogoStorageUrl(fileName);
+      // setTeamLogoStorageUrl(fileName); // ⚠️ RIMOSSO - Non più necessario
       
       setLoadingProgress(100);
       setTimeout(() => hideLoading(), 500);
@@ -3314,7 +3361,7 @@ const SoccerTeamTracker = () => {
       }
       
       setTeamLogo('');
-      setTeamLogoStorageUrl('');
+      // setTeamLogoStorageUrl(''); // ⚠️ RIMOSSO - Non più necessario
       showToast('✅ Logo rimosso!', 'success');
       
     } catch (error) {
@@ -4696,8 +4743,8 @@ const SoccerTeamTracker = () => {
         risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
         appTitle,             // ✅ AGGIUNTO: Titolo app
         teamName,             // ✅ AGGIUNTO: Nome squadra
-        teamLogo,             // ✅ AGGIUNTO: Logo squadra
-        teamLogoStorageUrl,   // ✅ AGGIUNTO: Path Storage logo
+        teamLogo,             // ✅ AGGIUNTO: Logo squadra (URL Storage o base64)
+        // teamLogoStorageUrl, // ⚠️ RIMOSSO - Campo ridondante
         timestamp: new Date().toISOString(),
         deviceId: generateDeviceId(),
         deviceName: getDeviceName(),
@@ -4841,7 +4888,7 @@ const SoccerTeamTracker = () => {
       // Carica teamName anche se vuoto (usa hasOwnProperty per verificare esistenza)
       if (data.hasOwnProperty('teamName')) setTeamName(data.teamName || '');     // ✅ AGGIUNTO: Nome squadra
       if (data.teamLogo) setTeamLogo(data.teamLogo);                             // ✅ AGGIUNTO: Logo squadra
-      if (data.teamLogoStorageUrl) setTeamLogoStorageUrl(data.teamLogoStorageUrl); // ✅ AGGIUNTO: Path Storage logo
+      // if (data.teamLogoStorageUrl) setTeamLogoStorageUrl(data.teamLogoStorageUrl); // ⚠️ RIMOSSO - Campo ridondante
       
       // Log DOPO aver settato gli state
       console.log('✅ State AGGIORNATI dopo caricamento cloud:', {
@@ -4864,8 +4911,8 @@ const SoccerTeamTracker = () => {
         risultatiCampionato: data.risultatiCampionato || [],  // ✅ AGGIUNTO
         appTitle: data.appTitle || appTitle,                  // ✅ AGGIUNTO: Titolo app
         teamName: data.teamName || '',                        // ✅ AGGIUNTO: Nome squadra
-        teamLogo: data.teamLogo || teamLogo,                  // ✅ AGGIUNTO: Logo squadra
-        teamLogoStorageUrl: data.teamLogoStorageUrl || ''     // ✅ AGGIUNTO: Path Storage logo
+        teamLogo: data.teamLogo || teamLogo                   // ✅ AGGIUNTO: Logo squadra (URL o base64)
+        // teamLogoStorageUrl: data.teamLogoStorageUrl || ''  // ⚠️ RIMOSSO - Campo ridondante
       });
       
       showToast('✅ Dati caricati da cloud!', 'success');
@@ -5175,7 +5222,8 @@ const SoccerTeamTracker = () => {
         matches,
         appTitle,
         teamName,          // ✅ AGGIUNTO: Nome squadra
-        teamLogo,
+        teamLogo,          // Logo (URL Storage o base64)
+        // teamLogoStorageUrl, // ⚠️ RIMOSSO - Campo ridondante
         injuries,
         squadreGirone,
         risultatiCampionato,
@@ -5193,6 +5241,8 @@ const SoccerTeamTracker = () => {
         appTitle: cleanedData.appTitle,
         teamName: cleanedData.teamName || '(vuoto)',  // ✅ LOG DEBUG
         hasTeamLogo: !!cleanedData.teamLogo,
+        teamLogoIsUrl: cleanedData.teamLogo?.startsWith('https://') || false, // ✅ Verifica se è URL Storage
+        // teamLogoStorageUrl: cleanedData.teamLogoStorageUrl || '(vuoto)', // ⚠️ RIMOSSO
         squadreGirone: cleanedData.squadreGirone?.length || 0,
         risultatiCampionato: cleanedData.risultatiCampionato?.length || 0
       });
@@ -5340,6 +5390,10 @@ const SoccerTeamTracker = () => {
         setTeamName(cloudData.teamName || '');
       }
       if (cloudData.teamLogo) setTeamLogo(cloudData.teamLogo);
+      // if (cloudData.teamLogoStorageUrl) { // ⚠️ RIMOSSO - Campo ridondante
+      //   console.log('   ✅ Carico Team Logo Storage URL:', cloudData.teamLogoStorageUrl);
+      //   setTeamLogoStorageUrl(cloudData.teamLogoStorageUrl);
+      // }
       if (cloudData.injuries) {
         console.log('   ✅ Carico Injuries:', cloudData.injuries.length);
         setInjuries(cloudData.injuries);
