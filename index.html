@@ -5200,80 +5200,14 @@ const SoccerTeamTracker = () => {
   /**
    * Sincronizza i dati LOCALI → CLOUD (Upload)
    */
-  const syncToFirestore = async () => {
-    if (!user) {
-      setSyncError('Devi essere autenticato per sincronizzare');
-      return false;
-    }
-
-    try {
-      setSyncStatus('syncing');
-      setSyncError('');
-
-      // ✅ Assicura che tutti i giocatori abbiano il campo fuoriRosa
-      const playersWithFuoriRosa = players.map(p => ({
-        ...p,
-        fuoriRosa: p.fuoriRosa || false // Default false se undefined
-      }));
-
-      const dataToSync = {
-        players: playersWithFuoriRosa,
-        trainings,
-        matches,
-        appTitle,
-        teamName,          // ✅ AGGIUNTO: Nome squadra
-        teamLogo,          // Logo (URL Storage o base64)
-        // teamLogoStorageUrl, // ⚠️ RIMOSSO - Campo ridondante
-        injuries,
-        squadreGirone,
-        risultatiCampionato,
-        lastSynced: new Date().toISOString(),
-        userId: user.uid
-      };
-
-      // CRITICAL: Pulisci tutti gli undefined prima di salvare su cloud
-      const cleanedData = cleanUndefinedFields(dataToSync);
-
-      console.log('📤 SYNC TO FIRESTORE - Dati da salvare:', {
-        players: cleanedData.players?.length || 0,
-        trainings: cleanedData.trainings?.length || 0,
-        matches: cleanedData.matches?.length || 0,
-        appTitle: cleanedData.appTitle,
-        teamName: cleanedData.teamName || '(vuoto)',  // ✅ LOG DEBUG
-        hasTeamLogo: !!cleanedData.teamLogo,
-        teamLogoIsUrl: cleanedData.teamLogo?.startsWith('https://') || false, // ✅ Verifica se è URL Storage
-        // teamLogoStorageUrl: cleanedData.teamLogoStorageUrl || '(vuoto)', // ⚠️ RIMOSSO
-        squadreGirone: cleanedData.squadreGirone?.length || 0,
-        risultatiCampionato: cleanedData.risultatiCampionato?.length || 0
-      });
-
-      // Salva su cloud (con Storage, le foto sono URL quindi documento leggero)
-      await db.collection('teamData').doc(user.uid).set(cleanedData, { merge: true });
-      
-      setLastSynced(new Date());
-      setSyncStatus('success');
-      
-      // Toast di conferma con dettagli
-      const totale = (players?.length || 0) + (trainings?.length || 0) + (matches?.length || 0);
-      const playersWithPhotos = players.filter(p => p.foto).length;
-      const photosOnStorage = players.filter(p => p.foto && p.foto.startsWith('https://')).length;
-      showToast(
-        `✅ Dati caricati sul cloud!\n📊 ${players?.length || 0} giocatori (${playersWithPhotos} con foto, ${photosOnStorage} su Storage), ${trainings?.length || 0} allenamenti, ${matches?.length || 0} partite`,
-        'success',
-        5000
-      );
-      
-      // Reset stato dopo 3 secondi
-      setTimeout(() => setSyncStatus('idle'), 3000);
-      
-      return true;
-    } catch (error) {
-      console.error('Errore sincronizzazione su cloud:', error);
-      setSyncError('Errore durante la sincronizzazione: ' + error.message);
-      setSyncStatus('error');
-      return false;
-    }
-  };
+  /**
+   * ⚠️ FUNZIONE DEPRECATA E RIMOSSA
+   * syncToFirestore() è stata unificata con saveDataToCloud()
+   * Tutte le operazioni di salvataggio cloud ora usano teamId invece di user.uid
+   * per garantire consistenza e evitare documenti duplicati.
+   * 
+   * Usare sempre saveDataToCloud() per salvare su cloud.
+   */
 
   /**
    * Carica i dati CLOUD → LOCALE (Download)
@@ -5282,6 +5216,7 @@ const SoccerTeamTracker = () => {
     console.log('🔽 SCARICA DA CLOUD - Inizio');
     console.log('   User:', user?.email);
     console.log('   User UID:', user?.uid);
+    console.log('   Team ID:', teamId);
     console.log('   Force Overwrite:', forceOverwrite);
     
     if (!user) {
@@ -5290,12 +5225,19 @@ const SoccerTeamTracker = () => {
       return false;
     }
 
+    if (!teamId) {
+      console.log('❌ ERRORE: Team ID non presente');
+      setSyncError('Team ID non trovato');
+      return false;
+    }
+
     try {
       setSyncStatus('syncing');
       setSyncError('');
       
       console.log('📡 Connessione al database cloud...');
-      const docRef = db.collection('teamData').doc(user.uid);
+      // ⚠️ USA TEAMID invece di user.uid per consistenza
+      const docRef = db.collection('teamData').doc(teamId);
       const doc = await docRef.get();
       
       console.log('📄 Documento esistente?', doc.exists);
@@ -5463,6 +5405,11 @@ const SoccerTeamTracker = () => {
       return false;
     }
 
+    if (!teamId) {
+      setSyncError('Team ID non trovato');
+      return false;
+    }
+
     try {
       setSyncStatus('syncing');
       setSyncError('');
@@ -5473,15 +5420,19 @@ const SoccerTeamTracker = () => {
       const localMatchesCount = matches.length;
       const hasLocalData = localPlayersCount > 0 || localTrainingsCount > 0 || localMatchesCount > 0;
 
-      // Recupera dati dal cloud
-      const docRef = db.collection('teamData').doc(user.uid);
+      // Recupera dati dal cloud usando TEAMID
+      const docRef = db.collection('teamData').doc(teamId);
       const doc = await docRef.get();
 
       if (!doc.exists) {
         // Nessun dato nel cloud
         if (hasLocalData) {
           // Abbiamo dati locali, possiamo uploadare
-          return await syncToFirestore();
+          await saveDataToCloud(true); // true = silent
+          setSyncStatus('success');
+          setLastSynced(new Date());
+          setTimeout(() => setSyncStatus('idle'), 3000);
+          return true;
         } else {
           // Nessun dato né locale né cloud
           setSyncError('Nessun dato disponibile. Inizia inserendo giocatori o partite.');
@@ -5503,7 +5454,7 @@ const SoccerTeamTracker = () => {
         return await syncFromFirestore(true); // Force download
       }
 
-      const cloudLastSynced = cloudData.lastSynced ? new Date(cloudData.lastSynced) : new Date(0);
+      const cloudLastSynced = cloudData.timestamp || cloudData.lastSynced ? new Date(cloudData.timestamp || cloudData.lastSynced) : new Date(0);
       const localLastSaved = lastSaved ? new Date(lastSaved) : new Date(0);
 
       // PROTEZIONE: Se locale vuoto ma cloud pieno, SEMPRE scarica
@@ -5542,7 +5493,11 @@ const SoccerTeamTracker = () => {
       // Confronta timestamp (solo se dati simili)
       if (localLastSaved > cloudLastSynced) {
         // Locale più recente → Upload
-        return await syncToFirestore();
+        await saveDataToCloud(true); // true = silent
+        setSyncStatus('success');
+        setLastSynced(new Date());
+        setTimeout(() => setSyncStatus('idle'), 3000);
+        return true;
       } else if (cloudLastSynced > localLastSaved) {
         // Cloud più recente → Download
         return await syncFromFirestore(false);
@@ -5565,16 +5520,28 @@ const SoccerTeamTracker = () => {
    * Risolvi conflitto - scegli quale versione mantenere
    */
   const resolveConflict = async (choice) => {
-    if (choice === 'local') {
-      // Mantieni locale e sovrascrivi cloud
-      await syncToFirestore();
-    } else if (choice === 'cloud') {
-      // Mantieni cloud e sovrascrivi locale
-      await syncFromFirestore(true);
+    try {
+      setSyncStatus('syncing');
+      
+      if (choice === 'local') {
+        // Mantieni locale e sovrascrivi cloud
+        await saveDataToCloud(true); // true = silent
+        setSyncStatus('success');
+        setLastSynced(new Date());
+        showToast('✅ Dati locali salvati su cloud', 'success');
+      } else if (choice === 'cloud') {
+        // Mantieni cloud e sovrascrivi locale
+        await syncFromFirestore(true);
+      }
+      
+      setSyncConflicts(null);
+      setShowConflictModal(false);
+      setTimeout(() => setSyncStatus('idle'), 3000);
+    } catch (error) {
+      console.error('Errore risoluzione conflitto:', error);
+      setSyncError('Errore: ' + error.message);
+      setSyncStatus('error');
     }
-    
-    setSyncConflicts(null);
-    setShowConflictModal(false);
   };
 
   // ========== GESTIONE UTENTI ADMIN ==========
@@ -9447,14 +9414,14 @@ const SoccerTeamTracker = () => {
                     className="px-2 md:px-4 py-1.5 md:py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-xs md:text-sm flex items-center gap-1 whitespace-nowrap"
                     title="Modifica titolo"
                   >
-                    ✏️ <span className="hidden sm:inline">Modifica Titolo</span>
+                    ✏️ <span className="text-xs">Modifica</span>
                   </button>
                 )}
                 <button
                   onClick={() => setShowInstructionsModal(true)}
                   className="px-2 md:px-4 py-1.5 md:py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold whitespace-nowrap text-xs md:text-sm"
                 >
-                  📖 <span className="hidden sm:inline">Istruzioni</span>
+                  📖 <span className="text-xs">Istruzioni</span>
                 </button>
               </div>
 
@@ -9503,7 +9470,7 @@ const SoccerTeamTracker = () => {
                       title="Cambia utente"
                     >
                       <LogOut className="w-4 h-4" />
-                      <span className="hidden sm:inline">Logout</span>
+                      <span className="text-xs">Logout</span>
                     </button>
                     <button
                       onClick={handleLogout}
@@ -9511,20 +9478,20 @@ const SoccerTeamTracker = () => {
                       title="Chiudi applicazione"
                     >
                       <span className="text-base">✕</span>
-                      <span className="hidden sm:inline">Chiudi</span>
+                      <span className="text-xs">Chiudi</span>
                     </button>
                   </div>
                 )}
               </div>
             </div>
           </div>
-          <div className="hidden md:flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <p className="text-gray-600">Sistema di tracciamento allenamenti, partite e statistiche</p>
-              {/* Badge Salvataggio Automatico rimosso */}
+          {/* Informazioni App - Visibile anche su mobile */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mt-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-xs sm:text-sm text-gray-600">Sistema di tracciamento allenamenti, partite e statistiche</p>
               {lastSaved && (
                 <span className="text-xs text-gray-500">
-                  Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
+                  • Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
                 </span>
               )}
               {/* Promemoria Backup - SOLO ADMIN */}
@@ -17438,9 +17405,19 @@ const SoccerTeamTracker = () => {
                   Carica forzatamente i dati locali sul cloud, sovrascrivendo quelli presenti
                 </p>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (window.confirm('⚠️ Questa operazione sovrascriverà i dati nel cloud con quelli locali.\n\nSei sicuro?')) {
-                      syncToFirestore();
+                      try {
+                        setSyncStatus('syncing');
+                        await saveDataToCloud(false); // false = mostra toast
+                        setSyncStatus('success');
+                        setTimeout(() => setSyncStatus('idle'), 3000);
+                      } catch (error) {
+                        console.error('Errore sync:', error);
+                        setSyncStatus('error');
+                        setSyncError(error.message);
+                        setTimeout(() => setSyncStatus('idle'), 5000);
+                      }
                     }
                   }}
                   disabled={syncStatus === 'syncing'}
