@@ -2836,33 +2836,35 @@ const SoccerTeamTracker = () => {
    * @returns {boolean} - true se giochi in casa, false se in trasferta
    */
   const isTeamPlayingHome = (match) => {
-    // Se non c'è teamName configurato, usa campo luogo come fallback
-    if (!teamName || !teamName.trim()) {
-      return match.luogo === 'Casa';
-    }
-    
-    // Match esatto con squadraCasa
-    if (match.squadraCasa && match.squadraCasa.toLowerCase().trim() === teamName.toLowerCase().trim()) {
-      return true;
-    }
-    
-    // Match parziale intelligente (almeno 2 parole significative in comune)
-    if (match.squadraCasa) {
-      const teamWords = teamName.toLowerCase().trim().split(/\s+/).filter(w => w.length > 2);
-      const casaWords = match.squadraCasa.toLowerCase().trim().split(/\s+/).filter(w => w.length > 2);
+    // Se ci sono squadraCasa e squadraTrasferta, usa QUELLI per determinare casa/trasferta
+    if (match.squadraCasa && match.squadraTrasferta && teamName && teamName.trim()) {
+      const teamLower = teamName.toLowerCase().trim();
+      const casaLower = match.squadraCasa.toLowerCase().trim();
+      
+      // Match esatto
+      if (casaLower === teamLower) {
+        return true; // Sei in casa
+      }
+      
+      // Match parziale intelligente (almeno 2 parole in comune)
+      const teamWords = teamLower.split(/\s+/).filter(w => w.length > 2);
+      const casaWords = casaLower.split(/\s+/).filter(w => w.length > 2);
       
       const commonWords = teamWords.filter(tw => 
         casaWords.some(cw => cw.includes(tw) || tw.includes(cw))
       );
       
-      // Se ci sono almeno 2 parole in comune, consideriamo match positivo
       if (commonWords.length >= 2) {
-        return true;
+        return true; // Sei in casa
       }
+      
+      // Non matcha con squadraCasa → sei in trasferta
+      return false;
     }
     
-    // Fallback al campo luogo se nessun match trovato
-    return match.luogo === 'Casa';
+    // Fallback per vecchie partite o partite senza squadraCasa/squadraTrasferta
+    // In questo caso, assumiamo che sia sempre casa (comportamento di default)
+    return true;
   };
 
   const quickAddGoal = (matchId, playerNum, minuto = null) => {
@@ -4702,6 +4704,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato: risultatiCampionato.length,
         fuoriRosa: playersWithFuoriRosa.filter(p => p.fuoriRosa).length,
         appTitle: appTitle,
+        teamName: teamName || '(vuoto)',  // ✅ Log per debug
         hasTeamLogo: !!teamLogo,
         timestamp: data.timestamp
       });
@@ -4825,7 +4828,8 @@ const SoccerTeamTracker = () => {
       if (data.squadreGirone) setSquadreGirone(data.squadreGirone);              // ✅ AGGIUNTO
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
       if (data.appTitle) setAppTitle(data.appTitle);                             // ✅ AGGIUNTO: Titolo app
-      if (data.teamName) setTeamName(data.teamName);                             // ✅ AGGIUNTO: Nome squadra
+      // Carica teamName anche se vuoto (usa hasOwnProperty per verificare esistenza)
+      if (data.hasOwnProperty('teamName')) setTeamName(data.teamName || '');     // ✅ AGGIUNTO: Nome squadra
       if (data.teamLogo) setTeamLogo(data.teamLogo);                             // ✅ AGGIUNTO: Logo squadra
       if (data.teamLogoStorageUrl) setTeamLogoStorageUrl(data.teamLogoStorageUrl); // ✅ AGGIUNTO: Path Storage logo
       
@@ -4835,7 +4839,9 @@ const SoccerTeamTracker = () => {
         injuries: (data.injuries || []).length,
         injuriesData: data.injuries || [],
         playersWithFuoriRosa: normalizedPlayers.filter(p => p.fuoriRosa).length,
-        fuoriRosaData: normalizedPlayers.filter(p => p.fuoriRosa).map(p => ({ numero: p.numero, nome: p.nome, fuoriRosa: p.fuoriRosa }))
+        fuoriRosaData: normalizedPlayers.filter(p => p.fuoriRosa).map(p => ({ numero: p.numero, nome: p.nome, fuoriRosa: p.fuoriRosa })),
+        teamName: data.teamName || '(vuoto)',  // ✅ Log per debug
+        teamNameCaricato: data.hasOwnProperty('teamName')
       });
       
       // Salva anche in IndexedDB
@@ -11015,7 +11021,25 @@ const SoccerTeamTracker = () => {
                         return (
                           <div className="bg-white rounded-lg shadow-lg p-6">
                             <div className="space-y-4">
-                              {giornata.partite.map((partita, idx) => (
+                              {giornata.partite.map((partita, idx) => {
+                                // Calcola squadre già usate nelle partite precedenti di questa giornata
+                                const squadreGiaUsate = giornata.partite
+                                  .slice(0, idx) // Solo partite PRECEDENTI a questa
+                                  .flatMap(p => [p.squadraCasa, p.squadraTrasferta])
+                                  .filter(Boolean); // Rimuovi valori vuoti/undefined
+                                
+                                // Filtra squadre disponibili per squadraCasa
+                                const squadreDisponibiliCasa = squadreGirone.filter(sq => 
+                                  !squadreGiaUsate.includes(sq.nome) || sq.nome === partita.squadraCasa
+                                );
+                                
+                                // Filtra squadre disponibili per squadraTrasferta (escludi anche squadraCasa corrente)
+                                const squadreDisponibiliTrasferta = squadreGirone.filter(sq => 
+                                  (!squadreGiaUsate.includes(sq.nome) && sq.nome !== partita.squadraCasa) || 
+                                  sq.nome === partita.squadraTrasferta
+                                );
+                                
+                                return (
                                 <div key={idx} className="border rounded-lg p-3 flex items-center gap-3">
                                   <select
                                     value={partita.squadraCasa}
@@ -11028,7 +11052,7 @@ const SoccerTeamTracker = () => {
                                     disabled={userRole !== 'admin'}
                                     className="flex-1 p-2 border-2 rounded font-semibold"
                                   >
-                                    {squadreGirone.map(sq => (
+                                    {squadreDisponibiliCasa.map(sq => (
                                       <option key={sq.id} value={sq.nome}>{sq.nome}</option>
                                     ))}
                                   </select>
@@ -11090,7 +11114,7 @@ const SoccerTeamTracker = () => {
                                     disabled={userRole !== 'admin'}
                                     className="flex-1 p-2 border-2 rounded font-semibold"
                                   >
-                                    {squadreGirone.map(sq => (
+                                    {squadreDisponibiliTrasferta.map(sq => (
                                       <option key={sq.id} value={sq.nome}>{sq.nome}</option>
                                     ))}
                                   </select>
@@ -11112,17 +11136,29 @@ const SoccerTeamTracker = () => {
                                     </button>
                                   )}
                                 </div>
-                              ))}
+                              )})}
+                              
                               
                               {userRole === 'admin' && (
                                 <button
                                   onClick={() => {
                                     const newRisultati = [...risultatiCampionato];
                                     const g = newRisultati.find(r => r.giornata === selectedGiornata);
+                                    
+                                    // Calcola squadre già usate in questa giornata
+                                    const squadreGiaUsate = g.partite
+                                      .flatMap(p => [p.squadraCasa, p.squadraTrasferta])
+                                      .filter(Boolean);
+                                    
+                                    // Trova le prime 2 squadre NON ancora usate
+                                    const squadreDisponibili = squadreGirone.filter(sq => 
+                                      !squadreGiaUsate.includes(sq.nome)
+                                    );
+                                    
                                     g.partite.push({
                                       id: Date.now(),
-                                      squadraCasa: squadreGirone[0]?.nome || '',
-                                      squadraTrasferta: squadreGirone[1]?.nome || '',
+                                      squadraCasa: squadreDisponibili[0]?.nome || '',
+                                      squadraTrasferta: squadreDisponibili[1]?.nome || '',
                                       golCasa: '',
                                       golTrasferta: '',
                                       giocata: false
@@ -15410,7 +15446,6 @@ const SoccerTeamTracker = () => {
                                     const golTrasferta = siamoInCasa ? golSubiti : golFatti;
                                     
                                     return `${golCasa} - ${golTrasferta}`;
-                                  })()}
                                   })()}
                                 </span>
                               </td>
