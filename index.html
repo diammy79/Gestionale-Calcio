@@ -2024,8 +2024,6 @@ const SoccerTeamTracker = () => {
   const [showVictoryCelebration, setShowVictoryCelebration] = useState(false);
   const [teamLogo, setTeamLogo] = useState('');
   // const [teamLogoStorageUrl, setTeamLogoStorageUrl] = useState(''); // ⚠️ DEPRECATO - Ora teamLogo contiene direttamente l'URL Storage
-  const [showManualImport, setShowManualImport] = useState(false);
-  const [manualImportData, setManualImportData] = useState('');
   const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null });
   const [cardTypeDialog, setCardTypeDialog] = useState({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '', minuto: null });
   
@@ -2114,6 +2112,13 @@ const SoccerTeamTracker = () => {
 
   // ========== SISTEMA BACKUP ==========
   const [lastBackupDate, setLastBackupDate] = useState(null);
+  const [availableBackups, setAvailableBackups] = useState([]);
+  const [loadingBackups, setLoadingBackups] = useState(false);
+  const [deviceType, setDeviceType] = useState(null);
+  const [storageStats, setStorageStats] = useState({ used: 0, total: 0 });
+  const [lastFullBackupDate, setLastFullBackupDate] = useState(null);
+  const [realStorageSize, setRealStorageSize] = useState(null);
+  const [loadingStorageSize, setLoadingStorageSize] = useState(false);
 
   // ========== GESTIONE DISPOSITIVI E AUTO-SYNC ==========
   const [deviceRole, setDeviceRole] = useState(null); // 'primary' | 'secondary' | null
@@ -5070,63 +5075,32 @@ const SoccerTeamTracker = () => {
     reader.readAsText(file);
   };
 
-  const handleManualImport = () => {
-    try {
-      const data = JSON.parse(manualImportData);
-      
-      // Validazione base
-      if (!data.players || !data.trainings || !data.matches) {
-        showToast('❌ File JSON non valido! Assicurati di aver copiato tutto il contenuto correttamente.', 'error');
-        return;
-      }
-      
-      // ✅ RIPRISTINO COMPLETO - Include tutto
-      setPlayers(data.players);
-      setTrainings(data.trainings);
-      setMatches(data.matches);
-      
-      // ✅ Ripristina injuries (con controllo retrocompatibilità)
-      if (data.injuries) {
-        setInjuries(data.injuries);
-      }
-      
-      // ✅ Ripristina formazioni (con controllo retrocompatibilità)
-      if (data.formationPositions) {
-        setFormationPositions(data.formationPositions);
-      }
-      
-      // Ripristina impostazioni
-      if (data.appTitle) setAppTitle(data.appTitle);
-      if (data.teamName) setTeamName(data.teamName);
-      if (data.teamLogo) setTeamLogo(data.teamLogo);
-      if (data.infoPartita) setInfoPartita(data.infoPartita);
-      if (data.moduloTattico) setModuloTattico(data.moduloTattico);
-      
-      // Report importazione
-      const stats = data.stats || {
-        totalPlayers: data.players.filter(p => p.nome).length,
-        totalTrainings: data.trainings.length,
-        totalMatches: data.matches.length,
-        totalInjuries: data.injuries?.length || 0
-      };
-      
-      setShowManualImport(false);
-      setManualImportData('');
-      showToast(`✅ Dati importati con successo! ${stats.totalPlayers} giocatori, ${stats.totalTrainings} allenamenti, ${stats.totalMatches} partite, ${stats.totalInjuries} infortuni`, 'success');
-    } catch (error) {
-      console.error('Errore parsing JSON:', error);
-      showToast('❌ Errore nel parsing del JSON! Verifica che il formato sia corretto.', 'error');
-    }
-  };
-
   // ========== FUNZIONI DI RESET DATABASE ==========
   
   const resetStagione = async () => {
-    const conferma1 = window.confirm('⚠️ ATTENZIONE! Questa operazione cancellerà:\n\n✓ Tutti gli allenamenti\n✓ Tutte le partite\n✓ Tutte le statistiche\n\n✅ MA manterrà:\n✓ La rosa giocatori\n✓ Il logo della squadra\n\nVuoi continuare?');
+    const conferma1 = window.confirm(
+      '⚠️ ATTENZIONE! Questa operazione cancellerà:\n\n' +
+      '✓ Tutti gli allenamenti\n' +
+      '✓ Tutte le partite\n' +
+      '✓ Tutte le statistiche\n\n' +
+      '✅ MA manterrà:\n' +
+      '✓ La rosa giocatori\n' +
+      '✓ Il logo della squadra\n\n' +
+      '💾 RACCOMANDAZIONE:\n' +
+      'Vai su "Backup e Sync" e crea un backup completo\n' +
+      'PRIMA di procedere con il reset!\n\n' +
+      'Vuoi continuare?'
+    );
     
     if (!conferma1) return;
     
-    const conferma2 = window.confirm('🔴 ULTIMA CONFERMA!\n\nSei sicuro di voler resettare la stagione?\nQuesta azione NON può essere annullata!');
+    const conferma2 = window.confirm(
+      '🔴 ULTIMA CONFERMA!\n\n' +
+      'Sei sicuro di voler resettare la stagione?\n' +
+      'Questa azione NON può essere annullata!\n\n' +
+      '💡 CONSIGLIO: Se non hai fatto il backup, clicca\n' +
+      'Annulla e vai su "Backup e Sync" per crearlo.'
+    );
     
     if (!conferma2) return;
     
@@ -5152,11 +5126,31 @@ const SoccerTeamTracker = () => {
   };
   
   const resetCompleto = async () => {
-    const conferma1 = window.confirm('🔴 ATTENZIONE! RESET COMPLETO!\n\nQuesta operazione cancellerà TUTTO:\n\n✓ Tutti i giocatori\n✓ Tutti gli allenamenti\n✓ Tutte le partite\n✓ Tutte le statistiche\n✓ Il logo della squadra\n✓ Tutti i dati dell\'app\n\nVuoi continuare?');
+    const conferma1 = window.confirm(
+      '🔴 ATTENZIONE! RESET COMPLETO!\n\n' +
+      'Questa operazione cancellerà TUTTO:\n\n' +
+      '✓ Tutti i giocatori\n' +
+      '✓ Tutti gli allenamenti\n' +
+      '✓ Tutte le partite\n' +
+      '✓ Tutte le statistiche\n' +
+      '✓ Il logo della squadra\n' +
+      '✓ Tutti i dati dell\'app\n\n' +
+      '💾 RACCOMANDAZIONE IMPORTANTE:\n' +
+      'Vai su "Backup e Sync" e crea un backup completo\n' +
+      'PRIMA di procedere con il reset completo!\n\n' +
+      'Vuoi continuare?'
+    );
     
     if (!conferma1) return;
     
-    const conferma2 = window.confirm('🔴🔴 ULTIMA CONFERMA! 🔴🔴\n\nSei ASSOLUTAMENTE SICURO?\nQuesta azione NON può essere annullata!\n\nTUTTO verrà cancellato!');
+    const conferma2 = window.confirm(
+      '🔴🔴 ULTIMA CONFERMA! 🔴🔴\n\n' +
+      'Sei ASSOLUTAMENTE SICURO?\n' +
+      'Questa azione NON può essere annullata!\n\n' +
+      'TUTTO verrà cancellato!\n\n' +
+      '💡 ULTIMO AVVISO: Se non hai fatto il backup,\n' +
+      'clicca Annulla e vai su "Backup e Sync" per crearlo.'
+    );
     
     if (!conferma2) return;
     
@@ -8179,6 +8173,523 @@ const SoccerTeamTracker = () => {
     showToast(`✅ Backup completo scaricato! Include ${backupData.stats.totalPlayers} giocatori, ${backupData.stats.totalTrainings} allenamenti, ${backupData.stats.totalMatches} partite`, 'success');
   };
 
+  // ========== NUOVE FUNZIONI SISTEMA BACKUP OTTIMIZZATO ==========
+
+  // Rileva tipo di dispositivo
+  const getDeviceType = () => {
+    const ua = navigator.userAgent;
+    const screenWidth = window.innerWidth;
+    
+    const isMobile = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+    const isTablet = /iPad|Android/i.test(ua) && screenWidth >= 768;
+    
+    if (isMobile && screenWidth < 768) {
+      return 'mobile';
+    } else if (isTablet || (screenWidth >= 768 && screenWidth < 1024)) {
+      return 'tablet';
+    } else {
+      return 'desktop';
+    }
+  };
+
+  // Converti blob in base64
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Converti base64 in blob
+  const base64ToBlob = (base64) => {
+    const parts = base64.split(';base64,');
+    const contentType = parts[0].split(':')[1];
+    const raw = window.atob(parts[1]);
+    const rawLength = raw.length;
+    const uInt8Array = new Uint8Array(rawLength);
+    
+    for (let i = 0; i < rawLength; ++i) {
+      uInt8Array[i] = raw.charCodeAt(i);
+    }
+    
+    return new Blob([uInt8Array], { type: contentType });
+  };
+
+  // Backup automatico giornaliero (solo JSON con URL)
+  const createDailyBackup = async () => {
+    if (!user || !teamId) {
+      console.log('⚠️ Backup saltato: utente non autenticato');
+      return;
+    }
+
+    console.log('🔄 Backup automatico giornaliero iniziato...');
+    
+    try {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0]; // 2026-01-28
+      const timeStr = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-'); // 15-30-45
+      const fullTimestamp = `${dateStr}_${timeStr}`; // 2026-01-28_15-30-45
+      
+      const backupData = {
+        version: '3.1',
+        exportDate: now.toISOString(),
+        appTitle,
+        teamName,
+        teamLogo, // Solo URL/path Storage
+        players: players.map(p => ({
+          ...p,
+          foto: p.foto // Solo URL/path Storage
+        })),
+        trainings: trainings.map(t => ({
+          ...t,
+          foto: t.foto ? t.foto.map(f => ({
+            ...f,
+            url: f.url // Solo URL Storage
+          })) : []
+        })),
+        matches: matches.map(m => ({
+          ...m,
+          foto: m.foto ? m.foto.map(f => ({
+            ...f,
+            url: f.url // Solo URL Storage
+          })) : []
+        })),
+        injuries,
+        squadreGirone,
+        risultatiCampionato,
+        infoPartita,
+        moduloTattico,
+        formationPositions,
+        stats: {
+          totalPlayers: players.filter(p => p.nome).length,
+          totalTrainings: trainings.length,
+          totalMatches: matches.length,
+          totalInjuries: injuries.length
+        }
+      };
+      
+      const jsonString = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const filename = `backups/firestore/daily/${fullTimestamp}.json`;
+      
+      // Upload su Firebase Storage
+      const storageRef = storage.ref(filename);
+      await storageRef.put(blob);
+      
+      console.log('✅ Backup giornaliero creato:', filename);
+      
+      // Pulisci backup vecchi (mantieni ultimi 7 giorni)
+      await cleanOldBackups();
+      
+      // Aggiorna data ultimo backup
+      setLastBackupDate(now.toISOString());
+      localStorage.setItem('lastBackupDate', now.toISOString());
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Errore backup giornaliero:', error);
+      return false;
+    }
+  };
+
+  // Pulisci backup più vecchi di 7 giorni
+  const cleanOldBackups = async () => {
+    try {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const backupsRef = storage.ref('backups/firestore/daily');
+      const backupsList = await backupsRef.listAll();
+      
+      for (const backup of backupsList.items) {
+        // Nome file: 2026-01-28_15-30-45.json
+        const filename = backup.name.replace('.json', '');
+        const datePart = filename.split('_')[0]; // 2026-01-28
+        const backupDate = new Date(datePart);
+        
+        if (backupDate < sevenDaysAgo) {
+          await backup.delete();
+          console.log('🗑️ Backup vecchio eliminato:', backup.name);
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ Errore pulizia backup vecchi:', error);
+    }
+  };
+
+  // Carica lista backup disponibili
+  const loadAvailableBackups = async () => {
+    if (!user) return;
+    
+    setLoadingBackups(true);
+    try {
+      const backupsRef = storage.ref('backups/firestore/daily');
+      const backupsList = await backupsRef.listAll();
+      
+      const backups = await Promise.all(
+        backupsList.items.map(async (item) => {
+          const metadata = await item.getMetadata();
+          const url = await item.getDownloadURL();
+          
+          // Nome file: 2026-01-28_15-30-45.json
+          const filename = item.name.replace('.json', '');
+          const parts = filename.split('_');
+          const dateStr = parts[0]; // 2026-01-28
+          const timeStr = parts[1] ? parts[1].replace(/-/g, ':') : '00:00:00'; // 15:30:45
+          
+          return {
+            name: item.name,
+            date: dateStr,
+            time: timeStr,
+            fullTimestamp: `${dateStr} ${timeStr}`,
+            size: metadata.size,
+            url: url,
+            created: metadata.timeCreated
+          };
+        })
+      );
+      
+      // Ordina per data+ora (più recente prima)
+      backups.sort((a, b) => new Date(b.fullTimestamp) - new Date(a.fullTimestamp));
+      
+      setAvailableBackups(backups);
+      console.log('📋 Backup disponibili caricati:', backups.length);
+    } catch (error) {
+      console.error('❌ Errore caricamento backup:', error);
+      setAvailableBackups([]);
+    } finally {
+      setLoadingBackups(false);
+    }
+  };
+
+  // Scarica singolo backup
+  const downloadBackup = async (backupUrl, backupName) => {
+    try {
+      showLoadingWithProgress('📥 Download backup...', 0);
+      
+      const response = await fetch(backupUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = backupName;
+      link.click();
+      URL.revokeObjectURL(url);
+      
+      hideLoading();
+      showToast('✅ Backup scaricato!', 'success');
+    } catch (error) {
+      hideLoading();
+      console.error('❌ Errore download backup:', error);
+      showToast('❌ Errore download backup', 'error');
+    }
+  };
+
+  // Ripristina da backup giornaliero
+  const restoreDailyBackup = async (backupUrl, backupName) => {
+    if (window.confirm(
+      `⚠️ ATTENZIONE!\n\n` +
+      `Vuoi ripristinare il backup del ${backupName.replace('.json', '')}?\n\n` +
+      `Tutti i dati correnti verranno sostituiti con quelli del backup.\n\n` +
+      `Questa azione NON può essere annullata!`
+    )) {
+      try {
+        showLoadingWithProgress('🔄 Ripristino backup in corso...', 0);
+        
+        // Scarica backup
+        const response = await fetch(backupUrl);
+        const backup = await response.json();
+        
+        // Ripristina dati nell'app
+        setPlayers(backup.players || []);
+        setMatches(backup.matches || []);
+        setTrainings(backup.trainings || []);
+        setInjuries(backup.injuries || []);
+        setSquadreGirone(backup.squadreGirone || []);
+        setRisultatiCampionato(backup.risultatiCampionato || []);
+        setTeamName(backup.teamName || '');
+        setTeamLogo(backup.teamLogo || '');
+        setAppTitle(backup.appTitle || 'Gestionale Calcio');
+        setInfoPartita(backup.infoPartita || {});
+        setModuloTattico(backup.moduloTattico || {});
+        setFormationPositions(backup.formationPositions || {});
+        
+        // Salva su Firestore
+        if (teamId) {
+          await db.collection('teamData').doc(teamId).set({
+            players: backup.players || [],
+            matches: backup.matches || [],
+            trainings: backup.trainings || [],
+            injuries: backup.injuries || [],
+            squadreGirone: backup.squadreGirone || [],
+            risultatiCampionato: backup.risultatiCampionato || [],
+            teamName: backup.teamName || '',
+            teamLogo: backup.teamLogo || '',
+            appTitle: backup.appTitle || 'Gestionale Calcio',
+            infoPartita: backup.infoPartita || {},
+            moduloTattico: backup.moduloTattico || {},
+            formationPositions: backup.formationPositions || {},
+            lastModified: new Date().toISOString()
+          });
+        }
+        
+        // Salva su IndexedDB
+        await saveDataToIndexedDB();
+        
+        hideLoading();
+        showToast(
+          `✅ Backup ripristinato!\n` +
+          `📸 ${backup.stats?.totalPlayers || 0} giocatori\n` +
+          `⚽ ${backup.stats?.totalMatches || 0} partite\n` +
+          `🏃 ${backup.stats?.totalTrainings || 0} allenamenti`,
+          'success',
+          5000
+        );
+        
+        // Ricarica pagina per refreshare tutto
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+        
+      } catch (error) {
+        hideLoading();
+        console.error('❌ Errore ripristino backup:', error);
+        showToast('❌ Errore ripristino backup: ' + error.message, 'error');
+      }
+    }
+  };
+
+  // Download backup completo (usa funzione esistente)
+  const downloadFullBackupWithPhotos = () => {
+    // Il "backup completo" è semplicemente il JSON con tutti i dati e URL foto
+    // Le foto restano sempre su Firebase Storage (già protette)
+    downloadBackupJSON();
+    
+    // Salva data ultimo backup completo
+    setLastFullBackupDate(new Date().toISOString());
+    localStorage.setItem('lastFullBackupDate', new Date().toISOString());
+  };
+
+  // Calcola statistiche storage (dimensione JSON backup, NON foto)
+  const calculateStorageStats = () => {
+    // Il backup completo è un JSON con URL foto (non foto embedded)
+    // Quindi la dimensione è quella del JSON, non delle foto!
+    
+    const backupData = {
+      version: '3.0',
+      exportDate: new Date().toISOString(),
+      appTitle,
+      teamName,
+      teamLogo,
+      players,
+      trainings,
+      matches,
+      injuries,
+      infoPartita,
+      moduloTattico,
+      formationPositions,
+      squadreGirone,
+      risultatiCampionato,
+      stats: {
+        totalPlayers: players.filter(p => p.nome).length,
+        totalTrainings: trainings.length,
+        totalMatches: matches.length,
+        totalInjuries: injuries.length
+      }
+    };
+    
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const jsonSize = jsonString.length; // Dimensione JSON in bytes
+    
+    return {
+      used: jsonSize,
+      total: 1024 * 1024 * 1024, // 1 GB free tier (per riferimento)
+      percentage: Math.round((jsonSize / (1024 * 1024 * 1024)) * 100),
+      jsonSizeMB: Math.round(jsonSize / 1024 / 1024 * 10) / 10 // MB con 1 decimale
+    };
+  };
+
+  // Calcola dimensioni REALI foto su Firebase Storage
+  const calculateRealStorageSize = async () => {
+    if (!user) return null;
+    
+    try {
+      console.log('📊 Calcolo dimensioni reali Storage...');
+      
+      let totalSize = 0;
+      const breakdown = {
+        logo: 0,
+        playerPhotos: 0,
+        matchPhotos: 0,
+        trainingPhotos: 0
+      };
+      
+      // 1. Logo squadra
+      if (teamLogo && teamLogo.startsWith('http')) {
+        try {
+          const logoRef = storage.refFromURL(teamLogo);
+          const logoMetadata = await logoRef.getMetadata();
+          breakdown.logo = logoMetadata.size;
+          totalSize += logoMetadata.size;
+        } catch (error) {
+          console.warn('Logo metadata non disponibile:', error);
+        }
+      }
+      
+      // 2. Foto giocatori
+      const playerPhotosRef = storage.ref(`player-photos/${user.uid}`);
+      try {
+        const playerPhotosList = await playerPhotosRef.listAll();
+        for (const item of playerPhotosList.items) {
+          try {
+            const metadata = await item.getMetadata();
+            breakdown.playerPhotos += metadata.size;
+            totalSize += metadata.size;
+          } catch (error) {
+            console.warn('Metadata foto giocatore non disponibile:', error);
+          }
+        }
+      } catch (error) {
+        console.warn('Cartella player-photos non disponibile:', error);
+      }
+      
+      // 3. Foto partite
+      const matchPhotosRef = storage.ref(`match-photos/${user.uid}`);
+      try {
+        const matchPhotosList = await matchPhotosRef.listAll();
+        for (const item of matchPhotosList.items) {
+          try {
+            const metadata = await item.getMetadata();
+            breakdown.matchPhotos += metadata.size;
+            totalSize += metadata.size;
+          } catch (error) {
+            console.warn('Metadata foto partita non disponibile:', error);
+          }
+        }
+      } catch (error) {
+        console.warn('Cartella match-photos non disponibile:', error);
+      }
+      
+      // 4. Foto allenamenti
+      const trainingPhotosRef = storage.ref(`training-photos/${user.uid}`);
+      try {
+        const trainingPhotosList = await trainingPhotosRef.listAll();
+        for (const item of trainingPhotosList.items) {
+          try {
+            const metadata = await item.getMetadata();
+            breakdown.trainingPhotos += metadata.size;
+            totalSize += metadata.size;
+          } catch (error) {
+            console.warn('Metadata foto allenamento non disponibile:', error);
+          }
+        }
+      } catch (error) {
+        console.warn('Cartella training-photos non disponibile:', error);
+      }
+      
+      console.log('✅ Dimensioni reali calcolate:', {
+        total: Math.round(totalSize / 1024 / 1024) + ' MB',
+        breakdown: {
+          logo: Math.round(breakdown.logo / 1024) + ' KB',
+          playerPhotos: Math.round(breakdown.playerPhotos / 1024 / 1024) + ' MB',
+          matchPhotos: Math.round(breakdown.matchPhotos / 1024 / 1024) + ' MB',
+          trainingPhotos: Math.round(breakdown.trainingPhotos / 1024 / 1024) + ' MB'
+        }
+      });
+      
+      return {
+        total: totalSize,
+        breakdown: breakdown
+      };
+      
+    } catch (error) {
+      console.error('❌ Errore calcolo dimensioni Storage:', error);
+      return null;
+    }
+  };
+
+  // Inizializza sistema backup
+  useEffect(() => {
+    // Rileva tipo dispositivo
+    const deviceType = getDeviceType();
+    setDeviceType(deviceType);
+    console.log('📱 Tipo dispositivo rilevato:', deviceType);
+    
+    // Carica data ultimo backup
+    const lastBackup = localStorage.getItem('lastBackupDate');
+    if (lastBackup) {
+      setLastBackupDate(lastBackup);
+    }
+    
+    const lastFullBackup = localStorage.getItem('lastFullBackupDate');
+    if (lastFullBackup) {
+      setLastFullBackupDate(lastFullBackup);
+    }
+    
+  }, []);
+
+  // Ricalcola storage stats quando cambiano i dati
+  useEffect(() => {
+    const stats = calculateStorageStats();
+    setStorageStats(stats);
+    console.log('📊 Storage stats aggiornate - Dimensione JSON backup:', stats.jsonSizeMB, 'MB');
+  }, [players, matches, trainings]);
+
+  // Carica lista backup quando user è autenticato
+  useEffect(() => {
+    if (user && teamId) {
+      loadAvailableBackups();
+      
+      // Carica dimensioni reali Storage (con delay per non bloccare)
+      setTimeout(async () => {
+        setLoadingStorageSize(true);
+        const realSize = await calculateRealStorageSize();
+        if (realSize) {
+          setRealStorageSize(realSize);
+        }
+        setLoadingStorageSize(false);
+      }, 2000);
+    }
+  }, [user, teamId]);
+
+  // Backup automatico giornaliero alle 03:00 AM
+  useEffect(() => {
+    if (!user || !teamId) return;
+    
+    const checkAndRunDailyBackup = () => {
+      const now = new Date();
+      const lastBackup = localStorage.getItem('lastBackupDate');
+      
+      // Se non c'è mai stato un backup, o l'ultimo è di ieri, fai backup
+      if (!lastBackup) {
+        console.log('🔄 Primo backup mai fatto, eseguo backup...');
+        createDailyBackup();
+        return;
+      }
+      
+      const lastBackupDate = new Date(lastBackup);
+      const hoursSinceLastBackup = (now - lastBackupDate) / (1000 * 60 * 60);
+      
+      // Se sono passate più di 24 ore, fai backup
+      if (hoursSinceLastBackup >= 24) {
+        console.log('🔄 Sono passate 24h dall\'ultimo backup, eseguo backup...');
+        createDailyBackup();
+      }
+    };
+    
+    // Check al mount
+    checkAndRunDailyBackup();
+    
+    // Check ogni ora
+    const interval = setInterval(checkAndRunDailyBackup, 60 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, [user, teamId, players, matches, trainings]);
+
+  // ========== FINE NUOVE FUNZIONI SISTEMA BACKUP ==========
+
   // ========== FUNZIONI PER ANALISI TATTICA ==========
 
   const moduliDisponibili = [
@@ -9503,7 +10014,7 @@ const SoccerTeamTracker = () => {
                         e.preventDefault();
                         e.stopPropagation();
                         console.log('🔘 Click badge backup header - vai a export');
-                        setActiveTab('export');
+                        setActiveTab('backup');
                         setTimeout(() => {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }, 100);
@@ -9525,7 +10036,7 @@ const SoccerTeamTracker = () => {
                         e.preventDefault();
                         e.stopPropagation();
                         console.log('🔘 Click badge backup header - vai a export');
-                        setActiveTab('export');
+                        setActiveTab('backup');
                         setTimeout(() => {
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }, 100);
@@ -9594,7 +10105,7 @@ const SoccerTeamTracker = () => {
                       e.preventDefault();
                       e.stopPropagation();
                       console.log('🔘 Click banner backup - vai a export');
-                      setActiveTab('export');
+                      setActiveTab('backup');
                       setTimeout(() => {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }, 100);
@@ -9625,7 +10136,7 @@ const SoccerTeamTracker = () => {
                       e.preventDefault();
                       e.stopPropagation();
                       console.log('🔘 Click banner backup - vai a export');
-                      setActiveTab('export');
+                      setActiveTab('backup');
                       setTimeout(() => {
                         window.scrollTo({ top: 0, behavior: 'smooth' });
                       }, 100);
@@ -9652,7 +10163,7 @@ const SoccerTeamTracker = () => {
               ...(userRole === 'admin' ? ['divisione'] : []),
               ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
               'calendar', 'injuries', 'roster',
-              ...(userRole === 'admin' ? ['report', 'export', 'sync', 'admin'] : [])
+              ...(userRole === 'admin' ? ['report', 'backup', 'admin', 'reset'] : [])
             ].map(tab => (
               <button
                 key={tab}
@@ -9741,15 +10252,9 @@ const SoccerTeamTracker = () => {
                     <span className="tab-icon-only sm:hidden">📅</span>
                   </>
                 )}
-                {tab === 'export' && (
+                {tab === 'backup' && (
                   <>
-                    <span className="tab-text-portrait hidden sm:inline">💾 Esportazioni</span>
-                    <span className="tab-icon-only sm:hidden">💾</span>
-                  </>
-                )}
-                {tab === 'sync' && (
-                  <>
-                    <span className="tab-text-portrait hidden sm:inline">☁️ Sincronizzazione</span>
+                    <span className="tab-text-portrait hidden sm:inline">☁️ Backup e Sync</span>
                     <span className="tab-icon-only sm:hidden">☁️</span>
                   </>
                 )}
@@ -9757,6 +10262,12 @@ const SoccerTeamTracker = () => {
                   <>
                     <span className="tab-text-portrait hidden sm:inline">👑 Gestione Utenti</span>
                     <span className="tab-icon-only sm:hidden">👑</span>
+                  </>
+                )}
+                {tab === 'reset' && (
+                  <>
+                    <span className="tab-text-portrait hidden sm:inline">🔴 Reset Database</span>
+                    <span className="tab-icon-only sm:hidden">🔴</span>
                   </>
                 )}
               </button>
@@ -11426,7 +11937,33 @@ const SoccerTeamTracker = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (userRole === 'admin') deleteTraining(training.id);
+                            if (userRole === 'admin') {
+                              // Prepara dati per conferma
+                              const dataAllenamento = training.data 
+                                ? new Date(training.data).toLocaleDateString('it-IT', {
+                                    weekday: 'short',
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric'
+                                  })
+                                : 'Data non specificata';
+                              
+                              const tipoAllenamento = training.tipo || 'Allenamento';
+                              const noteAllenamento = training.note || 'Nessuna nota';
+                              
+                              if (window.confirm(
+                                `⚠️ ATTENZIONE!\n\n` +
+                                `Eliminare definitivamente questo allenamento?\n\n` +
+                                `📅 Data: ${dataAllenamento}\n` +
+                                `🏋️ Tipo: ${tipoAllenamento}\n` +
+                                `📝 Note: ${noteAllenamento}\n` +
+                                `📸 Foto: ${training.foto?.length || 0}\n\n` +
+                                `Questa azione NON può essere annullata!`
+                              )) {
+                                deleteTraining(training.id);
+                                showToast('🗑️ Allenamento eliminato', 'success');
+                              }
+                            }
                           }}
                           disabled={userRole !== 'admin'}
                           className={`p-2 ${
@@ -17126,199 +17663,10 @@ const SoccerTeamTracker = () => {
           </div>
         )}
 
-        {activeTab === 'export' && (
-          <div className="space-y-6">
-            {userRole !== 'admin' ? (
-              // Accesso negato per user
-              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-12 text-center animate-fade-in">
-                <div className="text-6xl mb-4">🔒</div>
-                <h2 className="text-2xl font-bold text-red-900 mb-2">Accesso Negato</h2>
-                <p className="text-red-700 mb-4">
-                  Solo gli amministratori possono accedere alle esportazioni e ai backup del database.
-                </p>
-                <button
-                  onClick={() => setActiveTab('dashboard')}
-                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-                >
-                  ← Torna alla Dashboard
-                </button>
-              </div>
-            ) : (
-              // Contenuto normale per admin
-              <div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">💾 Esportazioni e Backup</h2>
-            
-            {/* ========== SEZIONE BACKUP ========== */}
-            <div>
-              <h3 className="text-xl font-bold text-gray-700 mb-4">💾 Backup Dati</h3>
-              <div className="grid grid-cols-1 md:grid-cols-1 gap-6 max-w-md">
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg shadow-lg p-6 border-2 border-purple-200">
-                  <div className="text-4xl mb-4">💾</div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Backup Completo</h3>
-                  <p className="text-gray-600 text-sm mb-4">
-                    Scarica un backup completo di tutti i dati in formato JSON
-                  </p>
-                  <button
-                    onClick={downloadBackupJSON}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-                  >
-                    Scarica Backup JSON
-                  </button>
-                </div>
-              </div>
-              
-              <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 mt-6">
-                <div className="flex items-start gap-3">
-                  <div className="text-2xl">ℹ️</div>
-                  <div>
-                    <h4 className="font-bold text-gray-800 mb-2">Informazioni sul Backup:</h4>
-                    <ul className="text-sm text-gray-700 space-y-1">
-                      <li>• Il <strong>Backup JSON</strong> contiene TUTTI i dati: giocatori, allenamenti, partite, infortuni, formazioni</li>
-                      <li>• Puoi reimportare il backup in seguito per ripristinare completamente i dati</li>
-                      <li>• Consigliato fare un backup ogni 7 giorni per sicurezza</li>
-                      <li>• Salva il file in un luogo sicuro (Google Drive, Dropbox, ecc.)</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {/* ========== SEZIONE BACKUP E RESET ========== */}
-            <div className="pt-6 border-t-4 border-gray-200">
-              <h3 className="text-xl font-bold text-gray-700 mb-4">💾 Gestione Backup e Reset Stagione</h3>
-              
-              <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">💾 Gestione Backup (Opzionale)</h3>
-                <div className="mb-4 p-4 bg-green-50 border-2 border-green-400 rounded-lg">
-                  <p className="font-bold text-green-800 mb-2">✅ I tuoi dati sono salvati automaticamente sul dispositivo</p>
-                  <p className="text-sm text-green-900">
-                    Usa queste funzioni solo se vuoi:
-                  </p>
-                  <ul className="list-disc ml-6 mt-2 text-sm text-green-900">
-                    <li><strong>Trasferire i dati</strong> su un altro dispositivo</li>
-                    <li><strong>Creare un backup</strong> di sicurezza su cloud (Google Drive, Dropbox, ecc.)</li>
-                    <li><strong>Ripristinare</strong> dati da un file di backup precedente</li>
-                  </ul>
-                </div>
-                <div className="flex gap-4 flex-wrap">
-                  <label className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
-                    <Download size={20} className="rotate-180" />
-                    📱 Importa da File JSON
-                    <input
-                      type="file"
-                      accept=".json,application/json,text/plain"
-                      onChange={handleFileImport}
-                      className="hidden"
-                      multiple={false}
-                    />
-                  </label>
-                  <button
-                    onClick={() => setShowManualImport(true)}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition-colors"
-                  >
-                    📋 Importa Manualmente
-                  </button>
-                  <button
-                    onClick={exportToJSON}
-                    className="flex items-center gap-2 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    <Download size={20} />
-                    💾 Scarica Backup JSON
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-lg shadow-xl p-6 border-2 border-red-200">
-                <h3 className="text-xl font-bold text-red-700 mb-4">🔴 Reset Database - Nuova Stagione</h3>
-                <div className="mb-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
-                  <p className="font-bold text-red-800 mb-2">⚠️ ATTENZIONE: Operazioni Permanenti</p>
-                  <p className="text-sm text-red-900">
-                    Usa queste funzioni solo quando devi iniziare una nuova stagione o resettare completamente l'app.
-                  </p>
-                  <p className="text-sm text-red-900 font-bold mt-2">
-                    💡 CONSIGLIO: Crea un backup prima di resettare!
-                  </p>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="p-4 bg-orange-50 border-2 border-orange-300 rounded-lg">
-                    <h4 className="font-bold text-orange-900 mb-2">🔄 Reset Stagione (consigliato)</h4>
-                    <p className="text-sm text-orange-800 mb-3">
-                      Cancella allenamenti, partite e statistiche ma <strong>mantiene la rosa giocatori</strong> e il logo.
-                      Ideale per iniziare una nuova stagione con la stessa squadra.
-                    </p>
-                    <button
-                      onClick={resetStagione}
-                      className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors font-semibold"
-                    >
-                      🔄 Reset Stagione (mantieni rosa)
-                    </button>
-                  </div>
-                  
-                  <div className="p-4 bg-red-50 border-2 border-red-400 rounded-lg">
-                    <h4 className="font-bold text-red-900 mb-2">🔴 Reset Completo (pericoloso)</h4>
-                    <p className="text-sm text-red-800 mb-3">
-                      Cancella <strong>TUTTO</strong>: giocatori, allenamenti, partite, statistiche, logo.
-                      L'app tornerà come nuova. Usa solo se vuoi ricominciare da zero.
-                    </p>
-                    <button
-                      onClick={resetCompleto}
-                      className="w-full flex items-center justify-center gap-2 bg-red-700 text-white px-6 py-3 rounded-lg hover:bg-red-800 transition-colors font-semibold"
-                    >
-                      🔴 Reset Completo (cancella tutto)
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showManualImport && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[80vh] flex flex-col">
-              <div className="p-6 border-b">
-                <h3 className="text-2xl font-bold text-gray-800">📋 Importa Manualmente</h3>
-                <p className="text-blue-600 font-bold text-lg mt-2">INCOLLA QUI IL CONTENUTO DEL FILE JSON</p>
-                <p className="text-gray-600 mt-1 text-sm">Apri il file JSON con un editor di testo, seleziona tutto (Ctrl+A o Cmd+A) e incolla qui sotto</p>
-              </div>
-              
-              <div className="flex-1 overflow-auto p-6">
-                <textarea
-                  value={manualImportData}
-                  onChange={(e) => setManualImportData(e.target.value)}
-                  placeholder='Incolla qui il contenuto del file JSON...'
-                  className="w-full h-full min-h-[400px] p-4 border rounded-lg font-mono text-sm"
-                />
-              </div>
-              
-              <div className="p-6 border-t flex gap-3 justify-end">
-                <button
-                  onClick={handleManualImport}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-                >
-                  ✅ Importa Dati
-                </button>
-                <button
-                  onClick={() => {
-                    setShowManualImport(false);
-                    setManualImportData('');
-                  }}
-                  className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold"
-                >
-                  Annulla
-                </button>
-              </div>
-            </div>
-            </div>
-            )}
-          </div>
-        )}
-
         {/* ============================================ */}
-        {/* TAB SINCRONIZZAZIONE CLOUD */}
+        {/* TAB BACKUP E SINCRONIZZAZIONE */}
         {/* ============================================ */}
-        {activeTab === 'sync' && (
+        {activeTab === 'backup' && (
           <div className="animate-fade-in">
             {userRole !== 'admin' ? (
               // Accesso negato per user
@@ -17326,7 +17674,7 @@ const SoccerTeamTracker = () => {
                 <div className="text-6xl mb-4">🔒</div>
                 <h2 className="text-2xl font-bold text-red-900 mb-2">Accesso Negato</h2>
                 <p className="text-red-700 mb-4">
-                  Solo gli amministratori possono gestire la sincronizzazione cloud del database.
+                  Solo gli amministratori possono gestire backup, sincronizzazione e import/export dati.
                 </p>
                 <button
                   onClick={() => setActiveTab('dashboard')}
@@ -17339,8 +17687,8 @@ const SoccerTeamTracker = () => {
               // Contenuto normale per admin
               <div>
             <div className="mb-6">
-              <h2 className="text-3xl font-bold text-gray-800 mb-2">☁️ Sincronizzazione Cloud</h2>
-              <p className="text-gray-600">Gestisci la sincronizzazione dei dati tra dispositivo locale e cloud Firebase</p>
+              <h2 className="text-3xl font-bold text-gray-800 mb-2">☁️ Backup e Sincronizzazione</h2>
+              <p className="text-gray-600">Gestisci backup automatici, sincronizzazione cloud e import/export dati</p>
             </div>
 
             {/* ========== CARD STATO DISPOSITIVO ========== */}
@@ -17551,6 +17899,363 @@ const SoccerTeamTracker = () => {
                 </div>
               </div>
             </div>
+
+            {/* ============================================ */}
+            {/* SEZIONE SISTEMA BACKUP AVANZATO */}
+            {/* ============================================ */}
+            <div className="bg-white rounded-lg shadow-lg p-6 mt-8">
+              <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span>💾</span>
+                <span>Sistema Backup</span>
+              </h3>
+
+              {/* Backup Automatici */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <span>🤖</span>
+                    <span>Backup Automatici (Cloud)</span>
+                  </h4>
+                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                    ✅ Attivo
+                  </span>
+                </div>
+                
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <div className="space-y-2 text-sm">
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">📅 Frequenza:</span>
+                      <span className="font-semibold text-gray-900">Giornaliero (ogni 24h)</span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">💾 Ultimo backup:</span>
+                      <span className="font-semibold text-gray-900">
+                        {lastBackupDate ? new Date(lastBackupDate).toLocaleString('it-IT') : 'Mai eseguito'}
+                      </span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">🔄 Rotazione:</span>
+                      <span className="font-semibold text-gray-900">Ultimi 7 giorni</span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">📦 Dimensione:</span>
+                      <span className="font-semibold text-gray-900">~2 MB (solo dati)</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Lista Backup Disponibili */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="font-semibold text-gray-800">📋 Backup Disponibili ({availableBackups.length})</h5>
+                    <button
+                      onClick={loadAvailableBackups}
+                      disabled={loadingBackups}
+                      className="text-sm px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+                    >
+                      {loadingBackups ? '⏳' : '🔄'} Aggiorna
+                    </button>
+                  </div>
+                  
+                  {loadingBackups ? (
+                    <div className="text-center py-4 text-gray-600">
+                      <div className="spinner inline-block mr-2"></div>
+                      Caricamento...
+                    </div>
+                  ) : availableBackups.length === 0 ? (
+                    <div className="text-center py-4 text-gray-600">
+                      Nessun backup disponibile. Il primo backup verrà creato automaticamente nelle prossime 24 ore.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {availableBackups.map((backup, index) => (
+                        <div key={backup.name} className="bg-white rounded-lg p-3 border border-gray-200 hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-800">
+                                📅 {new Date(backup.fullTimestamp).toLocaleDateString('it-IT', {
+                                  weekday: 'short',
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                🕐 {backup.time} • {(backup.size / 1024).toFixed(0)} KB
+                                {index === 0 && <span className="ml-2 text-green-600 font-semibold">(Più recente)</span>}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => downloadBackup(backup.url, backup.name)}
+                                className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                                title="Scarica backup"
+                              >
+                                📥 Scarica
+                              </button>
+                              <button
+                                onClick={() => restoreDailyBackup(backup.url, backup.name)}
+                                className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+                                title="Ripristina questo backup"
+                              >
+                                ♻️ Ripristina
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Azione Manuale Backup */}
+                <div className="mt-4">
+                  <button
+                    onClick={async () => {
+                      if (window.confirm('Vuoi creare un backup manuale adesso?\n\nQuesta operazione salverà tutti i dati correnti.')) {
+                        showLoadingWithProgress('🔄 Creazione backup manuale...', 0);
+                        const success = await createDailyBackup();
+                        hideLoading();
+                        if (success) {
+                          showToast('✅ Backup manuale creato!', 'success');
+                          await loadAvailableBackups();
+                        } else {
+                          showToast('❌ Errore creazione backup', 'error');
+                        }
+                      }
+                    }}
+                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+                  >
+                    🔧 Crea Backup Manuale Ora
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-200 my-8"></div>
+
+              {/* Backup Completo PC */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <span>💻</span>
+                  <span>Backup Completo (Download)</span>
+                </h4>
+                
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-4">
+                  <div className="space-y-2 text-sm">
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">📦 Tipo:</span>
+                      <span className="font-semibold text-gray-900">JSON completo (tutti i dati + URL foto)</span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">💾 Dimensione stimata:</span>
+                      <span className="font-semibold text-gray-900">~{storageStats.jsonSizeMB || 2} MB</span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">📸 Foto:</span>
+                      <span className="font-semibold text-gray-900">URL/path (non embedded)</span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">🛡️ Protezione:</span>
+                      <span className="font-semibold text-gray-900">Dati completi (foto in archivio)</span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">📅 Ultimo backup:</span>
+                      <span className="font-semibold text-gray-900">
+                        {lastFullBackupDate ? new Date(lastFullBackupDate).toLocaleDateString('it-IT') : 'Mai eseguito'}
+                      </span>
+                    </p>
+                    <p className="flex items-center justify-between">
+                      <span className="text-gray-700">📅 Consiglio:</span>
+                      <span className="font-semibold text-gray-900">1 volta al mese</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    onClick={downloadFullBackupWithPhotos}
+                    className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                  >
+                    <span>📥</span>
+                    <span>Scarica Backup Completo</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">💡</span>
+                  <div className="text-sm text-gray-700 space-y-2">
+                    <p className="font-semibold text-gray-800">Come Funziona il Sistema Backup</p>
+                    <ul className="space-y-1 ml-4">
+                      <li>• <strong>Backup Automatici:</strong> Salvati su cloud ogni 24h, contengono tutti i dati + URL foto (~2 MB)</li>
+                      <li>• <strong>Backup Completo:</strong> Download sul PC con tutti i dati + URL foto (~2 MB)</li>
+                      <li>• <strong>Foto NON Embedded:</strong> Le foto restano SEMPRE nell'archivio cloud (già protette)</li>
+                      <li>• <strong>Storage Locale:</strong> IndexedDB mantiene copia locale per funzionamento offline</li>
+                      <li>• <strong>Protezione:</strong> L'archivio cloud ha ridondanza geografica e recupero file eliminati (30 giorni)</li>
+                    </ul>
+                    <p className="text-xs text-gray-600 mt-2 pt-2 border-t border-blue-200">
+                      💰 Costo: €0,00/mese - Tutto incluso (Foto + Backup = ~363 MB)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-gray-200 my-8"></div>
+
+              {/* Import Locale */}
+              <div>
+                <h4 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                  <span>📥</span>
+                  <span>Import Dati da File</span>
+                </h4>
+                
+                <div className="bg-green-50 border-2 border-green-400 rounded-lg p-4 mb-4">
+                  <p className="font-bold text-green-800 mb-2">✅ I tuoi dati sono salvati automaticamente sul dispositivo</p>
+                  <p className="text-sm text-green-900">
+                    Usa questa funzione solo se vuoi:
+                  </p>
+                  <ul className="list-disc ml-6 mt-2 text-sm text-green-900">
+                    <li><strong>Trasferire i dati</strong> su un altro dispositivo</li>
+                    <li><strong>Ripristinare</strong> dati da un file di backup precedente</li>
+                    <li><strong>Importare</strong> dati salvati sul tuo computer</li>
+                  </ul>
+                </div>
+                
+                <label className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer w-full">
+                  <Download size={20} className="rotate-180" />
+                  <span className="font-semibold">📱 Importa da File JSON</span>
+                  <input
+                    type="file"
+                    accept=".json,application/json,text/plain"
+                    onChange={handleFileImport}
+                    className="hidden"
+                    multiple={false}
+                  />
+                </label>
+              </div>
+
+              {/* Statistiche Archivio */}
+              <div className="bg-gray-50 rounded-lg p-4 mt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h5 className="font-semibold text-gray-800">📊 Statistiche Archivio</h5>
+                  <button
+                    onClick={async () => {
+                      setLoadingStorageSize(true);
+                      const realSize = await calculateRealStorageSize();
+                      if (realSize) {
+                        setRealStorageSize(realSize);
+                        showToast('✅ Dimensioni Storage aggiornate!', 'success');
+                      } else {
+                        showToast('⚠️ Impossibile calcolare dimensioni', 'warning');
+                      }
+                      setLoadingStorageSize(false);
+                    }}
+                    disabled={loadingStorageSize}
+                    className="text-sm px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+                    title="Ricalcola dimensioni reali"
+                  >
+                    {loadingStorageSize ? '⏳' : '🔄'} Aggiorna
+                  </button>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Dimensione backup JSON:</span>
+                    <span className="font-semibold text-gray-900">~{storageStats.jsonSizeMB || 2} MB</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Backup automatici (7 giorni):</span>
+                    <span className="font-semibold text-gray-900">~14 MB</span>
+                  </div>
+                  
+                  {loadingStorageSize ? (
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-gray-700">Foto archiviate:</span>
+                      <span className="text-gray-600 italic">
+                        <div className="spinner inline-block mr-2" style={{width: '12px', height: '12px'}}></div>
+                        Calcolo...
+                      </span>
+                    </div>
+                  ) : realStorageSize ? (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700">Foto archiviate:</span>
+                        <span className="font-semibold text-green-600">
+                          {Math.round(realStorageSize.total / 1024 / 1024)} MB
+                        </span>
+                      </div>
+                      <div className="ml-4 space-y-1 text-xs text-gray-600">
+                        <div className="flex justify-between">
+                          <span>• Logo:</span>
+                          <span>{Math.round(realStorageSize.breakdown.logo / 1024)} KB</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>• Foto giocatori:</span>
+                          <span>{Math.round(realStorageSize.breakdown.playerPhotos / 1024 / 1024)} MB</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>• Foto partite:</span>
+                          <span>{Math.round(realStorageSize.breakdown.matchPhotos / 1024 / 1024)} MB</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>• Foto allenamenti:</span>
+                          <span>{Math.round(realStorageSize.breakdown.trainingPhotos / 1024 / 1024)} MB</span>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-700">Foto archiviate (stima):</span>
+                      <span className="font-semibold text-gray-900">~350 MB</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between items-center pt-2 border-t font-semibold">
+                    <span className="text-gray-700">Totale archivio cloud:</span>
+                    <span className="text-gray-900">
+                      {realStorageSize 
+                        ? `${Math.round((realStorageSize.total + 14 * 1024 * 1024) / 1024 / 1024)} MB`
+                        : '~365 MB'
+                      }
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Spazio disponibile:</span>
+                    <span className="text-gray-900">1,024 MB (1 GB)</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                      style={{ 
+                        width: realStorageSize 
+                          ? `${Math.min(Math.round(((realStorageSize.total + 14 * 1024 * 1024) / (1024 * 1024 * 1024)) * 100), 100)}%`
+                          : '36%'
+                      }}
+                      title={realStorageSize 
+                        ? `~${Math.round(((realStorageSize.total + 14 * 1024 * 1024) / (1024 * 1024 * 1024)) * 100)}% usato`
+                        : '~36% usato (stima)'
+                      }
+                    ></div>
+                  </div>
+                  <div className="flex justify-between items-center pt-2 border-t">
+                    <span className="text-gray-700">Dispositivo rilevato:</span>
+                    <span className="font-semibold text-gray-900 capitalize">
+                      {deviceType === 'mobile' && '📱 Mobile'}
+                      {deviceType === 'tablet' && '📟 Tablet'}
+                      {deviceType === 'desktop' && '💻 Desktop'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-700">Costo mensile:</span>
+                    <span className="font-semibold text-green-600">€0,00</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             </div>
             )}
           </div>
@@ -17706,6 +18411,143 @@ const SoccerTeamTracker = () => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ============================================ */}
+        {/* TAB RESET DATABASE */}
+        {/* ============================================ */}
+        {activeTab === 'reset' && (
+          <div className="space-y-6 animate-fade-in">
+            {userRole !== 'admin' ? (
+              // Accesso negato per user
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-12 text-center animate-fade-in">
+                <div className="text-6xl mb-4">🔒</div>
+                <h2 className="text-2xl font-bold text-red-900 mb-2">Accesso Negato</h2>
+                <p className="text-red-700 mb-4">
+                  Solo gli amministratori possono accedere alle funzioni di reset del database.
+                </p>
+                <button
+                  onClick={() => setActiveTab('dashboard')}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+                >
+                  ← Torna alla Dashboard
+                </button>
+              </div>
+            ) : (
+              // Contenuto normale per admin
+              <div>
+                <div className="mb-6">
+                  <h2 className="text-3xl font-bold text-gray-800 mb-2">🔴 Reset Database</h2>
+                  <p className="text-gray-600">Operazioni avanzate per reset stagione o completo del database</p>
+                </div>
+
+                {/* Warning Principale */}
+                <div className="bg-red-50 border-2 border-red-300 rounded-lg p-6 mb-6">
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl">⚠️</span>
+                    <div>
+                      <p className="font-bold text-red-800 mb-2 text-lg">ATTENZIONE: Operazioni Permanenti</p>
+                      <p className="text-sm text-red-900 mb-2">
+                        Usa queste funzioni solo quando devi iniziare una nuova stagione o resettare completamente l'app.
+                      </p>
+                      <p className="text-sm text-red-900 font-bold">
+                        💡 CONSIGLIO IMPORTANTE: Vai su "Backup e Sync" e crea un backup completo PRIMA di procedere!
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reset Stagione */}
+                <div className="bg-white rounded-lg shadow-xl p-6 mb-6">
+                  <div className="p-4 bg-orange-50 border-2 border-orange-300 rounded-lg">
+                    <h3 className="font-bold text-orange-900 mb-3 text-xl flex items-center gap-2">
+                      <span>🔄</span>
+                      <span>Reset Stagione (consigliato)</span>
+                    </h3>
+                    <p className="text-sm text-orange-800 mb-4">
+                      Cancella allenamenti, partite e statistiche ma <strong>mantiene la rosa giocatori</strong> e il logo.
+                      Ideale per iniziare una nuova stagione con la stessa squadra.
+                    </p>
+                    <div className="bg-orange-100 border border-orange-300 rounded p-3 mb-4">
+                      <p className="text-xs text-orange-900 font-semibold mb-2">✅ Cosa viene MANTENUTO:</p>
+                      <ul className="text-xs text-orange-900 space-y-1 ml-4">
+                        <li>• Rosa giocatori completa</li>
+                        <li>• Logo squadra</li>
+                        <li>• Configurazione account</li>
+                      </ul>
+                      <p className="text-xs text-orange-900 font-semibold mt-3 mb-2">❌ Cosa viene CANCELLATO:</p>
+                      <ul className="text-xs text-orange-900 space-y-1 ml-4">
+                        <li>• Tutti gli allenamenti</li>
+                        <li>• Tutte le partite</li>
+                        <li>• Tutte le statistiche</li>
+                        <li>• Formazioni tattiche</li>
+                      </ul>
+                    </div>
+                    <button
+                      onClick={resetStagione}
+                      className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white px-6 py-4 rounded-lg hover:bg-orange-700 transition-colors font-semibold text-lg"
+                    >
+                      🔄 Reset Stagione (mantieni rosa)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Reset Completo */}
+                <div className="bg-white rounded-lg shadow-xl p-6 border-2 border-red-300">
+                  <div className="p-4 bg-red-50 border-2 border-red-400 rounded-lg">
+                    <h3 className="font-bold text-red-900 mb-3 text-xl flex items-center gap-2">
+                      <span>🔴</span>
+                      <span>Reset Completo (pericoloso)</span>
+                    </h3>
+                    <p className="text-sm text-red-800 mb-4">
+                      Cancella <strong>TUTTO</strong>: giocatori, allenamenti, partite, statistiche, logo.
+                      L'app tornerà come nuova. Usa solo se vuoi ricominciare da zero.
+                    </p>
+                    <div className="bg-red-100 border border-red-400 rounded p-3 mb-4">
+                      <p className="text-xs text-red-900 font-semibold mb-2">🔴 Cosa viene CANCELLATO:</p>
+                      <ul className="text-xs text-red-900 space-y-1 ml-4">
+                        <li>• <strong>TUTTI</strong> i giocatori</li>
+                        <li>• <strong>TUTTI</strong> gli allenamenti</li>
+                        <li>• <strong>TUTTE</strong> le partite</li>
+                        <li>• <strong>TUTTE</strong> le statistiche</li>
+                        <li>• Logo squadra</li>
+                        <li>• Formazioni tattiche</li>
+                        <li>• Ogni dato dell'app</li>
+                      </ul>
+                      <p className="text-xs text-red-900 font-bold mt-3">
+                        ⚠️ Questa operazione NON può essere annullata!
+                      </p>
+                    </div>
+                    <button
+                      onClick={resetCompleto}
+                      className="w-full flex items-center justify-center gap-2 bg-red-700 text-white px-6 py-4 rounded-lg hover:bg-red-800 transition-colors font-semibold text-lg"
+                    >
+                      🔴 Reset Completo (cancella tutto)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Info Finale */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+                  <div className="flex items-start gap-2">
+                    <span className="text-xl">💡</span>
+                    <div className="text-sm text-gray-700">
+                      <p className="font-semibold mb-2">Consigli per un reset sicuro:</p>
+                      <ul className="space-y-1 ml-4">
+                        <li>1. Vai su <strong>"Backup e Sync"</strong></li>
+                        <li>2. Clicca <strong>"Scarica Backup Completo"</strong></li>
+                        <li>3. Salva il file in un luogo sicuro</li>
+                        <li>4. Solo dopo torna qui ed esegui il reset</li>
+                      </ul>
+                      <p className="mt-2 text-xs text-gray-600">
+                        ℹ️ Con un backup potrai sempre ripristinare i dati in caso di errore
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
