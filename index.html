@@ -12,10 +12,9 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <!-- ✅ LAZY LOADING: Chart.js e jsPDF caricati solo quando necessari -->
-  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> -->
-  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script> -->
-  <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script> -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     /* ========== DISABILITA PULL-TO-REFRESH SU MOBILE ========== */
     html {
@@ -1920,37 +1919,6 @@ const loadFromIndexedDB = async (key) => {
     console.error('Errore caricamento IndexedDB:', error);
     return null;
   }
-};
-
-// ========== LAZY LOADING HELPER ==========
-/**
- * Carica script dinamicamente solo quando necessario
- * @param {string} src - URL dello script da caricare
- * @param {string} globalVar - Nome variabile globale per check se già caricato
- * @returns {Promise} Promise che si resolve quando script è caricato
- */
-const loadScript = (src, globalVar) => {
-  return new Promise((resolve, reject) => {
-    // Se già caricato, resolve immediatamente
-    if (globalVar && window[globalVar]) {
-      console.log(`✅ Lazy Loading: ${globalVar} già caricato`);
-      resolve();
-      return;
-    }
-    
-    console.log(`📥 Lazy Loading: Caricamento ${globalVar || src}...`);
-    const script = document.createElement('script');
-    script.src = src;
-    script.onload = () => {
-      console.log(`✅ Lazy Loading: ${globalVar || src} caricato con successo`);
-      resolve();
-    };
-    script.onerror = () => {
-      console.error(`❌ Lazy Loading: Errore caricamento ${globalVar || src}`);
-      reject(new Error(`Failed to load script: ${src}`));
-    };
-    document.head.appendChild(script);
-  });
 };
 
 const SoccerTeamTracker = () => {
@@ -4263,25 +4231,13 @@ const SoccerTeamTracker = () => {
   };
 
   // Esporta esercizi allenamento in PDF
-  const exportEserciziPDF = async (training) => {
+  const exportEserciziPDF = (training) => {
     if (!training || !training.esercizi || training.esercizi.length === 0) {
       alert('Nessun esercizio da esportare!');
       return;
     }
     
     try {
-      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
-      if (!window.jspdf) {
-        console.log('📥 jsPDF non caricato, avvio lazy loading...');
-        showLoading('Caricamento generatore PDF...');
-        
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
-        
-        hideLoading();
-        console.log('✅ jsPDF caricato via lazy loading!');
-      }
-      
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       
@@ -4406,20 +4362,8 @@ const SoccerTeamTracker = () => {
   };
 
   // Esporta statistiche giocatori in PDF
-  const exportStatsPDF = async () => {
+  const exportStatsPDF = () => {
     try {
-      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
-      if (!window.jspdf) {
-        console.log('📥 jsPDF non caricato, avvio lazy loading...');
-        showLoading('Caricamento generatore PDF...');
-        
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
-        
-        hideLoading();
-        console.log('✅ jsPDF caricato via lazy loading!');
-      }
-      
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('landscape'); // Landscape per tabella larga
       
@@ -4667,27 +4611,14 @@ const SoccerTeamTracker = () => {
   /**
    * Esporta la classifica campionato in PDF
    */
-  const exportClassificaPDF = async () => {
+  const exportClassificaPDF = () => {
     if (squadreGirone.length === 0) {
       alert('Nessuna squadra presente nella classifica');
       return;
     }
 
-    try {
-      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
-      if (!window.jspdf) {
-        console.log('📥 jsPDF non caricato, avvio lazy loading...');
-        showLoading('Caricamento generatore PDF...');
-        
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
-        
-        hideLoading();
-        console.log('✅ jsPDF caricato via lazy loading!');
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
     
     // Titolo
     doc.setFontSize(20);
@@ -4962,12 +4893,6 @@ const SoccerTeamTracker = () => {
     // Salva PDF
     doc.save(`Classifica_Campionato_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`);
     showToast('PDF classifica generato!', 'success');
-    
-    } catch (error) {
-      hideLoading();
-      console.error('Errore generazione PDF classifica:', error);
-      showToast('❌ Errore generazione PDF', 'error');
-    }
   };
 
   // ========== GESTIONE DISPOSITIVI E AUTO-SYNC ==========
@@ -6266,27 +6191,14 @@ const SoccerTeamTracker = () => {
   // Ora l'utente deve fare sync manuale cliccando "Scarica da Cloud"
 
   // ========== EXPORT PDF RISULTATI PARTITE ==========
-  const exportResultsPDF = async () => {
+  const exportResultsPDF = () => {
     if (matches.length === 0) {
       showToast('⚠️ Nessuna partita presente', 'warning');
       return;
     }
 
-    try {
-      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
-      if (!window.jspdf) {
-        console.log('📥 jsPDF non caricato, avvio lazy loading...');
-        showLoading('Caricamento generatore PDF...');
-        
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
-        
-        hideLoading();
-        console.log('✅ jsPDF caricato via lazy loading!');
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
     
     // Titolo
     doc.setFontSize(20);
@@ -6419,285 +6331,289 @@ const SoccerTeamTracker = () => {
     // Salva PDF
     doc.save(`Risultati_Partite_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`);
     showToast('✅ PDF risultati generato!', 'success');
-    
-    } catch (error) {
-      hideLoading();
-      console.error('Errore generazione PDF risultati:', error);
-      showToast('❌ Errore generazione PDF', 'error');
-    }
   };
 
-  // ========== USE EFFECT PER GRAFICI DASHBOARD (CON LAZY LOADING E RETRY LOGIC) ==========
+  // ========== USE EFFECT PER GRAFICI DASHBOARD (CON RETRY LOGIC E RESPONSIVE MOBILE) ==========
   useEffect(() => {
     console.log('📊 useEffect grafici dashboard triggered');
     console.log('   activeTab:', activeTab);
     console.log('   Chart defined?', typeof Chart !== 'undefined');
     
-    if (activeTab === 'dashboard') {
-      // ✅ LAZY LOADING: Carica Chart.js solo quando necessario
-      const initCharts = () => {
-        console.log('✅ Inizio creazione grafici dashboard...');
+    if (activeTab === 'dashboard' && typeof Chart !== 'undefined') {
+      console.log('✅ Condizioni soddisfatte, creo grafici...');
+      
+      // Funzione per tentare la creazione del grafico con retry
+      const tryCreateChart = (chartId, createFn, retries = 0) => {
+        const maxRetries = 5; // Tenta fino a 5 volte
+        const baseDelay = 300; // Parti da 300ms
         
-        // Funzione per tentare la creazione del grafico con retry
-        const tryCreateChart = (chartId, createFn, retries = 0) => {
-          const maxRetries = 5;
-          const baseDelay = 300;
+        const attemptCreate = () => {
+          const canvas = document.getElementById(chartId);
           
-          const attemptCreate = () => {
-            const canvas = document.getElementById(chartId);
+          if (canvas) {
+            console.log(`✅ Canvas ${chartId} trovato, creo grafico...`);
+            // Distruggi grafico esistente se c'è
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) existingChart.destroy();
             
-            if (canvas) {
-              console.log(`✅ Canvas ${chartId} trovato, creo grafico...`);
-              const existingChart = Chart.getChart(canvas);
-              if (existingChart) existingChart.destroy();
-              createFn(canvas);
-            } else if (retries < maxRetries) {
-              console.log(`⏰ Canvas ${chartId} non trovato, retry ${retries + 1}/${maxRetries}...`);
-              setTimeout(() => tryCreateChart(chartId, createFn, retries + 1), baseDelay * (retries + 1));
-            } else {
-              console.log(`❌ Canvas ${chartId} non trovato dopo ${maxRetries} tentativi`);
-            }
-          };
-          
-          attemptCreate();
+            createFn(canvas);
+          } else if (retries < maxRetries) {
+            console.log(`⏰ Canvas ${chartId} non trovato, retry ${retries + 1}/${maxRetries}...`);
+            setTimeout(() => tryCreateChart(chartId, createFn, retries + 1), baseDelay * (retries + 1));
+          } else {
+            console.log(`❌ Canvas ${chartId} non trovato dopo ${maxRetries} tentativi`);
+          }
         };
         
-        // Aspetta che il DOM sia pronto
-        setTimeout(() => {
-          console.log('⏰ Inizio creazione grafici...');
-          
-          // ============ GRAFICO GOL FATTI/SUBITI ============
-          tryCreateChart('goalsChart', (ctx) => {
-            const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
-            
-            let totaleFatti = 0;
-            let totaleSubiti = 0;
-            const golFattiCumulativi = [];
-            const golSubitiCumulativi = [];
-            
-            matches.forEach(m => {
-              const fatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
-              const subiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
-              
-              totaleFatti += fatti;
-              totaleSubiti += subiti;
-              golFattiCumulativi.push(totaleFatti);
-              golSubitiCumulativi.push(totaleSubiti);
-            });
-            
-            new Chart(ctx, {
-              type: 'line',
-              data: {
-                labels: matchDates,
-                datasets: [
-                  {
-                    label: 'Gol Fatti (Totale)',
-                    data: golFattiCumulativi,
-                    borderColor: 'rgb(34, 197, 94)',
-                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                  },
-                  {
-                    label: 'Gol Subiti (Totale)',
-                    data: golSubitiCumulativi,
-                    borderColor: 'rgb(239, 68, 68)',
-                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                  }
-                ]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: window.innerWidth < 768 ? 1.2 : 2,
-                plugins: {
-                  legend: { 
-                    display: true,
-                    labels: {
-                      font: {
-                        size: window.innerWidth < 768 ? 10 : 12
-                      }
-                    }
-                  },
-                  title: { 
-                    display: true, 
-                    text: 'Andamento Gol (Cumulativo)',
-                    font: {
-                      size: window.innerWidth < 768 ? 12 : 16
-                    }
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    ticks: {
-                      stepSize: 1,
-                      font: {
-                        size: window.innerWidth < 768 ? 10 : 12
-                      }
-                    }
-                  },
-                  x: {
-                    ticks: {
-                      font: {
-                        size: window.innerWidth < 768 ? 9 : 11
-                      },
-                      maxRotation: 45,
-                      minRotation: 0
-                    }
-                  }
-                }
-              }
-            });
-          });
-          
-          // ============ GRAFICO PRESENZE ALLENAMENTI ============
-          tryCreateChart('attendanceChart', (ctx) => {
-            const playerNames = players.map(p => p.nome);
-            const attendanceCounts = playerNames.map(nome => 
-              trainings.filter(t => {
-                // ✅ Verifica che presenze sia un array
-                if (!t.presenze) return false;
-                if (!Array.isArray(t.presenze)) return false;
-                return t.presenze.includes(nome);
-              }).length
-            );
-            
-            new Chart(ctx, {
-              type: 'bar',
-              data: {
-                labels: playerNames,
-                datasets: [{
-                  label: 'Presenze Allenamenti',
-                  data: attendanceCounts,
-                  backgroundColor: 'rgba(59, 130, 246, 0.6)',
-                  borderColor: 'rgb(59, 130, 246)',
-                  borderWidth: 1
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: window.innerWidth < 768 ? 1 : 1.5,
-                plugins: {
-                  legend: { 
-                    display: false 
-                  },
-                  title: { 
-                    display: true, 
-                    text: 'Presenze agli Allenamenti',
-                    font: {
-                      size: window.innerWidth < 768 ? 12 : 16
-                    }
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    ticks: {
-                      stepSize: 1,
-                      font: {
-                        size: window.innerWidth < 768 ? 10 : 12
-                      }
-                    }
-                  },
-                  x: {
-                    ticks: {
-                      font: {
-                        size: window.innerWidth < 768 ? 9 : 11
-                      },
-                      maxRotation: 45,
-                      minRotation: 0
-                    }
-                  }
-                }
-              }
-            });
-          });
-          
-          // ============ GRAFICO MINUTI GIOCATI ============
-          // ⚠️ COMMENTATO: Canvas minutesChart non presente nel dashboard JSX
-          /*
-          tryCreateChart('minutesChart', (ctx) => {
-            const stats = calculateStats();
-            const playerNames = stats.map(s => s.nome);
-            const minutesPlayed = stats.map(s => s.minutiGiocati);
-            
-            new Chart(ctx, {
-              type: 'bar',
-              data: {
-                labels: playerNames,
-                datasets: [{
-                  label: 'Minuti Giocati',
-                  data: minutesPlayed,
-                  backgroundColor: 'rgba(168, 85, 247, 0.6)',
-                  borderColor: 'rgb(168, 85, 247)',
-                  borderWidth: 1
-                }]
-              },
-              options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                aspectRatio: window.innerWidth < 768 ? 1 : 1.5,
-                plugins: {
-                  legend: { 
-                    display: false 
-                  },
-                  title: { 
-                    display: true, 
-                    text: 'Minuti Giocati per Giocatore',
-                    font: {
-                      size: window.innerWidth < 768 ? 12 : 16
-                    }
-                  }
-                },
-                scales: {
-                  y: {
-                    beginAtZero: true,
-                    ticks: {
-                      font: {
-                        size: window.innerWidth < 768 ? 10 : 12
-                      }
-                    }
-                  },
-                  x: {
-                    ticks: {
-                      font: {
-                        size: window.innerWidth < 768 ? 9 : 11
-                      },
-                      maxRotation: 45,
-                      minRotation: 0
-                    }
-                  }
-                }
-              }
-            });
-          });
-          */
-          
-        }, 500);
+        attemptCreate();
       };
       
-      if (typeof Chart === 'undefined') {
-        console.log('📥 Chart.js non caricato, avvio lazy loading...');
-        loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js', 'Chart')
-          .then(() => {
-            console.log('✅ Chart.js caricato via lazy loading!');
-            initCharts();
-          })
-          .catch(error => {
-            console.error('❌ Errore caricamento Chart.js:', error);
-            showToast('⚠️ Errore caricamento grafici', 'error');
+      // Aspetta che il DOM sia pronto
+      setTimeout(() => {
+        console.log('⏰ Inizio creazione grafici...');
+        
+        // ============ GRAFICO GOL FATTI/SUBITI ============
+        tryCreateChart('goalsChart', (ctx) => {
+          const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
+          
+          // Calcola totali cumulativi
+          let totaleFatti = 0;
+          let totaleSubiti = 0;
+          const golFattiCumulativi = [];
+          const golSubitiCumulativi = [];
+          
+          matches.forEach(m => {
+            const fatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            const subiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            
+            totaleFatti += fatti;
+            totaleSubiti += subiti;
+            
+            golFattiCumulativi.push(totaleFatti);
+            golSubitiCumulativi.push(totaleSubiti);
           });
-      } else {
-        console.log('✅ Chart.js già disponibile, creo grafici...');
-        initCharts();
-      }
+          
+          new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: matchDates,
+              datasets: [
+                {
+                  label: 'Totale Gol Fatti',
+                  data: golFattiCumulativi,
+                  borderColor: '#10b981',
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  tension: 0.4,
+                  fill: true,
+                  borderWidth: 3,
+                  pointRadius: 5,
+                  pointHoverRadius: 7
+                },
+                {
+                  label: 'Totale Gol Subiti',
+                  data: golSubitiCumulativi,
+                  borderColor: '#ef4444',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  tension: 0.4,
+                  fill: true,
+                  borderWidth: 3,
+                  pointRadius: 5,
+                  pointHoverRadius: 7
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: window.innerWidth < 768 ? 1.2 : 2, // Mobile più quadrato
+              plugins: {
+                legend: {
+                  position: 'top',
+                  labels: {
+                    font: {
+                      size: window.innerWidth < 768 ? 11 : 13, // Font più piccolo su mobile
+                      weight: 'bold'
+                    },
+                    padding: window.innerWidth < 768 ? 8 : 15
+                  }
+                },
+                tooltip: {
+                  callbacks: {
+                    title: function(context) {
+                      return 'Dopo: ' + context[0].label;
+                    },
+                    afterLabel: function(context) {
+                      const index = context.dataIndex;
+                      if (index === 0) return '';
+                      
+                      const prevFatti = context.dataset.label.includes('Fatti') 
+                        ? (index > 0 ? golFattiCumulativi[index - 1] : 0)
+                        : (index > 0 ? golSubitiCumulativi[index - 1] : 0);
+                      const current = context.parsed.y;
+                      const diff = current - prevFatti;
+                      
+                      return `(${diff >= 0 ? '+' : ''}${diff} in questa partita)`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { 
+                    stepSize: 5,
+                    font: {
+                      size: window.innerWidth < 768 ? 10 : 12,
+                      weight: 'bold'
+                    }
+                  },
+                  title: {
+                    display: window.innerWidth >= 768, // Nascondi titolo asse su mobile
+                    text: 'Totale Gol',
+                    font: {
+                      size: 14,
+                      weight: 'bold'
+                    }
+                  }
+                },
+                x: {
+                  ticks: {
+                    font: {
+                      size: window.innerWidth < 768 ? 9 : 11
+                    },
+                    maxRotation: 45,
+                    minRotation: 0
+                  }
+                }
+              }
+            }
+          });
+        });
+
+        // ============ GRAFICO RISULTATI ============
+        tryCreateChart('resultsChart', (ctx) => {
+          let vittorie = 0, pareggi = 0, sconfitte = 0;
+          matches.forEach(m => {
+            // ✅ FIX: Calcola sempre da golFatti e golSubiti invece del campo risultato
+            const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+            
+            // Considera solo partite completate (almeno un gol segnato o subito)
+            if (golFatti === 0 && golSubiti === 0) return;
+            
+            if (golFatti > golSubiti) vittorie++;
+            else if (golFatti === golSubiti) pareggi++;
+            else sconfitte++;
+          });
+          
+          new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+              labels: [`Vittorie (${vittorie})`, `Pareggi (${pareggi})`, `Sconfitte (${sconfitte})`],
+              datasets: [{
+                data: [vittorie, pareggi, sconfitte],
+                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                borderWidth: 2,
+                borderColor: '#fff'
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: window.innerWidth < 768 ? 1 : 1.5,
+              plugins: {
+                legend: {
+                  position: window.innerWidth < 768 ? 'bottom' : 'bottom',
+                  labels: {
+                    font: {
+                      size: window.innerWidth < 768 ? 11 : 14,
+                      weight: 'bold'
+                    },
+                    padding: window.innerWidth < 768 ? 10 : 15
+                  }
+                },
+                tooltip: {
+                  callbacks: {
+                    label: function(context) {
+                      const label = context.label || '';
+                      const value = context.parsed || 0;
+                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                      return `${label}: ${percentage}%`;
+                    }
+                  }
+                }
+              }
+            }
+          });
+        });
+
+        // ============ GRAFICO PRESENZE ALLENAMENTI ============
+        tryCreateChart('attendanceChart', (ctx) => {
+          const last10Trainings = trainings.slice(-10);
+          const trainingDates = last10Trainings.map(t => new Date(t.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
+          const presenze = last10Trainings.map(t => 
+            Object.entries(t.presenze)
+              .filter(([numero, presente]) => {
+                if (!presente) return false;
+                const player = players.find(p => p.numero === parseInt(numero));
+                if (!player || !player.nome) return false;
+                if (player.fuoriRosa) return false;
+                if (player.dataCreazione && new Date(player.dataCreazione) > new Date(t.data)) return false;
+                return true;
+              })
+              .length
+          );
+          
+          new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: trainingDates,
+              datasets: [{
+                label: 'Presenze',
+                data: presenze,
+                backgroundColor: '#3b82f6',
+                borderRadius: 8
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: true,
+              aspectRatio: window.innerWidth < 768 ? 1.2 : 2,
+              plugins: {
+                legend: {
+                  display: false
+                }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { 
+                    stepSize: 1,
+                    font: {
+                      size: window.innerWidth < 768 ? 10 : 12
+                    }
+                  }
+                },
+                x: {
+                  ticks: {
+                    font: {
+                      size: window.innerWidth < 768 ? 9 : 11
+                    },
+                    maxRotation: 45,
+                    minRotation: 0
+                  }
+                }
+              }
+            }
+          });
+        });
+        
+      }, 500); // Timeout iniziale ridotto a 500ms, poi retry gestiti internamente
+
     }
   }, [activeTab, matches, trainings, players]);
-  
+
   const toggleAutoSync = () => {
     setAutoSyncEnabled(!autoSyncEnabled);
     if (!autoSyncEnabled) {
@@ -6892,23 +6808,10 @@ const SoccerTeamTracker = () => {
 
   // ========== FUNZIONE EXPORT ROSA PDF ==========
   
-  const exportRosaPDF = async () => {
-    try {
-      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
-      if (!window.jspdf) {
-        console.log('📥 jsPDF non caricato, avvio lazy loading...');
-        showLoading('Caricamento generatore PDF...');
-        
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
-        
-        hideLoading();
-        console.log('✅ jsPDF caricato via lazy loading!');
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      const currentYear = new Date().getFullYear();
+  const exportRosaPDF = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const currentYear = new Date().getFullYear();
     
     // Helper per ordinamento ruoli (stesso di calculateStats)
     const getRuoloOrderPDF = (ruolo) => {
@@ -7060,12 +6963,6 @@ const SoccerTeamTracker = () => {
     const fileName = `Rosa_${appTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)}_${currentYear}.pdf`;
     doc.save(fileName);
     showToast('PDF Rosa scaricato!', 'success');
-    
-    } catch (error) {
-      hideLoading();
-      console.error('Errore generazione PDF rosa:', error);
-      showToast('❌ Errore generazione PDF', 'error');
-    }
   };
 
   // ========== MIGRAZIONE FOTO A FIREBASE STORAGE ==========
@@ -7327,22 +7224,9 @@ const SoccerTeamTracker = () => {
     setRegenerateKey(prev => prev + 1);
   };
 
-  const downloadDivisionePDF = async () => {
-    try {
-      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
-      if (!window.jspdf) {
-        console.log('📥 jsPDF non caricato, avvio lazy loading...');
-        showLoading('Caricamento generatore PDF...');
-        
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
-        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
-        
-        hideLoading();
-        console.log('✅ jsPDF caricato via lazy loading!');
-      }
-
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+  const downloadDivisionePDF = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
     
     doc.setFontSize(20);
     doc.text('DIVISIONE SQUADRE EQUILIBRATE', 105, 20, { align: 'center' });
@@ -7415,12 +7299,6 @@ const SoccerTeamTracker = () => {
     });
 
     doc.save('divisione_squadre_equilibrate.pdf');
-    
-    } catch (error) {
-      hideLoading();
-      console.error('Errore generazione PDF divisione:', error);
-      showToast('❌ Errore generazione PDF', 'error');
-    }
   };
 
   // ========== FUNZIONI PER CONVOCAZIONI ==========
@@ -18244,77 +18122,6 @@ const SoccerTeamTracker = () => {
               </div>
             )}
 
-            {/* ========== CARD FORZA AGGIORNAMENTO APP ========== */}
-            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-purple-300">
-              <h3 className="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
-                <span>🔄</span>
-                <span>Gestione Cache App</span>
-              </h3>
-              
-              <p className="text-gray-700 mb-4">
-                L'app usa una cache locale per velocizzare il caricamento. Se noti problemi o vuoi forzare l'aggiornamento all'ultima versione, usa il pulsante qui sotto.
-              </p>
-              
-              <div className="bg-white rounded-lg p-4 border-2 border-purple-200 mb-4">
-                <div className="flex items-start gap-3 text-sm text-gray-700">
-                  <span className="text-2xl">💡</span>
-                  <div>
-                    <p className="font-bold mb-1">Quando usare "Forza Aggiornamento":</p>
-                    <ul className="list-disc list-inside space-y-1 text-gray-600">
-                      <li>L'app non si carica correttamente</li>
-                      <li>Vedi contenuti vecchi o non aggiornati</li>
-                      <li>Dopo un aggiornamento dell'app da parte dello sviluppatore</li>
-                      <li>Problemi di visualizzazione o funzionamento</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-              
-              <button
-                onClick={async () => {
-                  if (!window.confirm('🔄 Vuoi forzare l\'aggiornamento dell\'app?\\n\\nQuesta operazione:\\n✅ Pulisce la cache\\n✅ Ricarica l\'ultima versione\\n✅ NON tocca i tuoi dati\\n\\nL\'app si ricaricherà automaticamente.')) {
-                    return;
-                  }
-                  
-                  try {
-                    // Pulisci cache Service Worker
-                    if ('serviceWorker' in navigator) {
-                      const registrations = await navigator.serviceWorker.getRegistrations();
-                      for (const registration of registrations) {
-                        await registration.unregister();
-                      }
-                      console.log('✅ Service Worker rimosso');
-                    }
-                    
-                    // Pulisci cache browser
-                    if ('caches' in window) {
-                      const cacheNames = await caches.keys();
-                      await Promise.all(cacheNames.map(name => caches.delete(name)));
-                      console.log('✅ Cache browser pulita');
-                    }
-                    
-                    // Mostra messaggio e ricarica
-                    showToast('✅ Cache pulita! Ricarico app...', 'success', 2000);
-                    setTimeout(() => {
-                      window.location.reload(true); // Hard reload
-                    }, 2000);
-                    
-                  } catch (error) {
-                    console.error('❌ Errore pulizia cache:', error);
-                    showToast('⚠️ Errore pulizia cache, prova a ricaricare manualmente (F5)', 'error');
-                  }
-                }}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
-              >
-                <span className="text-2xl">🔄</span>
-                <span>Forza Aggiornamento App</span>
-              </button>
-              
-              <p className="text-xs text-gray-500 mt-3 text-center">
-                ⚠️ I tuoi dati sono al sicuro: questa operazione pulisce solo la cache, non i dati della squadra
-              </p>
-            </div>
-
             {/* Status Card */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-blue-200">
               <div className="flex items-center justify-between mb-4">
@@ -20096,35 +19903,6 @@ const SoccerTeamTracker = () => {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<SoccerTeamTracker />);
-
-// ========== REGISTRAZIONE SERVICE WORKER ==========
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(registration => {
-        console.log('✅ Service Worker registrato:', registration.scope);
-        
-        // Ascolta aggiornamenti
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          console.log('🔄 Service Worker: Nuovo worker trovato');
-          
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('📢 Service Worker: Nuovo contenuto disponibile');
-              // Notifica utente che c'è un aggiornamento (opzionale)
-              // showToast('🔄 Aggiornamento disponibile! Ricarica la pagina.', 'info', 5000);
-            }
-          });
-        });
-      })
-      .catch(error => {
-        console.warn('⚠️ Service Worker: Registrazione fallita (app funziona comunque):', error);
-      });
-  });
-} else {
-  console.log('⚠️ Service Worker non supportato (app funziona comunque, solo senza cache)');
-}
 
 // 🔴 INIZIO SCRIPT PRELOADER - PER RIMUOVERLO CANCELLA DA QUI...
 // Nascondi preloader quando React è montato
