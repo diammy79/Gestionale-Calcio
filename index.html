@@ -1704,7 +1704,7 @@
   
   <div id="root"></div>
   <script type="text/babel">
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
 // ============================================
 // FIREBASE CONFIGURATION
@@ -1926,6 +1926,12 @@ const SoccerTeamTracker = () => {
   const [user, setUser] = useState(null);
   const [teamId, setTeamId] = useState(null); // Team ID condiviso tra ADMIN e USER
   const [userRole, setUserRole] = useState(null);
+  
+  // ✅ Ref per tracciare download da cloud (evita aggiornamento lastSaved durante download)
+  const isLoadingFromCloudRef = useRef(false);
+  
+  // ✅ Ref per tracciare primo caricamento (evita aggiornamento lastSaved al mount iniziale)
+  const isInitialLoadRef = useRef(true);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -2065,7 +2071,6 @@ const SoccerTeamTracker = () => {
   const [syncStatus, setSyncStatus] = useState('idle'); // 'idle', 'syncing', 'success', 'error'
   const [lastSynced, setLastSynced] = useState(null);
   const [syncError, setSyncError] = useState('');
-  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false); // DISABILITATO per sicurezza
   const [syncConflicts, setSyncConflicts] = useState(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   
@@ -2113,6 +2118,7 @@ const SoccerTeamTracker = () => {
   // ========== SISTEMA BACKUP ==========
   const [lastBackupDate, setLastBackupDate] = useState(null);
   const [availableBackups, setAvailableBackups] = useState([]);
+  const [preResetBackups, setPreResetBackups] = useState([]); // Backup pre-reset stagione
   const [loadingBackups, setLoadingBackups] = useState(false);
   const [deviceType, setDeviceType] = useState(null);
   const [storageStats, setStorageStats] = useState({ used: 0, total: 0 });
@@ -2125,6 +2131,11 @@ const SoccerTeamTracker = () => {
   const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [lastSyncInfo, setLastSyncInfo] = useState(null);
   const [autoSyncInterval, setAutoSyncInterval] = useState(null);
+  
+  // ========== OPZIONE A: AUTO-SYNC E NOTIFICHE ==========
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true); // Auto-sync attivo di default
+  const [cloudCheckInterval, setCloudCheckInterval] = useState(null); // Interval check cloud
+
 
   // Gestione autenticazione
   useEffect(() => {
@@ -2147,6 +2158,74 @@ const SoccerTeamTracker = () => {
               teamId: userTeamId,
               sameAsUid: userTeamId === user.uid
             });
+            
+            // ✅ AUTO-DOWNLOAD per ADMIN se cloud più recente
+            if (role === 'admin') {
+              console.log('🔄 Admin rilevato - Controllo cloud per aggiornamenti...');
+              setTimeout(async () => {
+                try {
+                  const doc = await db.collection('teamData').doc(userTeamId).get();
+                  if (doc.exists) {
+                    const cloudData = doc.data();
+                    
+                    // ✅ FIX: Gestisci timestamp mancante o invalido (1970)
+                    let cloudTimestamp;
+                    if (!cloudData.timestamp) {
+                      console.warn('⚠️ Timestamp cloud mancante! Uso timestamp corrente e auto-fix...');
+                      cloudTimestamp = new Date();
+                      
+                      // Auto-fix: Salva timestamp corrente nel cloud
+                      try {
+                        await db.collection('teamData').doc(userTeamId).update({
+                          timestamp: cloudTimestamp.toISOString()
+                        });
+                        console.log('✅ Timestamp cloud fixato:', cloudTimestamp.toISOString());
+                      } catch (fixError) {
+                        console.error('❌ Errore fix timestamp:', fixError);
+                      }
+                    } else {
+                      cloudTimestamp = new Date(cloudData.timestamp);
+                      
+                      // ✅ FIX: Controlla se timestamp è 1970 (invalido)
+                      if (cloudTimestamp.getFullYear() === 1970) {
+                        console.warn('⚠️ Timestamp cloud invalido (1970)! Uso timestamp corrente e auto-fix...');
+                        cloudTimestamp = new Date();
+                        
+                        // Auto-fix: Salva timestamp corrente nel cloud
+                        try {
+                          await db.collection('teamData').doc(userTeamId).update({
+                            timestamp: cloudTimestamp.toISOString()
+                          });
+                          console.log('✅ Timestamp cloud fixato:', cloudTimestamp.toISOString());
+                        } catch (fixError) {
+                          console.error('❌ Errore fix timestamp:', fixError);
+                        }
+                      }
+                    }
+                    
+                    const localData = await loadFromIndexedDB('squadraRealDOR');
+                    const localTimestamp = localData?.lastSaved ? new Date(localData.lastSaved) : new Date(0);
+                    
+                    console.log('📊 Confronto timestamp:', {
+                      cloud: cloudTimestamp.toISOString(),
+                      local: localTimestamp.toISOString(),
+                      cloudMoreRecent: cloudTimestamp > localTimestamp
+                    });
+                    
+                    if (cloudTimestamp > localTimestamp) {
+                      console.log('📥 Cloud più recente → Download automatico...');
+                      await loadDataFromCloud(true, user, userTeamId);
+                      showToast('✅ Dati aggiornati automaticamente dal cloud', 'success', 3000);
+                    } else {
+                      console.log('✅ Dati locali aggiornati (cloud non più recente)');
+                    }
+                  }
+                } catch (error) {
+                  console.error('❌ Errore controllo/download cloud admin:', error);
+                  // Non mostrare toast errore, l'app funziona comunque offline
+                }
+              }, 1500);
+            }
             
             // ✅ AUTO-SYNC per utenti USER al login
             if (role === 'user') {
@@ -2232,6 +2311,12 @@ const SoccerTeamTracker = () => {
           setSquadreGirone(savedData.squadreGirone || []);
           setRisultatiCampionato(savedData.risultatiCampionato || []);
           setLastSaved(savedData.lastSaved ? new Date(savedData.lastSaved) : null);
+          
+          // ✅ Reset flag dopo primo caricamento
+          setTimeout(() => {
+            isInitialLoadRef.current = false;
+            console.log('✅ Flag isInitialLoad resettato - modifiche future saranno locali');
+          }, 100);
         }
       } catch (error) {
         console.error('Errore caricamento dati:', error);
@@ -2318,6 +2403,222 @@ const SoccerTeamTracker = () => {
     };
   }, [user]);
 
+  // ========== AUTO-SYNC SICURO OGNI 5 MINUTI ==========
+  useEffect(() => {
+    if (!user || userRole !== 'admin' || !autoSyncEnabled) return;
+    
+    console.log('🔄 Auto-Sync: Attivazione timer (ogni 5 minuti)');
+    
+    const syncInterval = setInterval(async () => {
+      console.log('⏰ Auto-Sync: Timer scattato, eseguo sync sicuro');
+      try {
+        // ✅ CONTROLLO TIMESTAMP PRIMA DI SALVARE
+        const doc = await db.collection('teamData').doc(teamId).get();
+        if (doc.exists) {
+          const cloudData = doc.data();
+          
+          // ✅ FIX: Gestisci timestamp mancante o invalido (1970)
+          let cloudTimestamp;
+          if (!cloudData.timestamp) {
+            console.warn('⚠️ Auto-Sync: Timestamp cloud mancante! Uso timestamp corrente e auto-fix...');
+            cloudTimestamp = new Date();
+            
+            // Auto-fix: Salva timestamp corrente nel cloud
+            try {
+              await db.collection('teamData').doc(teamId).update({
+                timestamp: cloudTimestamp.toISOString()
+              });
+              console.log('✅ Auto-Sync: Timestamp cloud fixato:', cloudTimestamp.toISOString());
+            } catch (fixError) {
+              console.error('❌ Auto-Sync: Errore fix timestamp:', fixError);
+            }
+          } else {
+            cloudTimestamp = new Date(cloudData.timestamp);
+            
+            // ✅ FIX: Controlla se timestamp è 1970 (invalido)
+            if (cloudTimestamp.getFullYear() === 1970) {
+              console.warn('⚠️ Auto-Sync: Timestamp cloud invalido (1970)! Uso timestamp corrente e auto-fix...');
+              cloudTimestamp = new Date();
+              
+              // Auto-fix: Salva timestamp corrente nel cloud
+              try {
+                await db.collection('teamData').doc(teamId).update({
+                  timestamp: cloudTimestamp.toISOString()
+                });
+                console.log('✅ Auto-Sync: Timestamp cloud fixato:', cloudTimestamp.toISOString());
+              } catch (fixError) {
+                console.error('❌ Auto-Sync: Errore fix timestamp:', fixError);
+              }
+            }
+          }
+          
+          const localTimestamp = new Date(lastSaved);
+          
+          console.log('📊 Auto-Sync: Confronto timestamp:', {
+            cloud: cloudTimestamp.toISOString(),
+            local: localTimestamp.toISOString(),
+            cloudMoreRecent: cloudTimestamp > localTimestamp
+          });
+          
+          if (cloudTimestamp > localTimestamp) {
+            // ⚠️ Cloud più recente → NON caricare!
+            console.log('⏭️ Auto-Sync: SALTATO (cloud più recente del locale)');
+            console.log('📢 Auto-Sync: Cloud-check scaricherà automaticamente tra max 2 min');
+            return; // ✅ Interrompi auto-sync
+          }
+        }
+        
+        // ✅ Sicuro caricare (local >= cloud o cloud non esiste)
+        console.log('✅ Auto-Sync: Sicuro procedere (locale >= cloud)');
+        await saveDataToCloud(true); // true = silent (no toast)
+        setLastSaved(new Date()); // ✅ Aggiorna timestamp locale
+        console.log('✅ Auto-Sync: Completato con successo');
+      } catch (error) {
+        console.error('❌ Auto-Sync: Errore', error);
+        // Non mostrare errore all'utente, è automatico
+      }
+    }, 5 * 60 * 1000); // 5 minuti
+    
+    return () => {
+      console.log('🛑 Auto-Sync: Pulizia timer');
+      clearInterval(syncInterval);
+    };
+  }, [user, userRole, autoSyncEnabled, teamId, lastSaved]);
+
+  // ========== AUTO-DOWNLOAD CLOUD OGNI 2 MINUTI ==========
+  useEffect(() => {
+    if (!user || userRole !== 'admin' || !teamId) return;
+    
+    console.log('🔍 Cloud Check: Attivazione timer (ogni 2 minuti)');
+    
+    const checkInterval = setInterval(async () => {
+      console.log('⏰ Cloud Check: Verifica se cloud più recente');
+      try {
+        const docRef = db.collection('teamData').doc(teamId);
+        const doc = await docRef.get();
+        
+        if (doc.exists) {
+          const cloudData = doc.data();
+          
+          // ✅ FIX: Gestisci timestamp mancante o invalido (1970)
+          let cloudTimestamp;
+          if (!cloudData.timestamp) {
+            console.warn('⚠️ Cloud Check: Timestamp cloud mancante! Uso timestamp corrente e auto-fix...');
+            cloudTimestamp = new Date();
+            
+            // Auto-fix: Salva timestamp corrente nel cloud
+            try {
+              await docRef.update({
+                timestamp: cloudTimestamp.toISOString()
+              });
+              console.log('✅ Cloud Check: Timestamp cloud fixato:', cloudTimestamp.toISOString());
+            } catch (fixError) {
+              console.error('❌ Cloud Check: Errore fix timestamp:', fixError);
+            }
+          } else {
+            cloudTimestamp = new Date(cloudData.timestamp);
+            
+            // ✅ FIX: Controlla se timestamp è 1970 (invalido)
+            if (cloudTimestamp.getFullYear() === 1970) {
+              console.warn('⚠️ Cloud Check: Timestamp cloud invalido (1970)! Uso timestamp corrente e auto-fix...');
+              cloudTimestamp = new Date();
+              
+              // Auto-fix: Salva timestamp corrente nel cloud
+              try {
+                await docRef.update({
+                  timestamp: cloudTimestamp.toISOString()
+                });
+                console.log('✅ Cloud Check: Timestamp cloud fixato:', cloudTimestamp.toISOString());
+              } catch (fixError) {
+                console.error('❌ Cloud Check: Errore fix timestamp:', fixError);
+              }
+            }
+          }
+          
+          const localTimestamp = lastSaved ? new Date(lastSaved) : new Date(0);
+          
+          if (cloudTimestamp > localTimestamp) {
+            console.log('📥 Cloud Check: Cloud più recente → Download automatico!', {
+              cloud: cloudTimestamp.toISOString(),
+              local: localTimestamp.toISOString()
+            });
+            
+            // ✅ OPZIONE B: Download automatico (no banner)
+            await loadDataFromCloud(true, user, teamId);
+            showToast('✅ Dati aggiornati automaticamente dal cloud', 'success', 3000);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Cloud Check: Errore', error);
+        // Non mostrare errore all'utente, è automatico
+      }
+    }, 2 * 60 * 1000); // 2 minuti
+    
+    // Check iniziale immediato
+    setTimeout(async () => {
+      try {
+        const docRef = db.collection('teamData').doc(teamId);
+        const doc = await docRef.get();
+        
+        if (doc.exists) {
+          const cloudData = doc.data();
+          
+          // ✅ FIX: Gestisci timestamp mancante o invalido (1970)
+          let cloudTimestamp;
+          if (!cloudData.timestamp) {
+            console.warn('⚠️ Cloud Check iniziale: Timestamp cloud mancante! Uso timestamp corrente e auto-fix...');
+            cloudTimestamp = new Date();
+            
+            // Auto-fix: Salva timestamp corrente nel cloud
+            try {
+              await docRef.update({
+                timestamp: cloudTimestamp.toISOString()
+              });
+              console.log('✅ Cloud Check iniziale: Timestamp cloud fixato:', cloudTimestamp.toISOString());
+            } catch (fixError) {
+              console.error('❌ Cloud Check iniziale: Errore fix timestamp:', fixError);
+            }
+          } else {
+            cloudTimestamp = new Date(cloudData.timestamp);
+            
+            // ✅ FIX: Controlla se timestamp è 1970 (invalido)
+            if (cloudTimestamp.getFullYear() === 1970) {
+              console.warn('⚠️ Cloud Check iniziale: Timestamp cloud invalido (1970)! Uso timestamp corrente e auto-fix...');
+              cloudTimestamp = new Date();
+              
+              // Auto-fix: Salva timestamp corrente nel cloud
+              try {
+                await docRef.update({
+                  timestamp: cloudTimestamp.toISOString()
+                });
+                console.log('✅ Cloud Check iniziale: Timestamp cloud fixato:', cloudTimestamp.toISOString());
+              } catch (fixError) {
+                console.error('❌ Cloud Check iniziale: Errore fix timestamp:', fixError);
+              }
+            }
+          }
+          
+          const localTimestamp = lastSaved ? new Date(lastSaved) : new Date(0);
+          
+          if (cloudTimestamp > localTimestamp) {
+            console.log('📥 Cloud Check iniziale: Cloud più recente → Download automatico!');
+            
+            // ✅ OPZIONE B: Download automatico (no banner)
+            await loadDataFromCloud(true, user, teamId);
+            showToast('✅ Dati aggiornati automaticamente dal cloud', 'success', 3000);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Cloud Check iniziale: Errore', error);
+      }
+    }, 5000); // Dopo 5 secondi dal caricamento
+    
+    return () => {
+      console.log('🛑 Cloud Check: Pulizia timer');
+      clearInterval(checkInterval);
+    };
+  }, [user, userRole, teamId, lastSaved]);
+
   // NOTA: giocatoriSelezionati parte vuoto (size=0), quindi organizzaGiocatori 
   // includerà tutti i giocatori per default. Quando si importa da allenamento,
   // viene popolato solo con i presenti.
@@ -2327,6 +2628,36 @@ const SoccerTeamTracker = () => {
     if (isLoading) return;
     
     const saveData = async () => {
+      // ✅ CRITICO: Salta auto-save durante caricamento iniziale
+      const isInitialLoad = isInitialLoadRef.current;
+      const isFromCloud = isLoadingFromCloudRef.current;
+      
+      // ✅ Determina timestamp da usare
+      let timestampToUse;
+      let shouldUpdateLastSaved = false;
+      
+      if (isInitialLoad) {
+        // Primo caricamento: usa lastSaved da IndexedDB, NON aggiornare
+        timestampToUse = lastSaved || new Date();
+        shouldUpdateLastSaved = false;
+      } else if (isFromCloud) {
+        // Download da cloud: usa lastSaved impostato da loadDataFromCloud, NON aggiornare
+        timestampToUse = lastSaved || new Date();
+        shouldUpdateLastSaved = false;
+      } else {
+        // Modifiche locali: usa new Date(), aggiorna lastSaved
+        timestampToUse = new Date();
+        shouldUpdateLastSaved = true;
+      }
+      
+      console.log('💾 Auto-save triggherato:', {
+        isInitialLoad,
+        isFromCloud,
+        lastSavedState: lastSaved?.toISOString(),
+        timestampToUse: timestampToUse.toISOString(),
+        shouldUpdateLastSaved
+      });
+      
       const dataToSave = {
         players,
         trainings,
@@ -2338,12 +2669,18 @@ const SoccerTeamTracker = () => {
         injuries,
         squadreGirone,
         risultatiCampionato,
-        lastSaved: new Date().toISOString()
+        lastSaved: timestampToUse.toISOString()
       };
       
       const success = await saveToIndexedDB('squadraRealDOR', dataToSave);
-      if (success) {
+      if (success && shouldUpdateLastSaved) {
+        // Solo aggiorna lastSaved per modifiche locali reali
         setLastSaved(new Date());
+        console.log('✅ lastSaved aggiornato per modifiche locali');
+      } else if (success && isFromCloud) {
+        console.log('✅ lastSaved PRESERVATO dal cloud (no update)');
+      } else if (success && isInitialLoad) {
+        console.log('✅ lastSaved PRESERVATO dal caricamento iniziale (no update)');
       }
     };
     
@@ -4662,9 +4999,6 @@ const SoccerTeamTracker = () => {
     if (!user || userRole !== 'admin') return;
     
     try {
-      // Backup locale prima del sync
-      await createLocalBackup();
-      
       // Salva su cloud
       await saveDataToCloud(true); // true = silent mode
       
@@ -4873,14 +5207,17 @@ const SoccerTeamTracker = () => {
         if (!confirm) return;
       }
       
-      // Backup prima di sovrascrivere
-      await createLocalBackup();
-      
       // ✅ Normalizza giocatori con campo fuoriRosa
       const normalizedPlayers = (data.players || []).map(p => ({
         ...p,
         fuoriRosa: p.fuoriRosa || false
       }));
+      
+      // ✅ CRITICO: Setta flag E lastSaved PRIMA di aggiornare state
+      isLoadingFromCloudRef.current = true;
+      const cloudTimestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+      setLastSaved(cloudTimestamp);
+      console.log('✅ lastSaved impostato al timestamp cloud PRIMA degli update:', cloudTimestamp.toISOString());
       
       // Carica dati
       if (data.players) setPlayers(normalizedPlayers);
@@ -4894,6 +5231,12 @@ const SoccerTeamTracker = () => {
       if (data.hasOwnProperty('teamName')) setTeamName(data.teamName || '');     // ✅ AGGIUNTO: Nome squadra
       if (data.teamLogo) setTeamLogo(data.teamLogo);                             // ✅ AGGIUNTO: Logo squadra
       // if (data.teamLogoStorageUrl) setTeamLogoStorageUrl(data.teamLogoStorageUrl); // ⚠️ RIMOSSO - Campo ridondante
+      
+      // ✅ Reset flag dopo che React ha processato i set (prossimo tick)
+      setTimeout(() => {
+        isLoadingFromCloudRef.current = false;
+        console.log('✅ Flag isLoadingFromCloud resettato');
+      }, 0);
       
       // Log DOPO aver settato gli state
       console.log('✅ State AGGIORNATI dopo caricamento cloud:', {
@@ -4957,23 +5300,6 @@ const SoccerTeamTracker = () => {
   /**
    * Crea backup locale
    */
-  const createLocalBackup = async () => {
-    const backup = {
-      players,
-      trainings,
-      matches,
-      injuries,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Salva in localStorage (max 5 backup)
-    let backups = JSON.parse(localStorage.getItem('localBackups') || '[]');
-    backups.unshift(backup);
-    backups = backups.slice(0, 5); // Keep only last 5
-    
-    localStorage.setItem('localBackups', JSON.stringify(backups));
-  };
-
   const exportToJSON = () => {
     const now = new Date().toISOString();
     
@@ -5086,25 +5412,113 @@ const SoccerTeamTracker = () => {
       '✅ MA manterrà:\n' +
       '✓ La rosa giocatori\n' +
       '✓ Il logo della squadra\n\n' +
-      '💾 RACCOMANDAZIONE:\n' +
-      'Vai su "Backup e Sync" e crea un backup completo\n' +
-      'PRIMA di procedere con il reset!\n\n' +
+      '💾 BACKUP AUTOMATICO:\n' +
+      'Verrà creato automaticamente un backup completo\n' +
+      'su cloud PRIMA del reset. Potrai recuperarlo in futuro.\n\n' +
       'Vuoi continuare?'
     );
     
     if (!conferma1) return;
     
+    // Chiedi se vuole anche backup locale
+    const backupLocale = window.confirm(
+      '💾 Backup Locale\n\n' +
+      'Vuoi scaricare anche un backup JSON locale\n' +
+      'sul tuo dispositivo per maggiore sicurezza?\n\n' +
+      '(Consigliato - potrai conservarlo offline)'
+    );
+    
     const conferma2 = window.confirm(
       '🔴 ULTIMA CONFERMA!\n\n' +
       'Sei sicuro di voler resettare la stagione?\n' +
       'Questa azione NON può essere annullata!\n\n' +
-      '💡 CONSIGLIO: Se non hai fatto il backup, clicca\n' +
-      'Annulla e vai su "Backup e Sync" per crearlo.'
+      '✅ Backup cloud: verrà creato automaticamente\n' +
+      (backupLocale ? '✅ Backup locale: verrà scaricato\n\n' : '\n') +
+      'Procedo?'
     );
     
     if (!conferma2) return;
     
     try {
+      showToast('⏳ Creazione backup pre-reset...', 'info', 2000);
+      
+      // 1. ✅ BACKUP AUTOMATICO SU FIREBASE STORAGE
+      const now = new Date();
+      const seasonYear = `${now.getFullYear()}-${now.getFullYear() + 1}`;
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toISOString().split('T')[1].split('.')[0].replace(/:/g, '-');
+      
+      const backupData = {
+        version: '3.1-pre-reset',
+        backupType: 'PRE_RESET_STAGIONE',
+        exportDate: now.toISOString(),
+        season: seasonYear,
+        appTitle,
+        teamName,
+        teamLogo,
+        players: players.map(p => ({
+          ...p,
+          foto: p.foto
+        })),
+        trainings: trainings.map(t => ({
+          ...t,
+          foto: t.foto ? t.foto.map(f => ({
+            ...f,
+            url: f.url
+          })) : []
+        })),
+        matches: matches.map(m => ({
+          ...m,
+          foto: m.foto ? m.foto.map(f => ({
+            ...f,
+            url: f.url
+          })) : []
+        })),
+        injuries,
+        squadreGirone,
+        risultatiCampionato,
+        infoPartita,
+        moduloTattico,
+        formationPositions,
+        stats: {
+          totalPlayers: players.filter(p => p.nome).length,
+          totalTrainings: trainings.length,
+          totalMatches: matches.length,
+          totalInjuries: injuries.length
+        }
+      };
+      
+      const jsonString = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      
+      // Salva su Firebase Storage con nome speciale
+      const filename = `backups/pre-reset/stagione-completa-${seasonYear}-prima-del-reset_${dateStr}_${timeStr}.json`;
+      const storageRef = storage.ref(filename);
+      await storageRef.put(blob);
+      
+      console.log('✅ Backup pre-reset creato su Firebase Storage:', filename);
+      showToast('✅ Backup cloud creato con successo!', 'success', 2000);
+      
+      // 2. ✅ BACKUP LOCALE (se richiesto)
+      if (backupLocale) {
+        const localBlob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(localBlob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `stagione-completa-${seasonYear}-prima-del-reset_${dateStr}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        console.log('✅ Backup locale scaricato');
+        showToast('✅ Backup locale scaricato!', 'success', 2000);
+      }
+      
+      // 3. Procedi con il reset
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Pausa per vedere i toast
+      
       // Cancello solo allenamenti e partite
       setTrainings([]);
       setMatches([]);
@@ -5118,9 +5532,17 @@ const SoccerTeamTracker = () => {
       await saveToIndexedDB('trainings', []);
       await saveToIndexedDB('matches', []);
       
-      alert('✅ Stagione resettata con successo!\n\nLa rosa giocatori è stata mantenuta.');
+      showToast('✅ Stagione resettata con successo!', 'success');
+      alert(
+        '✅ Stagione resettata con successo!\n\n' +
+        '📋 Backup creato:\n' +
+        '• Cloud: Firebase Storage ✅\n' +
+        (backupLocale ? '• Locale: Scaricato sul dispositivo ✅\n\n' : '\n') +
+        '💡 Puoi recuperare i dati dalla sezione "Backup e Sync"'
+      );
     } catch (error) {
       console.error('Errore durante il reset:', error);
+      showToast('❌ Errore durante il reset: ' + error.message, 'error');
       alert('❌ Errore durante il reset. Riprova.');
     }
   };
@@ -5371,6 +5793,7 @@ const SoccerTeamTracker = () => {
         lastSaved: new Date().toISOString()
       };
       await saveToIndexedDB('squadraRealDOR', dataToSave);
+      setLastSaved(new Date()); // ✅ Aggiorna timestamp locale dopo download
       
       // Reset stato dopo 3 secondi
       setTimeout(() => setSyncStatus('idle'), 3000);
@@ -8364,6 +8787,61 @@ const SoccerTeamTracker = () => {
     }
   };
 
+  // Carica backup pre-reset disponibili
+  const loadPreResetBackups = async () => {
+    if (!user) return;
+    
+    try {
+      const preResetRef = storage.ref('backups/pre-reset');
+      const preResetList = await preResetRef.listAll();
+      
+      if (preResetList.items.length === 0) {
+        setPreResetBackups([]);
+        return;
+      }
+      
+      const backups = await Promise.all(
+        preResetList.items.map(async (item) => {
+          const metadata = await item.getMetadata();
+          const url = await item.getDownloadURL();
+          
+          // Nome file: stagione-completa-2025-2026-prima-del-reset_2026-01-28_15-30-45.json
+          const filename = item.name.replace('.json', '');
+          const parts = filename.split('_');
+          
+          // Estrai stagione da "stagione-completa-2025-2026-prima-del-reset"
+          const seasonPart = parts[0]; // "stagione-completa-2025-2026-prima-del-reset"
+          const season = seasonPart
+            .replace('stagione-completa-', '')
+            .replace('-prima-del-reset', ''); // "2025-2026"
+          
+          const dateStr = parts[1]; // 2026-01-28
+          const timeStr = parts[2] ? parts[2].replace(/-/g, ':') : '00:00:00'; // 15:30:45
+          
+          return {
+            name: item.name,
+            season: season,
+            date: dateStr,
+            time: timeStr,
+            fullTimestamp: `${dateStr} ${timeStr}`,
+            size: metadata.size,
+            url: url,
+            created: metadata.timeCreated
+          };
+        })
+      );
+      
+      // Ordina per data+ora (più recente prima)
+      backups.sort((a, b) => new Date(b.fullTimestamp) - new Date(a.fullTimestamp));
+      
+      setPreResetBackups(backups);
+      console.log('📋 Backup pre-reset caricati:', backups.length);
+    } catch (error) {
+      console.error('❌ Errore caricamento backup pre-reset:', error);
+      setPreResetBackups([]);
+    }
+  };
+
   // Scarica singolo backup
   const downloadBackup = async (backupUrl, backupName) => {
     try {
@@ -8641,6 +9119,7 @@ const SoccerTeamTracker = () => {
   useEffect(() => {
     if (user && teamId) {
       loadAvailableBackups();
+      loadPreResetBackups(); // ✅ Carica anche backup pre-reset
       
       // Carica dimensioni reali Storage (con delay per non bloccare)
       setTimeout(async () => {
@@ -9682,85 +10161,6 @@ const SoccerTeamTracker = () => {
       )}
       
       {/* ========== MODAL SELEZIONE DISPOSITIVO ========== */}
-      {showDeviceModal && userRole === 'admin' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full animate-scale-up">
-            {/* Header */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 rounded-t-lg">
-              <div className="flex items-center gap-3">
-                <div className="text-4xl">🔄</div>
-                <div>
-                  <h3 className="text-2xl font-bold">Configurazione Sincronizzazione</h3>
-                  <p className="text-blue-100 text-sm mt-1">
-                    Scegli come gestire i dati su questo dispositivo
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            {/* Body */}
-            <div className="p-6">
-              <p className="text-gray-700 mb-6 text-lg">
-                Questo è il tuo <strong>dispositivo principale</strong> per gestire la squadra?
-              </p>
-              
-              {/* Opzione Principale */}
-              <button
-                onClick={() => {
-                  saveDeviceConfig('primary');
-                  setShowDeviceModal(false);
-                }}
-                className="w-full mb-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white p-6 rounded-lg border-2 border-green-400 transition-all hover:scale-102 shadow-lg"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="text-5xl">✅</div>
-                  <div className="text-left flex-1">
-                    <div className="text-xl font-bold mb-1">SÌ - Dispositivo Principale</div>
-                    <div className="text-sm text-green-100">
-                      • Sincronizzazione automatica ogni 2 minuti<br/>
-                      • Salva sempre le tue modifiche sul cloud<br/>
-                      • Usa questo dispositivo per gestire la squadra
-                    </div>
-                  </div>
-                </div>
-              </button>
-              
-              {/* Opzione Secondario */}
-              <button
-                onClick={() => {
-                  saveDeviceConfig('secondary');
-                  setShowDeviceModal(false);
-                }}
-                className="w-full mb-4 bg-gradient-to-r from-gray-100 to-gray-200 hover:from-gray-200 hover:to-gray-300 text-gray-800 p-6 rounded-lg border-2 border-gray-300 transition-all hover:scale-102"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="text-5xl">📱</div>
-                  <div className="text-left flex-1">
-                    <div className="text-xl font-bold mb-1">NO - Dispositivo Secondario</div>
-                    <div className="text-sm text-gray-600">
-                      • Solo sincronizzazione manuale (quando vuoi tu)<br/>
-                      • Per consultare o fare modifiche occasionali<br/>
-                      • Ideale per tablet/smartphone di riserva
-                    </div>
-                  </div>
-                </div>
-              </button>
-              
-              {/* Info */}
-              <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-4 mt-4">
-                <div className="flex gap-3">
-                  <div className="text-blue-600 text-xl">ℹ️</div>
-                  <div className="text-sm text-blue-800">
-                    <strong>Nota:</strong> Puoi sempre cambiare questa impostazione dalla sezione 
-                    "Sincronizzazione Cloud". La scelta viene riconfermata ogni giorno per sicurezza.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="max-w-7xl mx-auto">
         <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern mobile-header">
           <div className="flex flex-wrap items-start gap-2 md:gap-4 mb-2">
@@ -9898,22 +10298,14 @@ const SoccerTeamTracker = () => {
               </div>
             </div>
 
-            {/* Badge Stato Sync - Riga Separata su Mobile */}
-            {userRole === 'admin' && deviceRole && (
+            {/* Badge Stato Sync - Tutti gli Admin */}
+            {userRole === 'admin' && (
               <div className="w-full md:w-auto mt-2 md:mt-0">
-                {deviceRole === 'primary' ? (
-                  <div className="bg-green-100 border-2 border-green-400 text-green-800 px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 justify-center md:justify-start">
-                    <span className="text-base md:text-lg">🔄</span>
-                    <span className="hidden sm:inline">Auto-Sync Attivo</span>
-                    <span className="sm:hidden">Auto</span>
-                  </div>
-                ) : (
-                  <div className="bg-gray-100 border-2 border-gray-400 text-gray-800 px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 justify-center md:justify-start">
-                    <span className="text-base md:text-lg">📱</span>
-                    <span className="hidden sm:inline">Modalità Secondaria</span>
-                    <span className="sm:hidden">Secondario</span>
-                  </div>
-                )}
+                <div className="bg-green-100 border-2 border-green-400 text-green-800 px-3 py-1 rounded-full text-xs md:text-sm font-semibold flex items-center gap-2 justify-center md:justify-start">
+                  <span className="text-base md:text-lg">🔄</span>
+                  <span className="hidden sm:inline">Auto-Sync Attivo</span>
+                  <span className="sm:hidden">Auto</span>
+                </div>
               </div>
             )}
 
@@ -10059,23 +10451,7 @@ const SoccerTeamTracker = () => {
           </div>
         </div>
 
-        {/* Banner Dispositivo Secondario (Compatto) */}
-        {userRole === 'admin' && deviceRole === 'secondary' && (
-          <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-3 mb-4 animate-fade-in">
-            <div className="flex items-center gap-2">
-              <span className="text-yellow-600 text-xl">⚠️</span>
-              <p className="text-sm text-yellow-800 flex-1">
-                <strong>Dispositivo Secondario:</strong> Ricordati di sincronizzare manualmente
-              </p>
-              <button
-                onClick={() => setActiveTab('sync')}
-                className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded font-semibold transition-colors whitespace-nowrap"
-              >
-                Sync →
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Banner Aggiornamenti Disponibili (Compatto - Solo ADMIN) */}
 
         {/* Banner Sola Lettura (Compatto) */}
         {userRole === 'user' && (
@@ -13020,7 +13396,7 @@ const SoccerTeamTracker = () => {
                             </tbody>
                           </table>
                           </div>
-                          <div className="text-xs px-4 pb-2 mt-2 flex items-center justify-between gap-4 flex-wrap">
+                          <div className="text-xs px-4 pb-2 mt-2 flex items-center gap-4 flex-wrap">
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 border border-blue-300 rounded-lg">
                               <span className="font-semibold text-blue-900">
                                 Convocati: {Object.values(match.convocati || {}).filter(Boolean).length}/20
@@ -15670,7 +16046,7 @@ const SoccerTeamTracker = () => {
                 <div className="bg-green-50 border-2 border-green-400 rounded-lg p-4">
                   <h4 className="font-bold text-green-800 mb-2">✅ SALVATAGGIO AUTOMATICO ATTIVO</h4>
                   <p className="text-green-900 text-sm">
-                    Tutti i dati vengono salvati automaticamente in locale ogni volta che apporti modifiche. L'app funziona anche offline. Gli ADMIN possono sincronizzare su cloud Firebase per condividere con altri utenti.
+                    Tutti i dati vengono salvati automaticamente in locale ogni volta che apporti modifiche. L'app funziona anche offline. Gli ADMIN hanno sincronizzazione automatica sul cloud (ogni 5 minuti) per condividere con altri dispositivi.
                   </p>
                 </div>
 
@@ -15844,20 +16220,30 @@ const SoccerTeamTracker = () => {
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
                     <li><strong>Backup completo JSON:</strong> Include TUTTI i dati (giocatori, partite, allenamenti, infortuni, formazioni)</li>
                     <li><strong>Import JSON:</strong> Carica backup per ripristinare o trasferire dati</li>
-                    <li><strong>Versione 3.0:</strong> Backup con statistiche integrità incorporate</li>
-                    <li><strong>Promemoria automatico:</strong> Avviso ogni 7 giorni se backup non fatto</li>
-                    <li><strong>Cloud storage:</strong> Salva su Google Drive/Dropbox per sicurezza extra</li>
+                    <li><strong>Backup Automatici Cloud:</strong> Backup giornalieri sul cloud con rotazione 7 giorni</li>
+                    <li><strong>Ripristino Backup:</strong> Ripristina da qualsiasi backup automatico disponibile</li>
+                    <li><strong>Download Locale:</strong> Scarica backup JSON sul tuo computer per conservazione offline sicura</li>
                   </ul>
                 </div>
 
                 <div className="border-l-4 border-cyan-600 pl-4">
-                  <h4 className="font-bold text-cyan-700 mb-3 text-lg">☁️ 16. SINCRONIZZAZIONE CLOUD (Solo ADMIN)</h4>
+                  <h4 className="font-bold text-cyan-700 mb-3 text-lg">☁️ 16. SINCRONIZZAZIONE CLOUD AUTOMATICA (Solo ADMIN)</h4>
+                  <p className="text-sm text-gray-700 mb-2 font-semibold">🔄 AUTOMATICA (sempre attiva):</p>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1 mb-3">
+                    <li><strong>Auto-Sync ogni 5 minuti:</strong> Salva automaticamente i dati sul cloud (se online)</li>
+                    <li><strong>Cloud Check ogni 2 minuti:</strong> Verifica se ci sono aggiornamenti da altri dispositivi</li>
+                    <li><strong>Banner Verde:</strong> Notifica quando altri dispositivi hanno fatto modifiche</li>
+                    <li><strong>Backup Automatici:</strong> Backup giornalieri sul cloud (rotazione 7 giorni)</li>
+                  </ul>
+                  <p className="text-sm text-gray-700 mb-2 font-semibold">☁️ MANUALE (opzionale):</p>
+                  <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1 mb-3">
+                    <li><strong>Carica su Cloud:</strong> Forza caricamento immediato (senza aspettare 5 min)</li>
+                    <li><strong>Scarica da Cloud:</strong> Forza download immediato (senza aspettare 2 min)</li>
+                  </ul>
+                  <p className="text-sm text-gray-700 mb-2 font-semibold">💾 OFFLINE:</p>
                   <ul className="list-disc ml-6 text-sm text-gray-700 space-y-1">
-                    <li><strong>Database Cloud:</strong> Salva dati su cloud per condividerli</li>
-                    <li><strong>Scarica da Cloud:</strong> Sincronizza dati dal database cloud</li>
-                    <li><strong>Carica su Cloud:</strong> Invia modifiche locali al cloud</li>
-                    <li><strong>Gestione conflitti:</strong> Sistema risoluzione automatica con timestamp</li>
-                    <li><strong>Sync automatico:</strong> Opzionale ogni 5 minuti (disabilitato di default per sicurezza)</li>
+                    <li><strong>Funzionamento Completo:</strong> App funziona perfettamente offline</li>
+                    <li><strong>Sincronizzazione:</strong> Riprende automaticamente quando torni online</li>
                   </ul>
                 </div>
 
@@ -15891,8 +16277,9 @@ const SoccerTeamTracker = () => {
                     <li>Durante partite usa gli Eventi Live per cronaca dettagliata</li>
                     <li>Vota MVP dopo ogni partita per classifica motivazionale</li>
                     <li>Monitora infortuni costantemente per gestione rosa ottimale</li>
-                    <li><strong>ADMIN:</strong> Fai backup JSON ogni 7 giorni per sicurezza</li>
-                    <li><strong>ADMIN:</strong> Sincronizza su cloud per condividere con staff</li>
+                    <li><strong>ADMIN:</strong> Backup automatici cloud attivi (ogni 24h, rotazione 7 giorni)</li>
+                    <li><strong>ADMIN:</strong> Sincronizzazione automatica attiva (ogni 5 min) - dati condivisi con staff/dispositivi</li>
+                    <li><strong>ADMIN:</strong> Scarica backup JSON locale periodicamente per sicurezza offline extra</li>
                     <li>A fine stagione: Backup → Reset Stagione → Continua con stessa rosa</li>
                   </ul>
                 </div>
@@ -17710,15 +18097,7 @@ const SoccerTeamTracker = () => {
             {/* ========== CARD STATO DISPOSITIVO ========== */}
             {deviceRole && (
               <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-indigo-300">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold text-gray-800">🖥️ Configurazione Dispositivo</h3>
-                  <button
-                    onClick={() => setShowDeviceModal(true)}
-                    className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
-                  >
-                    ⚙️ Cambia
-                  </button>
-                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-4">🖥️ Informazioni Dispositivo</h3>
                 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
@@ -17727,10 +18106,17 @@ const SoccerTeamTracker = () => {
                   </div>
                   
                   <div className="bg-white rounded-lg p-4 border-2 border-gray-200">
-                    <div className="text-sm text-gray-600 mb-1">Ruolo</div>
+                    <div className="text-sm text-gray-600 mb-1">Ruolo Account</div>
                     <div className="text-lg font-bold text-gray-800">
-                      {deviceRole === 'primary' ? '👑 Principale' : '📱 Secondario'}
+                      👑 Admin
                     </div>
+                  </div>
+                </div>
+                
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mt-4">
+                  <div className="flex items-center gap-2 text-sm text-green-800">
+                    <span className="text-lg">✅</span>
+                    <span><strong>Auto-Sync attivo:</strong> Sincronizzazione automatica ogni 5 minuti</span>
                   </div>
                 </div>
               </div>
@@ -17872,24 +18258,58 @@ const SoccerTeamTracker = () => {
               <div className="flex items-start gap-3">
                 <div className="text-2xl">ℹ️</div>
                 <div>
-                  <h4 className="font-bold text-gray-800 mb-2">Come Funziona la Sincronizzazione</h4>
-                  <ul className="text-sm text-gray-700 space-y-2">
-                    <li>
-                      <strong>☁️↑ Carica su Cloud:</strong> Salva i dati locali sul cloud Firebase. Usa questa opzione quando hai fatto modifiche importanti che vuoi conservare nel cloud come backup.
-                    </li>
-                    <li>
-                      <strong>☁️↓ Scarica da Cloud:</strong> Scarica i dati dal cloud e sostituisce quelli locali. Usa questa opzione quando hai modificato i dati da un altro dispositivo e vuoi aggiornarli su questo dispositivo.
-                    </li>
-                    <li>
-                      <strong>💾 Backup Locale:</strong> I dati sono SEMPRE salvati automaticamente in locale (IndexedDB) ad ogni modifica. La sincronizzazione cloud è un backup aggiuntivo che devi gestire manualmente.
-                    </li>
-                    <li>
-                      <strong>⚠️ Attenzione:</strong> Le operazioni di carica/scarica SOVRASCRIVONO i dati. Usa sempre la conferma per evitare perdite accidentali. In caso di dubbio, esporta prima un backup JSON dalla sezione Esportazioni.
-                    </li>
-                    <li>
+                  <h4 className="font-bold text-gray-800 mb-3">Come Funziona la Sincronizzazione</h4>
+                  
+                  <div className="mb-4">
+                    <p className="font-semibold text-gray-800 mb-2">🔄 SINCRONIZZAZIONE AUTOMATICA</p>
+                    <ul className="text-sm text-gray-700 space-y-2 ml-4">
+                      <li>
+                        <strong>Auto-Sync ogni 5 minuti:</strong> I tuoi dati vengono salvati automaticamente sul cloud (se online). Non devi fare nulla!
+                      </li>
+                      <li>
+                        <strong>Controllo Cloud ogni 2 minuti:</strong> L'app verifica se ci sono aggiornamenti da altri dispositivi.
+                      </li>
+                      <li>
+                        <strong>Notifica Aggiornamenti:</strong> Se disponibili modifiche da altri dispositivi, vedi un banner verde per scaricarle.
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <p className="font-semibold text-gray-800 mb-2">☁️ SINCRONIZZAZIONE MANUALE (Opzionale)</p>
+                    <ul className="text-sm text-gray-700 space-y-2 ml-4">
+                      <li>
+                        <strong>☁️↑ Carica su Cloud:</strong> Forza caricamento immediato (utile se vuoi essere sicuro che sia caricato ORA, senza aspettare i 5 minuti).
+                      </li>
+                      <li>
+                        <strong>☁️↓ Scarica da Cloud:</strong> Forza download immediato (utile se vuoi aggiornare ORA senza aspettare i 2 minuti).
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <p className="font-semibold text-gray-800 mb-2">💾 SALVATAGGIO LOCALE</p>
+                    <ul className="text-sm text-gray-700 space-y-2 ml-4">
+                      <li>
+                        <strong>Automatico:</strong> I dati sono SEMPRE salvati automaticamente in locale (IndexedDB) ad ogni modifica.
+                      </li>
+                      <li>
+                        <strong>Offline:</strong> L'app funziona completamente offline. La sincronizzazione cloud riprende automaticamente quando torni online.
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div className="bg-yellow-50 border border-yellow-300 rounded p-3 mt-3">
+                    <p className="text-sm text-yellow-800">
+                      <strong>⚠️ Attenzione:</strong> Le operazioni manuali Carica/Scarica SOVRASCRIVONO i dati. Usa sempre la conferma per evitare perdite accidentali.
+                    </p>
+                  </div>
+                  
+                  <div className="bg-green-50 border border-green-300 rounded p-3 mt-2">
+                    <p className="text-sm text-green-800">
                       <strong>🔒 Privacy:</strong> I tuoi dati sono privati. Solo tu puoi accedere ai dati del tuo account. Ogni utente ha il suo spazio cloud separato.
-                    </li>
-                  </ul>
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -17909,8 +18329,8 @@ const SoccerTeamTracker = () => {
                     <li>• Utilizzare JSON per trasferire dati tra account diversi</li>
                     <li>• Creare backup offline dei dati</li>
                   </ul>
-                  <p className="text-sm text-gray-700 mt-2">
-                    <strong>💡 Consiglio:</strong> Usa la sincronizzazione cloud per l'accesso multi-dispositivo quotidiano, e l'export JSON per backup di sicurezza periodici!
+                  <p className="text-sm text-gray-700 mt-3 bg-blue-100 border border-blue-300 rounded p-2">
+                    <strong>💡 Consiglio:</strong> La sincronizzazione cloud è ora <strong>AUTOMATICA</strong> (ogni 5 minuti) per l'accesso multi-dispositivo quotidiano. Usa l'export JSON per backup di sicurezza periodici offline!
                   </p>
                 </div>
               </div>
@@ -18044,6 +18464,92 @@ const SoccerTeamTracker = () => {
                   >
                     🔧 Crea Backup Manuale Ora
                   </button>
+                </div>
+              </div>
+
+              {/* Backup Pre-Reset Stagione */}
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                    <span>🔄</span>
+                    <span>Backup Pre-Reset Stagione</span>
+                  </h4>
+                  {preResetBackups.length > 0 && (
+                    <span className="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm font-medium">
+                      {preResetBackups.length} disponibili
+                    </span>
+                  )}
+                </div>
+                
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-gray-700 mb-2">
+                    <strong>📋 Cosa sono?</strong> Backup automatici creati PRIMA di ogni reset stagione.
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <strong>🔐 Sicurezza:</strong> Permettono di recuperare tutti i dati della stagione precedente se necessario.
+                  </p>
+                </div>
+
+                {/* Lista Backup Pre-Reset */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h5 className="font-semibold text-gray-800">📋 Backup Pre-Reset ({preResetBackups.length})</h5>
+                    <button
+                      onClick={loadPreResetBackups}
+                      className="text-sm px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors"
+                    >
+                      🔄 Aggiorna
+                    </button>
+                  </div>
+                  
+                  {preResetBackups.length === 0 ? (
+                    <div className="text-center py-4 text-gray-600 bg-white rounded-lg border border-gray-200">
+                      <p className="mb-2">📭 Nessun backup pre-reset ancora</p>
+                      <p className="text-sm">Verrà creato automaticamente quando farai il reset stagione</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {preResetBackups.map((backup, index) => (
+                        <div key={backup.name} className="bg-white rounded-lg p-3 border-2 border-orange-200 hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium text-orange-900">
+                                🏆 Stagione {backup.season}
+                              </p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                📅 {new Date(backup.fullTimestamp).toLocaleDateString('it-IT', {
+                                  weekday: 'short',
+                                  day: '2-digit',
+                                  month: 'long',
+                                  year: 'numeric'
+                                })}
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                🕐 {backup.time} • {(backup.size / 1024 / 1024).toFixed(2)} MB
+                                {index === 0 && <span className="ml-2 text-orange-600 font-semibold">(Più recente)</span>}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => downloadBackup(backup.url, backup.name)}
+                                className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                                title="Scarica backup"
+                              >
+                                📥 Scarica
+                              </button>
+                              <button
+                                onClick={() => restoreDailyBackup(backup.url, backup.name)}
+                                className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
+                                title="Ripristina questa stagione"
+                              >
+                                ♻️ Ripristina
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
