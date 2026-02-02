@@ -12,9 +12,10 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- ✅ LAZY LOADING: Chart.js e jsPDF caricati solo quando necessari -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script> -->
+  <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script> -->
+  <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script> -->
   <style>
     /* ========== DISABILITA PULL-TO-REFRESH SU MOBILE ========== */
     html {
@@ -1919,6 +1920,37 @@ const loadFromIndexedDB = async (key) => {
     console.error('Errore caricamento IndexedDB:', error);
     return null;
   }
+};
+
+// ========== LAZY LOADING HELPER ==========
+/**
+ * Carica script dinamicamente solo quando necessario
+ * @param {string} src - URL dello script da caricare
+ * @param {string} globalVar - Nome variabile globale per check se già caricato
+ * @returns {Promise} Promise che si resolve quando script è caricato
+ */
+const loadScript = (src, globalVar) => {
+  return new Promise((resolve, reject) => {
+    // Se già caricato, resolve immediatamente
+    if (globalVar && window[globalVar]) {
+      console.log(`✅ Lazy Loading: ${globalVar} già caricato`);
+      resolve();
+      return;
+    }
+    
+    console.log(`📥 Lazy Loading: Caricamento ${globalVar || src}...`);
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = () => {
+      console.log(`✅ Lazy Loading: ${globalVar || src} caricato con successo`);
+      resolve();
+    };
+    script.onerror = () => {
+      console.error(`❌ Lazy Loading: Errore caricamento ${globalVar || src}`);
+      reject(new Error(`Failed to load script: ${src}`));
+    };
+    document.head.appendChild(script);
+  });
 };
 
 const SoccerTeamTracker = () => {
@@ -4231,13 +4263,25 @@ const SoccerTeamTracker = () => {
   };
 
   // Esporta esercizi allenamento in PDF
-  const exportEserciziPDF = (training) => {
+  const exportEserciziPDF = async (training) => {
     if (!training || !training.esercizi || training.esercizi.length === 0) {
       alert('Nessun esercizio da esportare!');
       return;
     }
     
     try {
+      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
+      if (!window.jspdf) {
+        console.log('📥 jsPDF non caricato, avvio lazy loading...');
+        showLoading('Caricamento generatore PDF...');
+        
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+        
+        hideLoading();
+        console.log('✅ jsPDF caricato via lazy loading!');
+      }
+      
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
       
@@ -4362,8 +4406,20 @@ const SoccerTeamTracker = () => {
   };
 
   // Esporta statistiche giocatori in PDF
-  const exportStatsPDF = () => {
+  const exportStatsPDF = async () => {
     try {
+      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
+      if (!window.jspdf) {
+        console.log('📥 jsPDF non caricato, avvio lazy loading...');
+        showLoading('Caricamento generatore PDF...');
+        
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+        
+        hideLoading();
+        console.log('✅ jsPDF caricato via lazy loading!');
+      }
+      
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('landscape'); // Landscape per tabella larga
       
@@ -4611,14 +4667,27 @@ const SoccerTeamTracker = () => {
   /**
    * Esporta la classifica campionato in PDF
    */
-  const exportClassificaPDF = () => {
+  const exportClassificaPDF = async () => {
     if (squadreGirone.length === 0) {
       alert('Nessuna squadra presente nella classifica');
       return;
     }
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+    try {
+      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
+      if (!window.jspdf) {
+        console.log('📥 jsPDF non caricato, avvio lazy loading...');
+        showLoading('Caricamento generatore PDF...');
+        
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+        
+        hideLoading();
+        console.log('✅ jsPDF caricato via lazy loading!');
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
     
     // Titolo
     doc.setFontSize(20);
@@ -4893,6 +4962,12 @@ const SoccerTeamTracker = () => {
     // Salva PDF
     doc.save(`Classifica_Campionato_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`);
     showToast('PDF classifica generato!', 'success');
+    
+    } catch (error) {
+      hideLoading();
+      console.error('Errore generazione PDF classifica:', error);
+      showToast('❌ Errore generazione PDF', 'error');
+    }
   };
 
   // ========== GESTIONE DISPOSITIVI E AUTO-SYNC ==========
@@ -6191,14 +6266,27 @@ const SoccerTeamTracker = () => {
   // Ora l'utente deve fare sync manuale cliccando "Scarica da Cloud"
 
   // ========== EXPORT PDF RISULTATI PARTITE ==========
-  const exportResultsPDF = () => {
+  const exportResultsPDF = async () => {
     if (matches.length === 0) {
       showToast('⚠️ Nessuna partita presente', 'warning');
       return;
     }
 
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+    try {
+      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
+      if (!window.jspdf) {
+        console.log('📥 jsPDF non caricato, avvio lazy loading...');
+        showLoading('Caricamento generatore PDF...');
+        
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+        
+        hideLoading();
+        console.log('✅ jsPDF caricato via lazy loading!');
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
     
     // Titolo
     doc.setFontSize(20);
@@ -6331,46 +6419,75 @@ const SoccerTeamTracker = () => {
     // Salva PDF
     doc.save(`Risultati_Partite_${new Date().toLocaleDateString('it-IT').replace(/\//g, '-')}.pdf`);
     showToast('✅ PDF risultati generato!', 'success');
+    
+    } catch (error) {
+      hideLoading();
+      console.error('Errore generazione PDF risultati:', error);
+      showToast('❌ Errore generazione PDF', 'error');
+    }
   };
 
-  // ========== USE EFFECT PER GRAFICI DASHBOARD (CON RETRY LOGIC E RESPONSIVE MOBILE) ==========
+  // ========== USE EFFECT PER GRAFICI DASHBOARD (CON LAZY LOADING E RETRY LOGIC) ==========
   useEffect(() => {
     console.log('📊 useEffect grafici dashboard triggered');
     console.log('   activeTab:', activeTab);
     console.log('   Chart defined?', typeof Chart !== 'undefined');
     
-    if (activeTab === 'dashboard' && typeof Chart !== 'undefined') {
-      console.log('✅ Condizioni soddisfatte, creo grafici...');
+    if (activeTab === 'dashboard') {
+      // ✅ LAZY LOADING: Carica Chart.js solo quando necessario
+      if (typeof Chart === 'undefined') {
+        console.log('📥 Chart.js non caricato, avvio lazy loading...');
+        loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js', 'Chart')
+          .then(() => {
+            console.log('✅ Chart.js caricato via lazy loading!');
+            // Dopo caricamento, crea i grafici
+            createDashboardCharts();
+          })
+          .catch(error => {
+            console.error('❌ Errore caricamento Chart.js:', error);
+            showToast('⚠️ Errore caricamento grafici', 'error');
+          });
+      } else {
+        // Chart.js già caricato, crea grafici immediatamente
+        console.log('✅ Chart.js già disponibile, creo grafici...');
+        createDashboardCharts();
+      }
+    }
+  }, [activeTab, matches, trainings, players]);
+  
+  // Funzione helper per creare tutti i grafici dashboard
+  const createDashboardCharts = () => {
+    console.log('✅ Inizio creazione grafici dashboard...');
+    
+    // Funzione per tentare la creazione del grafico con retry
+    const tryCreateChart = (chartId, createFn, retries = 0) => {
+      const maxRetries = 5; // Tenta fino a 5 volte
+      const baseDelay = 300; // Parti da 300ms
       
-      // Funzione per tentare la creazione del grafico con retry
-      const tryCreateChart = (chartId, createFn, retries = 0) => {
-        const maxRetries = 5; // Tenta fino a 5 volte
-        const baseDelay = 300; // Parti da 300ms
+      const attemptCreate = () => {
+        const canvas = document.getElementById(chartId);
         
-        const attemptCreate = () => {
-          const canvas = document.getElementById(chartId);
+        if (canvas) {
+          console.log(`✅ Canvas ${chartId} trovato, creo grafico...`);
+          // Distruggi grafico esistente se c'è
+          const existingChart = Chart.getChart(canvas);
+          if (existingChart) existingChart.destroy();
           
-          if (canvas) {
-            console.log(`✅ Canvas ${chartId} trovato, creo grafico...`);
-            // Distruggi grafico esistente se c'è
-            const existingChart = Chart.getChart(canvas);
-            if (existingChart) existingChart.destroy();
-            
-            createFn(canvas);
-          } else if (retries < maxRetries) {
-            console.log(`⏰ Canvas ${chartId} non trovato, retry ${retries + 1}/${maxRetries}...`);
-            setTimeout(() => tryCreateChart(chartId, createFn, retries + 1), baseDelay * (retries + 1));
-          } else {
-            console.log(`❌ Canvas ${chartId} non trovato dopo ${maxRetries} tentativi`);
-          }
-        };
-        
-        attemptCreate();
+          createFn(canvas);
+        } else if (retries < maxRetries) {
+          console.log(`⏰ Canvas ${chartId} non trovato, retry ${retries + 1}/${maxRetries}...`);
+          setTimeout(() => tryCreateChart(chartId, createFn, retries + 1), baseDelay * (retries + 1));
+        } else {
+          console.log(`❌ Canvas ${chartId} non trovato dopo ${maxRetries} tentativi`);
+        }
       };
       
-      // Aspetta che il DOM sia pronto
-      setTimeout(() => {
-        console.log('⏰ Inizio creazione grafici...');
+      attemptCreate();
+    };
+    
+    // Aspetta che il DOM sia pronto
+    setTimeout(() => {
+      console.log('⏰ Inizio creazione grafici...');
         
         // ============ GRAFICO GOL FATTI/SUBITI ============
         tryCreateChart('goalsChart', (ctx) => {
@@ -6610,8 +6727,7 @@ const SoccerTeamTracker = () => {
         });
         
       }, 500); // Timeout iniziale ridotto a 500ms, poi retry gestiti internamente
-
-    }
+    }; // Fine createDashboardCharts
   }, [activeTab, matches, trainings, players]);
 
   const toggleAutoSync = () => {
@@ -6808,10 +6924,23 @@ const SoccerTeamTracker = () => {
 
   // ========== FUNZIONE EXPORT ROSA PDF ==========
   
-  const exportRosaPDF = () => {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    const currentYear = new Date().getFullYear();
+  const exportRosaPDF = async () => {
+    try {
+      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
+      if (!window.jspdf) {
+        console.log('📥 jsPDF non caricato, avvio lazy loading...');
+        showLoading('Caricamento generatore PDF...');
+        
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+        
+        hideLoading();
+        console.log('✅ jsPDF caricato via lazy loading!');
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const currentYear = new Date().getFullYear();
     
     // Helper per ordinamento ruoli (stesso di calculateStats)
     const getRuoloOrderPDF = (ruolo) => {
@@ -6963,6 +7092,12 @@ const SoccerTeamTracker = () => {
     const fileName = `Rosa_${appTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)}_${currentYear}.pdf`;
     doc.save(fileName);
     showToast('PDF Rosa scaricato!', 'success');
+    
+    } catch (error) {
+      hideLoading();
+      console.error('Errore generazione PDF rosa:', error);
+      showToast('❌ Errore generazione PDF', 'error');
+    }
   };
 
   // ========== MIGRAZIONE FOTO A FIREBASE STORAGE ==========
@@ -7224,9 +7359,22 @@ const SoccerTeamTracker = () => {
     setRegenerateKey(prev => prev + 1);
   };
 
-  const downloadDivisionePDF = () => {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+  const downloadDivisionePDF = async () => {
+    try {
+      // ✅ LAZY LOADING: Carica jsPDF solo quando necessario
+      if (!window.jspdf) {
+        console.log('📥 jsPDF non caricato, avvio lazy loading...');
+        showLoading('Caricamento generatore PDF...');
+        
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'jspdf');
+        await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js');
+        
+        hideLoading();
+        console.log('✅ jsPDF caricato via lazy loading!');
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
     
     doc.setFontSize(20);
     doc.text('DIVISIONE SQUADRE EQUILIBRATE', 105, 20, { align: 'center' });
@@ -7299,6 +7447,12 @@ const SoccerTeamTracker = () => {
     });
 
     doc.save('divisione_squadre_equilibrate.pdf');
+    
+    } catch (error) {
+      hideLoading();
+      console.error('Errore generazione PDF divisione:', error);
+      showToast('❌ Errore generazione PDF', 'error');
+    }
   };
 
   // ========== FUNZIONI PER CONVOCAZIONI ==========
@@ -18122,6 +18276,77 @@ const SoccerTeamTracker = () => {
               </div>
             )}
 
+            {/* ========== CARD FORZA AGGIORNAMENTO APP ========== */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-purple-300">
+              <h3 className="text-xl font-bold text-gray-800 mb-3 flex items-center gap-2">
+                <span>🔄</span>
+                <span>Gestione Cache App</span>
+              </h3>
+              
+              <p className="text-gray-700 mb-4">
+                L'app usa una cache locale per velocizzare il caricamento. Se noti problemi o vuoi forzare l'aggiornamento all'ultima versione, usa il pulsante qui sotto.
+              </p>
+              
+              <div className="bg-white rounded-lg p-4 border-2 border-purple-200 mb-4">
+                <div className="flex items-start gap-3 text-sm text-gray-700">
+                  <span className="text-2xl">💡</span>
+                  <div>
+                    <p className="font-bold mb-1">Quando usare "Forza Aggiornamento":</p>
+                    <ul className="list-disc list-inside space-y-1 text-gray-600">
+                      <li>L'app non si carica correttamente</li>
+                      <li>Vedi contenuti vecchi o non aggiornati</li>
+                      <li>Dopo un aggiornamento dell'app da parte dello sviluppatore</li>
+                      <li>Problemi di visualizzazione o funzionamento</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <button
+                onClick={async () => {
+                  if (!window.confirm('🔄 Vuoi forzare l\'aggiornamento dell\'app?\\n\\nQuesta operazione:\\n✅ Pulisce la cache\\n✅ Ricarica l\'ultima versione\\n✅ NON tocca i tuoi dati\\n\\nL\'app si ricaricherà automaticamente.')) {
+                    return;
+                  }
+                  
+                  try {
+                    // Pulisci cache Service Worker
+                    if ('serviceWorker' in navigator) {
+                      const registrations = await navigator.serviceWorker.getRegistrations();
+                      for (const registration of registrations) {
+                        await registration.unregister();
+                      }
+                      console.log('✅ Service Worker rimosso');
+                    }
+                    
+                    // Pulisci cache browser
+                    if ('caches' in window) {
+                      const cacheNames = await caches.keys();
+                      await Promise.all(cacheNames.map(name => caches.delete(name)));
+                      console.log('✅ Cache browser pulita');
+                    }
+                    
+                    // Mostra messaggio e ricarica
+                    showToast('✅ Cache pulita! Ricarico app...', 'success', 2000);
+                    setTimeout(() => {
+                      window.location.reload(true); // Hard reload
+                    }, 2000);
+                    
+                  } catch (error) {
+                    console.error('❌ Errore pulizia cache:', error);
+                    showToast('⚠️ Errore pulizia cache, prova a ricaricare manualmente (F5)', 'error');
+                  }
+                }}
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 px-6 rounded-lg transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2"
+              >
+                <span className="text-2xl">🔄</span>
+                <span>Forza Aggiornamento App</span>
+              </button>
+              
+              <p className="text-xs text-gray-500 mt-3 text-center">
+                ⚠️ I tuoi dati sono al sicuro: questa operazione pulisce solo la cache, non i dati della squadra
+              </p>
+            </div>
+
             {/* Status Card */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-lg p-6 mb-6 border-2 border-blue-200">
               <div className="flex items-center justify-between mb-4">
@@ -19903,6 +20128,35 @@ const SoccerTeamTracker = () => {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<SoccerTeamTracker />);
+
+// ========== REGISTRAZIONE SERVICE WORKER ==========
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(registration => {
+        console.log('✅ Service Worker registrato:', registration.scope);
+        
+        // Ascolta aggiornamenti
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          console.log('🔄 Service Worker: Nuovo worker trovato');
+          
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              console.log('📢 Service Worker: Nuovo contenuto disponibile');
+              // Notifica utente che c'è un aggiornamento (opzionale)
+              // showToast('🔄 Aggiornamento disponibile! Ricarica la pagina.', 'info', 5000);
+            }
+          });
+        });
+      })
+      .catch(error => {
+        console.warn('⚠️ Service Worker: Registrazione fallita (app funziona comunque):', error);
+      });
+  });
+} else {
+  console.log('⚠️ Service Worker non supportato (app funziona comunque, solo senza cache)');
+}
 
 // 🔴 INIZIO SCRIPT PRELOADER - PER RIMUOVERLO CANCELLA DA QUI...
 // Nascondi preloader quando React è montato
