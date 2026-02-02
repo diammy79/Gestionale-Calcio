@@ -6435,301 +6435,269 @@ const SoccerTeamTracker = () => {
     
     if (activeTab === 'dashboard') {
       // ✅ LAZY LOADING: Carica Chart.js solo quando necessario
+      const initCharts = () => {
+        console.log('✅ Inizio creazione grafici dashboard...');
+        
+        // Funzione per tentare la creazione del grafico con retry
+        const tryCreateChart = (chartId, createFn, retries = 0) => {
+          const maxRetries = 5;
+          const baseDelay = 300;
+          
+          const attemptCreate = () => {
+            const canvas = document.getElementById(chartId);
+            
+            if (canvas) {
+              console.log(`✅ Canvas ${chartId} trovato, creo grafico...`);
+              const existingChart = Chart.getChart(canvas);
+              if (existingChart) existingChart.destroy();
+              createFn(canvas);
+            } else if (retries < maxRetries) {
+              console.log(`⏰ Canvas ${chartId} non trovato, retry ${retries + 1}/${maxRetries}...`);
+              setTimeout(() => tryCreateChart(chartId, createFn, retries + 1), baseDelay * (retries + 1));
+            } else {
+              console.log(`❌ Canvas ${chartId} non trovato dopo ${maxRetries} tentativi`);
+            }
+          };
+          
+          attemptCreate();
+        };
+        
+        // Aspetta che il DOM sia pronto
+        setTimeout(() => {
+          console.log('⏰ Inizio creazione grafici...');
+          
+          // ============ GRAFICO GOL FATTI/SUBITI ============
+          tryCreateChart('goalsChart', (ctx) => {
+            const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
+            
+            let totaleFatti = 0;
+            let totaleSubiti = 0;
+            const golFattiCumulativi = [];
+            const golSubitiCumulativi = [];
+            
+            matches.forEach(m => {
+              const fatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+              const subiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
+              
+              totaleFatti += fatti;
+              totaleSubiti += subiti;
+              golFattiCumulativi.push(totaleFatti);
+              golSubitiCumulativi.push(totaleSubiti);
+            });
+            
+            new Chart(ctx, {
+              type: 'line',
+              data: {
+                labels: matchDates,
+                datasets: [
+                  {
+                    label: 'Gol Fatti (Totale)',
+                    data: golFattiCumulativi,
+                    borderColor: 'rgb(34, 197, 94)',
+                    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                  },
+                  {
+                    label: 'Gol Subiti (Totale)',
+                    data: golSubitiCumulativi,
+                    borderColor: 'rgb(239, 68, 68)',
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: window.innerWidth < 768 ? 1.2 : 2,
+                plugins: {
+                  legend: { 
+                    display: true,
+                    labels: {
+                      font: {
+                        size: window.innerWidth < 768 ? 10 : 12
+                      }
+                    }
+                  },
+                  title: { 
+                    display: true, 
+                    text: 'Andamento Gol (Cumulativo)',
+                    font: {
+                      size: window.innerWidth < 768 ? 12 : 16
+                    }
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      stepSize: 1,
+                      font: {
+                        size: window.innerWidth < 768 ? 10 : 12
+                      }
+                    }
+                  },
+                  x: {
+                    ticks: {
+                      font: {
+                        size: window.innerWidth < 768 ? 9 : 11
+                      },
+                      maxRotation: 45,
+                      minRotation: 0
+                    }
+                  }
+                }
+              }
+            });
+          });
+          
+          // ============ GRAFICO PRESENZE ALLENAMENTI ============
+          tryCreateChart('attendanceChart', (ctx) => {
+            const playerNames = players.map(p => p.nome);
+            const attendanceCounts = playerNames.map(nome => 
+              trainings.filter(t => {
+                // ✅ Verifica che presenze sia un array
+                if (!t.presenze) return false;
+                if (!Array.isArray(t.presenze)) return false;
+                return t.presenze.includes(nome);
+              }).length
+            );
+            
+            new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: playerNames,
+                datasets: [{
+                  label: 'Presenze Allenamenti',
+                  data: attendanceCounts,
+                  backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                  borderColor: 'rgb(59, 130, 246)',
+                  borderWidth: 1
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: window.innerWidth < 768 ? 1 : 1.5,
+                plugins: {
+                  legend: { 
+                    display: false 
+                  },
+                  title: { 
+                    display: true, 
+                    text: 'Presenze agli Allenamenti',
+                    font: {
+                      size: window.innerWidth < 768 ? 12 : 16
+                    }
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      stepSize: 1,
+                      font: {
+                        size: window.innerWidth < 768 ? 10 : 12
+                      }
+                    }
+                  },
+                  x: {
+                    ticks: {
+                      font: {
+                        size: window.innerWidth < 768 ? 9 : 11
+                      },
+                      maxRotation: 45,
+                      minRotation: 0
+                    }
+                  }
+                }
+              }
+            });
+          });
+          
+          // ============ GRAFICO MINUTI GIOCATI ============
+          // ⚠️ COMMENTATO: Canvas minutesChart non presente nel dashboard JSX
+          /*
+          tryCreateChart('minutesChart', (ctx) => {
+            const stats = calculateStats();
+            const playerNames = stats.map(s => s.nome);
+            const minutesPlayed = stats.map(s => s.minutiGiocati);
+            
+            new Chart(ctx, {
+              type: 'bar',
+              data: {
+                labels: playerNames,
+                datasets: [{
+                  label: 'Minuti Giocati',
+                  data: minutesPlayed,
+                  backgroundColor: 'rgba(168, 85, 247, 0.6)',
+                  borderColor: 'rgb(168, 85, 247)',
+                  borderWidth: 1
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: window.innerWidth < 768 ? 1 : 1.5,
+                plugins: {
+                  legend: { 
+                    display: false 
+                  },
+                  title: { 
+                    display: true, 
+                    text: 'Minuti Giocati per Giocatore',
+                    font: {
+                      size: window.innerWidth < 768 ? 12 : 16
+                    }
+                  }
+                },
+                scales: {
+                  y: {
+                    beginAtZero: true,
+                    ticks: {
+                      font: {
+                        size: window.innerWidth < 768 ? 10 : 12
+                      }
+                    }
+                  },
+                  x: {
+                    ticks: {
+                      font: {
+                        size: window.innerWidth < 768 ? 9 : 11
+                      },
+                      maxRotation: 45,
+                      minRotation: 0
+                    }
+                  }
+                }
+              }
+            });
+          });
+          */
+          
+        }, 500);
+      };
+      
       if (typeof Chart === 'undefined') {
         console.log('📥 Chart.js non caricato, avvio lazy loading...');
         loadScript('https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js', 'Chart')
           .then(() => {
             console.log('✅ Chart.js caricato via lazy loading!');
-            // Dopo caricamento, crea i grafici
-            createDashboardCharts();
+            initCharts();
           })
           .catch(error => {
             console.error('❌ Errore caricamento Chart.js:', error);
             showToast('⚠️ Errore caricamento grafici', 'error');
           });
       } else {
-        // Chart.js già caricato, crea grafici immediatamente
         console.log('✅ Chart.js già disponibile, creo grafici...');
-        createDashboardCharts();
+        initCharts();
       }
     }
   }, [activeTab, matches, trainings, players]);
   
-  // Funzione helper per creare tutti i grafici dashboard
-  const createDashboardCharts = () => {
-    console.log('✅ Inizio creazione grafici dashboard...');
-    
-    // Funzione per tentare la creazione del grafico con retry
-    const tryCreateChart = (chartId, createFn, retries = 0) => {
-      const maxRetries = 5; // Tenta fino a 5 volte
-      const baseDelay = 300; // Parti da 300ms
-      
-      const attemptCreate = () => {
-        const canvas = document.getElementById(chartId);
-        
-        if (canvas) {
-          console.log(`✅ Canvas ${chartId} trovato, creo grafico...`);
-          // Distruggi grafico esistente se c'è
-          const existingChart = Chart.getChart(canvas);
-          if (existingChart) existingChart.destroy();
-          
-          createFn(canvas);
-        } else if (retries < maxRetries) {
-          console.log(`⏰ Canvas ${chartId} non trovato, retry ${retries + 1}/${maxRetries}...`);
-          setTimeout(() => tryCreateChart(chartId, createFn, retries + 1), baseDelay * (retries + 1));
-        } else {
-          console.log(`❌ Canvas ${chartId} non trovato dopo ${maxRetries} tentativi`);
-        }
-      };
-      
-      attemptCreate();
-    };
-    
-    // Aspetta che il DOM sia pronto
-    setTimeout(() => {
-      console.log('⏰ Inizio creazione grafici...');
-        
-        // ============ GRAFICO GOL FATTI/SUBITI ============
-        tryCreateChart('goalsChart', (ctx) => {
-          const matchDates = matches.map(m => new Date(m.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
-          
-          // Calcola totali cumulativi
-          let totaleFatti = 0;
-          let totaleSubiti = 0;
-          const golFattiCumulativi = [];
-          const golSubitiCumulativi = [];
-          
-          matches.forEach(m => {
-            const fatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
-            const subiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
-            
-            totaleFatti += fatti;
-            totaleSubiti += subiti;
-            
-            golFattiCumulativi.push(totaleFatti);
-            golSubitiCumulativi.push(totaleSubiti);
-          });
-          
-          new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: matchDates,
-              datasets: [
-                {
-                  label: 'Totale Gol Fatti',
-                  data: golFattiCumulativi,
-                  borderColor: '#10b981',
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  tension: 0.4,
-                  fill: true,
-                  borderWidth: 3,
-                  pointRadius: 5,
-                  pointHoverRadius: 7
-                },
-                {
-                  label: 'Totale Gol Subiti',
-                  data: golSubitiCumulativi,
-                  borderColor: '#ef4444',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  tension: 0.4,
-                  fill: true,
-                  borderWidth: 3,
-                  pointRadius: 5,
-                  pointHoverRadius: 7
-                }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: true,
-              aspectRatio: window.innerWidth < 768 ? 1.2 : 2, // Mobile più quadrato
-              plugins: {
-                legend: {
-                  position: 'top',
-                  labels: {
-                    font: {
-                      size: window.innerWidth < 768 ? 11 : 13, // Font più piccolo su mobile
-                      weight: 'bold'
-                    },
-                    padding: window.innerWidth < 768 ? 8 : 15
-                  }
-                },
-                tooltip: {
-                  callbacks: {
-                    title: function(context) {
-                      return 'Dopo: ' + context[0].label;
-                    },
-                    afterLabel: function(context) {
-                      const index = context.dataIndex;
-                      if (index === 0) return '';
-                      
-                      const prevFatti = context.dataset.label.includes('Fatti') 
-                        ? (index > 0 ? golFattiCumulativi[index - 1] : 0)
-                        : (index > 0 ? golSubitiCumulativi[index - 1] : 0);
-                      const current = context.parsed.y;
-                      const diff = current - prevFatti;
-                      
-                      return `(${diff >= 0 ? '+' : ''}${diff} in questa partita)`;
-                    }
-                  }
-                }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: { 
-                    stepSize: 5,
-                    font: {
-                      size: window.innerWidth < 768 ? 10 : 12,
-                      weight: 'bold'
-                    }
-                  },
-                  title: {
-                    display: window.innerWidth >= 768, // Nascondi titolo asse su mobile
-                    text: 'Totale Gol',
-                    font: {
-                      size: 14,
-                      weight: 'bold'
-                    }
-                  }
-                },
-                x: {
-                  ticks: {
-                    font: {
-                      size: window.innerWidth < 768 ? 9 : 11
-                    },
-                    maxRotation: 45,
-                    minRotation: 0
-                  }
-                }
-              }
-            }
-          });
-        });
-
-        // ============ GRAFICO RISULTATI ============
-        tryCreateChart('resultsChart', (ctx) => {
-          let vittorie = 0, pareggi = 0, sconfitte = 0;
-          matches.forEach(m => {
-            // ✅ FIX: Calcola sempre da golFatti e golSubiti invece del campo risultato
-            const golFatti = Object.values(m.golFatti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
-            const golSubiti = Object.values(m.golSubiti || {}).reduce((sum, g) => sum + (parseInt(g) || 0), 0);
-            
-            // Considera solo partite completate (almeno un gol segnato o subito)
-            if (golFatti === 0 && golSubiti === 0) return;
-            
-            if (golFatti > golSubiti) vittorie++;
-            else if (golFatti === golSubiti) pareggi++;
-            else sconfitte++;
-          });
-          
-          new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-              labels: [`Vittorie (${vittorie})`, `Pareggi (${pareggi})`, `Sconfitte (${sconfitte})`],
-              datasets: [{
-                data: [vittorie, pareggi, sconfitte],
-                backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
-                borderWidth: 2,
-                borderColor: '#fff'
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: true,
-              aspectRatio: window.innerWidth < 768 ? 1 : 1.5,
-              plugins: {
-                legend: {
-                  position: window.innerWidth < 768 ? 'bottom' : 'bottom',
-                  labels: {
-                    font: {
-                      size: window.innerWidth < 768 ? 11 : 14,
-                      weight: 'bold'
-                    },
-                    padding: window.innerWidth < 768 ? 10 : 15
-                  }
-                },
-                tooltip: {
-                  callbacks: {
-                    label: function(context) {
-                      const label = context.label || '';
-                      const value = context.parsed || 0;
-                      const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                      const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                      return `${label}: ${percentage}%`;
-                    }
-                  }
-                }
-              }
-            }
-          });
-        });
-
-        // ============ GRAFICO PRESENZE ALLENAMENTI ============
-        tryCreateChart('attendanceChart', (ctx) => {
-          const last10Trainings = trainings.slice(-10);
-          const trainingDates = last10Trainings.map(t => new Date(t.data).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }));
-          const presenze = last10Trainings.map(t => 
-            Object.entries(t.presenze)
-              .filter(([numero, presente]) => {
-                if (!presente) return false;
-                const player = players.find(p => p.numero === parseInt(numero));
-                if (!player || !player.nome) return false;
-                if (player.fuoriRosa) return false;
-                if (player.dataCreazione && new Date(player.dataCreazione) > new Date(t.data)) return false;
-                return true;
-              })
-              .length
-          );
-          
-          new Chart(ctx, {
-            type: 'bar',
-            data: {
-              labels: trainingDates,
-              datasets: [{
-                label: 'Presenze',
-                data: presenze,
-                backgroundColor: '#3b82f6',
-                borderRadius: 8
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: true,
-              aspectRatio: window.innerWidth < 768 ? 1.2 : 2,
-              plugins: {
-                legend: {
-                  display: false
-                }
-              },
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  ticks: { 
-                    stepSize: 1,
-                    font: {
-                      size: window.innerWidth < 768 ? 10 : 12
-                    }
-                  }
-                },
-                x: {
-                  ticks: {
-                    font: {
-                      size: window.innerWidth < 768 ? 9 : 11
-                    },
-                    maxRotation: 45,
-                    minRotation: 0
-                  }
-                }
-              }
-            }
-          });
-        });
-        
-      }, 500); // Timeout iniziale ridotto a 500ms, poi retry gestiti internamente
-    }; // Fine createDashboardCharts
-  }, [activeTab, matches, trainings, players]);
-
   const toggleAutoSync = () => {
     setAutoSyncEnabled(!autoSyncEnabled);
     if (!autoSyncEnabled) {
