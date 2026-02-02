@@ -1,15 +1,17 @@
 // Service Worker per Real D.O.R. PWA
-const CACHE_NAME = 'real-dor-v2';
+const CACHE_NAME = 'real-dor-v3';
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
   'https://cdn.tailwindcss.com',
+  'https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap',
   'https://unpkg.com/react@18/umd/react.production.min.js',
   'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js',
   'https://unpkg.com/@babel/standalone/babel.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js',
+  'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'
 ];
 
 // Installazione
@@ -17,8 +19,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Cache aperta');
+        console.log('✅ Cache aperta:', CACHE_NAME);
         return cache.addAll(urlsToCache);
+      })
+      .catch((error) => {
+        console.error('❌ Errore installazione Service Worker:', error);
       })
   );
 });
@@ -30,7 +35,7 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('Rimozione cache vecchia:', cacheName);
+            console.log('🗑️ Rimozione cache vecchia:', cacheName);
             return caches.delete(cacheName);
           }
         })
