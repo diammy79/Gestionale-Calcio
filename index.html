@@ -2162,6 +2162,7 @@ const SoccerTeamTracker = () => {
   const [lockAcquiredAt, setLockAcquiredAt] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
+  const previousLockState = useRef({ hasLock: false, lockedBy: null }); // Per evitare toast duplicati
   
   // State per Divisione Squadre
   const [numSquadre, setNumSquadre] = useState(2);
@@ -2825,36 +2826,26 @@ const SoccerTeamTracker = () => {
     }
   }, []);
 
-  // ========== LOCK SYSTEM: ACQUISIZIONE AL LOGIN ==========
+  // ========== LOCK SYSTEM: ACQUISIZIONE + LISTENER (COMBINATI) ==========
   useEffect(() => {
     if (!user || userRole !== 'admin' || !teamId) return;
     
-    console.log('🔒 Lock System: Tentativo acquisizione lock...');
+    console.log('🔒 Lock System: Attivo listener + acquisizione per', user.email);
     
-    const initLock = async () => {
-      const result = await acquireLock(user, teamId);
-      
-      if (result.success) {
-        showToast('✅ Hai il controllo! Puoi modificare', 'success', 3000);
-      } else if (result.lockedBy) {
-        showToast(`⚠️ ${result.lockedBy} sta modificando. Modalità solo lettura`, 'warning', 5000);
-      }
-    };
-    
-    initLock();
-  }, [user, userRole, teamId]);
-  
-  // ========== LOCK SYSTEM: LISTENER REAL-TIME ==========
-  useEffect(() => {
-    if (!user || userRole !== 'admin' || !teamId) return;
-    
-    console.log('👁️ Lock System: Attivo listener real-time');
-    
-    // Listener real-time sul documento lock
+    // PRIMA: Attivo il listener (DEVE essere attivo PRIMA di acquireLock!)
     const lockRef = db.collection('teamLocks').doc(teamId);
     const unsubscribe = lockRef.onSnapshot((doc) => {
+      console.log('📡 Listener triggered - doc exists:', doc.exists);
+      
       if (doc.exists) {
         const lock = doc.data();
+        console.log('📡 Lock data:', {
+          userId: lock.userId,
+          userName: lock.userName,
+          myUserId: user.uid,
+          isActive: lock.isActive
+        });
+        
         const acquiredAt = new Date(lock.acquiredAt);
         const now = new Date();
         const hoursSinceAcquired = (now - acquiredAt) / 1000 / 60 / 60;
@@ -2862,51 +2853,76 @@ const SoccerTeamTracker = () => {
         // Lock valido se < 6 ore e attivo
         if (hoursSinceAcquired < 6 && lock.isActive) {
           if (lock.userId === user.uid) {
-            // Il lock è tuo
-            if (!hasLock) {
-              console.log('✅ Lock confermato via listener');
-              setHasLock(true);
-              setLockedBy(null);
-              setLockedByEmail(null);
+            // Il lock è TUO
+            console.log('✅ Listener: Il lock è TUO');
+            
+            // Toast solo se è un CAMBIO di stato (non avevi lock prima)
+            if (!previousLockState.current.hasLock) {
+              showToast('✅ Hai il controllo! Puoi modificare', 'success', 3000);
             }
+            
+            setHasLock(true);
+            setLockedBy(null);
+            setLockedByEmail(null);
+            setLockAcquiredAt(lock.acquiredAt);
+            
+            // Aggiorna stato precedente
+            previousLockState.current = { hasLock: true, lockedBy: null };
           } else {
-            // Il lock è di qualcun altro - AGGIORNA UI
-            if (hasLock) {
-              console.log('⚠️ LOCK PERSO! Qualcun altro ha preso il controllo');
-              showToast(`⚠️ ${lock.userName} ha preso il controllo!`, 'warning', 5000);
+            // Il lock è di QUALCUN ALTRO
+            console.log('⚠️ Listener: Lock occupato da', lock.userName);
+            
+            // Toast solo se è un CAMBIO (prima avevi lock o non c'era nessuno)
+            if (previousLockState.current.hasLock || previousLockState.current.lockedBy !== lock.userName) {
+              showToast(`⚠️ ${lock.userName} sta modificando. Modalità solo lettura`, 'warning', 5000);
             }
+            
             setHasLock(false);
             setLockedBy(lock.userName);
             setLockedByEmail(lock.userEmail);
             setLockAcquiredAt(lock.acquiredAt);
+            
+            // Aggiorna stato precedente
+            previousLockState.current = { hasLock: false, lockedBy: lock.userName };
           }
         } else {
           // Lock scaduto o inattivo
-          if (hasLock) {
-            console.log('⏰ Lock scaduto via listener');
-          }
+          console.log('⏰ Listener: Lock scaduto o inattivo');
           setHasLock(false);
           setLockedBy(null);
           setLockedByEmail(null);
           setLockAcquiredAt(null);
+          previousLockState.current = { hasLock: false, lockedBy: null };
         }
       } else {
         // Nessun lock attivo
+        console.log('🔓 Listener: Nessun lock esistente');
         setHasLock(false);
         setLockedBy(null);
         setLockedByEmail(null);
         setLockAcquiredAt(null);
+        previousLockState.current = { hasLock: false, lockedBy: null };
       }
     }, (error) => {
       console.error('❌ Errore listener lock:', error);
     });
     
+    // POI: Tentativo di acquisire lock (listener già attivo)
+    const initLock = async () => {
+      await new Promise(resolve => setTimeout(resolve, 100)); // Piccolo delay per assicurare listener attivo
+      const result = await acquireLock(user, teamId);
+      console.log('🔒 acquireLock terminato:', result.success ? 'SUCCESS' : 'FAILED');
+    };
+    
+    initLock();
+    
     // Cleanup
     return () => {
-      console.log('🔌 Lock System: Disattivo listener');
+      console.log('🔌 Lock System: Disattivo listener e rilascio lock');
       unsubscribe();
+      releaseLock(teamId);
     };
-  }, [user, userRole, teamId, hasLock]);
+  }, [user, userRole, teamId]);
   
   // ========== LOCK SYSTEM: LISTENER ONLINE/OFFLINE ==========
   useEffect(() => {
@@ -3546,28 +3562,14 @@ const SoccerTeamTracker = () => {
         };
       });
       
-      // Aggiorna UI in base al risultato della transazione
-      if (result.success) {
-        console.log('✅ Lock acquisito con successo');
-        setHasLock(true);
-        setLockedBy(null);
-        setLockedByEmail(null);
-        setLockAcquiredAt(result.acquiredAt);
-        showToast('✅ Hai il controllo!', 'success');
-      } else {
-        console.log('⚠️ Lock non acquisito');
-        setHasLock(false);
-        setLockedBy(result.lockedBy);
-        setLockedByEmail(result.lockedByEmail);
-        setLockAcquiredAt(result.acquiredAt);
-        showToast(`⚠️ ${result.lockedBy} sta modificando`, 'warning', 4000);
-      }
+      // NON aggiorniamo lo state React qui!
+      // Il listener onSnapshot lo farà automaticamente quando Firestore cambia
+      console.log('📝 acquireLock result:', result.success ? 'SUCCESS' : 'FAILED');
       
       return result;
       
     } catch (error) {
       console.error('❌ Errore acquisizione lock:', error);
-      showToast('❌ Errore acquisizione lock', 'error');
       return { success: false, error: error.message };
     }
   };
