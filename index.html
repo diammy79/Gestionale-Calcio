@@ -2155,6 +2155,14 @@ const SoccerTeamTracker = () => {
   const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null });
   const [cardTypeDialog, setCardTypeDialog] = useState({ show: false, cardType: '', playerNum: 0, matchId: null, playerName: '', minuto: null });
   
+  // ========== LOCK SYSTEM MULTI-ADMIN ==========
+  const [hasLock, setHasLock] = useState(false);
+  const [lockedBy, setLockedBy] = useState(null);
+  const [lockedByEmail, setLockedByEmail] = useState(null);
+  const [lockAcquiredAt, setLockAcquiredAt] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
+  
   // State per Divisione Squadre
   const [numSquadre, setNumSquadre] = useState(2);
   const [includiPortieri, setIncludiPortieri] = useState(true);
@@ -2817,6 +2825,66 @@ const SoccerTeamTracker = () => {
     }
   }, []);
 
+  // ========== LOCK SYSTEM: ACQUISIZIONE AL LOGIN ==========
+  useEffect(() => {
+    if (!user || userRole !== 'admin' || !teamId) return;
+    
+    console.log('🔒 Lock System: Tentativo acquisizione lock...');
+    
+    const initLock = async () => {
+      const result = await acquireLock(user, teamId);
+      
+      if (result.success) {
+        showToast('✅ Hai il controllo! Puoi modificare', 'success', 3000);
+      } else if (result.lockedBy) {
+        showToast(`⚠️ ${result.lockedBy} sta modificando. Modalità solo lettura`, 'warning', 5000);
+      }
+    };
+    
+    initLock();
+  }, [user, userRole, teamId]);
+  
+  // ========== LOCK SYSTEM: LISTENER ONLINE/OFFLINE ==========
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('🌐 Connessione ripristinata');
+      setIsOnline(true);
+      showToast('✅ Connesso! Ora puoi salvare', 'success');
+    };
+    
+    const handleOffline = () => {
+      console.log('📶 Connessione persa');
+      setIsOnline(false);
+      showToast('⚠️ Offline - Le modifiche sono salvate localmente', 'warning');
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  
+  // ========== LOCK SYSTEM: BEFOREUNLOAD (PREVIENE CHIUSURA ACCIDENTALE) ==========
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      // Solo se admin con lock attivo
+      if (userRole === 'admin' && hasLock) {
+        e.preventDefault();
+        e.returnValue = ''; // Chrome richiede questo
+        return ''; // Altri browser
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [userRole, hasLock]);
+
   useEffect(() => {
     if (isTimerRunning) {
       const interval = setInterval(() => {
@@ -2922,10 +2990,19 @@ const SoccerTeamTracker = () => {
     }
   }, [isRecoveryRunning, recoveryMinutes, halfTime]);
 
-  const startTimer = () => setIsTimerRunning(true);
-  const pauseTimer = () => setIsTimerRunning(false);
+  const startTimer = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    setIsTimerRunning(true);
+  };
+  
+  const pauseTimer = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    setIsTimerRunning(false);
+  };
 
   const addMinute = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setMatchTimer(prev => {
       const maxTime = halfTime === 1 ? 2700 : 5400;
       return Math.min(prev + 60, maxTime);
@@ -2933,6 +3010,8 @@ const SoccerTeamTracker = () => {
   };
 
   const removeMinute = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setMatchTimer(prev => {
       const minTime = halfTime === 1 ? 0 : 2700;
       return Math.max(prev - 60, minTime);
@@ -2940,14 +3019,20 @@ const SoccerTeamTracker = () => {
   };
 
   const addRecoveryMinute = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setRecoveryTime(prev => prev + 60);
   };
 
   const removeRecoveryMinute = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setRecoveryTime(prev => Math.max(prev - 60, 0));
   };
 
   const endMatch = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setIsTimerRunning(false);
     setIsRecoveryRunning(false);
     setMatchEnded(true);
@@ -2982,6 +3067,8 @@ const SoccerTeamTracker = () => {
   };
 
   const initiateSubstitution = (playerOut) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === liveMatchMode);
     const player = players.find(p => p.numero === playerOut);
     
@@ -3006,6 +3093,8 @@ const SoccerTeamTracker = () => {
   };
 
   const completeSubstitution = (matchId, playerOut, playerIn) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === matchId);
     const playerOutData = players.find(p => p.numero === playerOut);
     const playerInData = players.find(p => p.numero === playerIn);
@@ -3148,7 +3237,7 @@ const SoccerTeamTracker = () => {
   const showToast = (message, type = 'info', duration = 3000) => {
     const id = Date.now();
     
-    // ✅ Previeni toast duplicati con lo stesso messaggio già visibile
+    // ✅ Controlla PRIMA se esiste già un duplicato
     setToasts(prev => {
       const hasDuplicate = prev.some(t => t.message === message && t.type === type && !t.exiting);
       if (hasDuplicate) {
@@ -3156,17 +3245,20 @@ const SoccerTeamTracker = () => {
         return prev; // Non aggiungere se già presente
       }
       
+      // ✅ Aggiungi il toast
       const toast = { id, message, type };
-      return [...prev, toast];
-    });
-    
-    // Timer per rimuovere il toast
-    setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
+      const newToasts = [...prev, toast];
+      
+      // ✅ Avvia il timer SOLO per toast appena aggiunto
       setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 300);
-    }, duration);
+        setToasts(current => current.map(t => t.id === id ? { ...t, exiting: true } : t));
+        setTimeout(() => {
+          setToasts(current => current.filter(t => t.id !== id));
+        }, 300);
+      }, duration);
+      
+      return newToasts;
+    });
   };
   
   const showLoadingWithProgress = (message, duration = 0) => {
@@ -3198,6 +3290,8 @@ const SoccerTeamTracker = () => {
   
   // ========== FUNZIONI GESTIONE INFORTUNI ==========
   const addInjury = (playerNum, injuryData) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const newInjury = {
       id: Date.now(),
       playerNum,
@@ -3214,6 +3308,8 @@ const SoccerTeamTracker = () => {
   };
   
   const updateInjuryStatus = (injuryId, newStatus) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setInjuries(prev => prev.map(inj => 
       inj.id === injuryId ? { ...inj, status: newStatus } : inj
     ));
@@ -3230,6 +3326,8 @@ const SoccerTeamTracker = () => {
   };
   
   const removeInjury = (injuryId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setInjuries(prev => prev.filter(inj => inj.id !== injuryId));
     showToast('Infortunio rimosso', 'info');
   };
@@ -3270,6 +3368,8 @@ const SoccerTeamTracker = () => {
   };
   
   const handleDrop = (e, position) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     e.preventDefault();
     if (draggedPlayer !== null) {
       setFormationPositions(prev => ({
@@ -3281,6 +3381,8 @@ const SoccerTeamTracker = () => {
   };
   
   const clearPosition = (position) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setFormationPositions(prev => {
       const newPositions = { ...prev };
       delete newPositions[position];
@@ -3288,15 +3390,264 @@ const SoccerTeamTracker = () => {
     });
   };
 
-  // Gestione logout
-  const handleLogout = async () => {
-    // ✅ Solo ADMIN con dispositivo PRIMARY → Mostra modal
-    if (userRole === 'admin' && deviceRole === 'primary') {
-      setShowExitModal(true);
+  // ========== LOCK SYSTEM MULTI-ADMIN ==========
+  
+  /**
+   * Helper: Ottieni info dispositivo
+   */
+  const getDeviceInfo = () => {
+    const ua = navigator.userAgent;
+    let device = 'Desktop';
+    
+    if (/Mobile|Android|iPhone|iPad|iPod/i.test(ua)) {
+      if (/iPad/i.test(ua)) device = 'iPad';
+      else if (/iPhone/i.test(ua)) device = 'iPhone';
+      else if (/Android/i.test(ua)) device = 'Android';
+      else device = 'Mobile';
+    }
+    
+    let browser = 'Unknown';
+    if (/Chrome/i.test(ua)) browser = 'Chrome';
+    else if (/Safari/i.test(ua)) browser = 'Safari';
+    else if (/Firefox/i.test(ua)) browser = 'Firefox';
+    else if (/Edge/i.test(ua)) browser = 'Edge';
+    
+    return `${browser} su ${device}`;
+  };
+  
+  /**
+   * Acquisici lock per modificare
+   */
+  const acquireLock = async (currentUser, currentTeamId) => {
+    if (!currentUser || !currentTeamId) {
+      console.error('❌ acquireLock: user o teamId mancante');
+      return { success: false, error: 'User o teamId mancante' };
+    }
+    
+    const lockRef = db.collection('teamLocks').doc(currentTeamId);
+    
+    try {
+      const lockDoc = await lockRef.get();
+      
+      if (lockDoc.exists) {
+        const lock = lockDoc.data();
+        const acquiredAt = new Date(lock.acquiredAt);
+        const now = new Date();
+        const hoursSinceAcquired = (now - acquiredAt) / 1000 / 60 / 60;
+        
+        // Lock scade dopo 6 ore
+        if (hoursSinceAcquired < 6 && lock.isActive) {
+          // Lock occupato da qualcun altro
+          if (lock.userId !== currentUser.uid) {
+            console.log('🔒 Lock occupato da:', lock.userName);
+            setLockedBy(lock.userName);
+            setLockedByEmail(lock.userEmail);
+            setLockAcquiredAt(lock.acquiredAt);
+            return {
+              success: false,
+              lockedBy: lock.userName,
+              lockedByEmail: lock.userEmail,
+              acquiredAt: lock.acquiredAt
+            };
+          }
+          
+          // Lock già tuo (riconnessione)
+          console.log('🔓 Lock già tuo, riacquisito');
+          setHasLock(true);
+          setLockAcquiredAt(lock.acquiredAt);
+          return { success: true, isOwner: true };
+        }
+        
+        // Lock scaduto → Acquisisci
+        console.log('⏰ Lock scaduto (>6 ore), acquisisco');
+      }
+      
+      // Nessun lock o scaduto → Acquisisci
+      await lockRef.set({
+        userId: currentUser.uid,
+        userName: currentUser.displayName || currentUser.email,
+        userEmail: currentUser.email,
+        deviceInfo: getDeviceInfo(),
+        acquiredAt: new Date().toISOString(),
+        isActive: true
+      });
+      
+      console.log('✅ Lock acquisito con successo');
+      setHasLock(true);
+      setLockedBy(null);
+      setLockedByEmail(null);
+      setLockAcquiredAt(new Date().toISOString());
+      
+      return { success: true, isOwner: true };
+      
+    } catch (error) {
+      console.error('❌ Errore acquisizione lock:', error);
+      return { success: false, error: error.message };
+    }
+  };
+  
+  /**
+   * Rilascia lock
+   */
+  const releaseLock = async (currentTeamId) => {
+    if (!currentTeamId) {
+      console.error('❌ releaseLock: teamId mancante');
       return;
     }
     
-    // Per USER o SECONDARY → Chiede conferma prima di chiudere
+    try {
+      const lockRef = db.collection('teamLocks').doc(currentTeamId);
+      await lockRef.update({
+        isActive: false,
+        releasedAt: new Date().toISOString()
+      });
+      
+      console.log('🔓 Lock rilasciato');
+      setHasLock(false);
+      setLockedBy(null);
+      setLockedByEmail(null);
+      setLockAcquiredAt(null);
+      
+    } catch (error) {
+      console.error('❌ Errore rilascio lock:', error);
+      // Anche se errore, resettiamo lo state locale
+      setHasLock(false);
+    }
+  };
+  
+  /**
+   * Controlla status lock (per polling)
+   */
+  const checkLockStatus = async (currentTeamId) => {
+    if (!currentTeamId) return;
+    
+    try {
+      const lockDoc = await db.collection('teamLocks').doc(currentTeamId).get();
+      
+      if (lockDoc.exists) {
+        const lock = lockDoc.data();
+        const acquiredAt = new Date(lock.acquiredAt);
+        const now = new Date();
+        const hoursSinceAcquired = (now - acquiredAt) / 1000 / 60 / 60;
+        
+        // Lock valido se < 6 ore e attivo
+        if (hoursSinceAcquired < 6 && lock.isActive) {
+          return {
+            isLocked: true,
+            userId: lock.userId,
+            userName: lock.userName,
+            userEmail: lock.userEmail,
+            acquiredAt: lock.acquiredAt
+          };
+        }
+      }
+      
+      return { isLocked: false };
+      
+    } catch (error) {
+      console.error('❌ Errore check lock:', error);
+      return { isLocked: false };
+    }
+  };
+  
+  /**
+   * Forza rilascio lock (solo emergenza)
+   */
+  const forceReleaseLock = async (currentTeamId) => {
+    if (!currentTeamId) return;
+    
+    if (!window.confirm(
+      `Lock occupato da ${lockedBy}.\n\n` +
+      'Forzare rilascio? Usa SOLO se sicuro che non sta lavorando!'
+    )) {
+      return;
+    }
+    
+    try {
+      await db.collection('teamLocks').doc(currentTeamId).delete();
+      showToast('🔓 Lock forzato a rilasciare', 'warning');
+      
+      // Prova ad acquisire
+      const result = await acquireLock(user, currentTeamId);
+      if (result.success) {
+        showToast('✅ Lock acquisito', 'success');
+      }
+    } catch (error) {
+      console.error('❌ Errore force release:', error);
+      showToast('❌ Errore: ' + error.message, 'error');
+    }
+  };
+
+  /**
+   * Helper: Controlla se può modificare (ha lock)
+   */
+  const canEdit = () => {
+    // USER non può mai modificare
+    if (userRole !== 'admin') {
+      showToast('⚠️ Accesso solo lettura', 'warning');
+      return false;
+    }
+    
+    // ADMIN senza lock non può modificare
+    if (!hasLock) {
+      showToast(`⚠️ Non puoi modificare. ${lockedBy || 'Qualcuno'} sta lavorando.`, 'warning', 4000);
+      return false;
+    }
+    
+    // ADMIN con lock può modificare
+    return true;
+  };
+
+  // Gestione logout
+  const handleLogout = async () => {
+    // ✅ ADMIN → Controlla connessione, salva, rilascia lock e chiude
+    if (userRole === 'admin') {
+      // ✅ Chiedi conferma PRIMA di salvare
+      if (!window.confirm('Salvare i dati su cloud e chiudere l\'applicazione?')) {
+        return; // Annullato → Non fare nulla
+      }
+      
+      // ✅ CONTROLLO CONNESSIONE
+      if (!navigator.onLine) {
+        // ❌ OFFLINE - Non può salvare
+        console.log('⚠️ Offline - Impossibile salvare');
+        setShowOfflineModal(true);
+        return; // BLOCCA chiusura
+      }
+      
+      try {
+        showToast('☁️ Salvataggio automatico in corso...', 'info');
+        
+        // Delay per assicurare che tutti gli state siano aggiornati
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Salva su cloud
+        await saveDataToCloud(true); // silent = true per non mostrare toast doppio
+        
+        // ✅ Rilascia lock
+        await releaseLock(teamId);
+        
+        showToast('✅ Dati salvati! A presto!', 'success');
+        
+        // Piccolo delay per far vedere il toast
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        window.close(); // Chiude la finestra
+      } catch (error) {
+        console.error('❌ Errore salvataggio:', error);
+        showToast('❌ Errore salvataggio: ' + error.message, 'error');
+        
+        // Chiedi conferma se procedere comunque
+        if (window.confirm('Errore durante il salvataggio. Vuoi chiudere comunque?')) {
+          // Rilascia lock anche se errore
+          await releaseLock(teamId);
+          window.close();
+        }
+      }
+      return;
+    }
+    
+    // Per USER → Chiede solo conferma prima di chiudere
     if (window.confirm('Sei sicuro di voler chiudere l\'applicazione?')) {
       window.close();
     }
@@ -3391,6 +3742,8 @@ const SoccerTeamTracker = () => {
   };
 
   const quickAddGoal = (matchId, playerNum, minuto = null) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -3419,6 +3772,8 @@ const SoccerTeamTracker = () => {
   };
 
   const quickAddAssist = (matchId, playerNum, minuto = null) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -3447,6 +3802,8 @@ const SoccerTeamTracker = () => {
   };
 
   const quickAddGoalConceded = (matchId, playerNum, minuto = null) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -3475,6 +3832,8 @@ const SoccerTeamTracker = () => {
   };
 
   const quickAddYellowCard = (matchId, playerNum, minuto = null) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -3490,6 +3849,8 @@ const SoccerTeamTracker = () => {
   };
 
   const quickAddRedCard = (matchId, playerNum, minuto = null) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === matchId);
     const player = players.find(p => p.numero === playerNum);
     if (match && player) {
@@ -3505,6 +3866,8 @@ const SoccerTeamTracker = () => {
   };
   
   const assignCard = (type) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const { cardType, playerNum, matchId, playerName, minuto } = cardTypeDialog;
     const match = matches.find(m => m.id === matchId);
     
@@ -3597,18 +3960,24 @@ const SoccerTeamTracker = () => {
   };
 
   const updatePlayer = (numero, field, value) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setPlayers(players.map(p => 
       p.numero === numero ? { ...p, [field]: value } : p
     ));
   };
 
   const clearPlayer = (numero) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setPlayers(players.map(p => 
       p.numero === numero ? { ...p, nome: '', ruolo: '', dataNascita: '', telefono: '', foto: '', piede: '' } : p
     ));
   };
 
   const handleImageUpload = async (numero, e) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const file = e.target.files[0];
     if (!file) return;
 
@@ -3711,6 +4080,8 @@ const SoccerTeamTracker = () => {
   };
 
   const handleLogoUpload = async (e) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const file = e.target.files[0];
     if (!file) return;
 
@@ -3823,6 +4194,8 @@ const SoccerTeamTracker = () => {
   };
 
   const removeLogo = async () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     if (!window.confirm('Sei sicuro di voler rimuovere il logo?')) return;
     
     try {
@@ -3859,6 +4232,8 @@ const SoccerTeamTracker = () => {
   };
 
   const addTraining = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     // Pre-compila infortuni dai giocatori con injury attivo
     const infortuniPrecompilati = {};
     injuries.forEach(injury => {
@@ -3885,6 +4260,8 @@ const SoccerTeamTracker = () => {
   };
 
   const addMatch = () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const newMatch = {
       id: Date.now(),
       data: new Date().toISOString().split('T')[0],
@@ -3911,18 +4288,24 @@ const SoccerTeamTracker = () => {
   };
 
   const updateTraining = (trainingId, field, value) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setTrainings(trainings.map(t => 
       t.id === trainingId ? { ...t, [field]: value } : t
     ));
   };
 
   const updateMatch = (matchId, field, value) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setMatches(matches.map(m => 
       m.id === matchId ? { ...m, [field]: value } : m
     ));
   };
 
   const deleteTraining = (id) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setTrainings(trainings.filter(t => t.id !== id));
   };
 
@@ -3945,6 +4328,8 @@ const SoccerTeamTracker = () => {
   // ========== FUNZIONI GESTIONE ESERCIZI ==========
   
   const addEsercizio = (trainingId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const esercizio = newEsercizio[trainingId] || {};
     
     if (!esercizio.nome || !esercizio.durata) {
@@ -3976,6 +4361,8 @@ const SoccerTeamTracker = () => {
   };
   
   const updateEsercizio = (trainingId, esercizioId, field, value) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setTrainings(trainings.map(t => {
       if (t.id === trainingId) {
         return {
@@ -3990,6 +4377,8 @@ const SoccerTeamTracker = () => {
   };
   
   const deleteEsercizio = (trainingId, esercizioId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     if (!window.confirm('🗑️ Vuoi eliminare questo esercizio?')) return;
     
     setTrainings(trainings.map(t => {
@@ -4055,6 +4444,8 @@ const SoccerTeamTracker = () => {
   // ========== FUNZIONI GESTIONE FOTO ALLENAMENTI/PARTITE ==========
   
   const handleAddTrainingPhoto = async (e, trainingId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const file = e.target.files[0];
     if (!file) return;
 
@@ -4169,6 +4560,8 @@ const SoccerTeamTracker = () => {
   };
 
   const handleRemoveTrainingPhoto = async (trainingId, photoId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     if (!window.confirm('🗑️ Vuoi eliminare questa foto?')) return;
     
     try {
@@ -4207,6 +4600,8 @@ const SoccerTeamTracker = () => {
   };
 
   const handleAddMatchPhoto = async (e, matchId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const file = e.target.files[0];
     if (!file) return;
 
@@ -4328,6 +4723,8 @@ const SoccerTeamTracker = () => {
   };
 
   const handleRemoveMatchPhoto = async (matchId, photoId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     if (!window.confirm('🗑️ Vuoi eliminare questa foto?')) return;
     
     try {
@@ -4646,6 +5043,8 @@ const SoccerTeamTracker = () => {
   };
 
   const deleteMatch = (id) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setMatches(matches.filter(m => m.id !== id));
   };
 
@@ -4673,6 +5072,8 @@ const SoccerTeamTracker = () => {
    * Assegna l'MVP a un giocatore per una partita
    */
   const assignMVP = (matchId, playerNum) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const match = matches.find(m => m.id === matchId);
     if (!match) return;
     
@@ -4702,6 +5103,8 @@ const SoccerTeamTracker = () => {
    * Rimuove l'MVP da una partita
    */
   const removeMVP = (matchId) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     setMatches(matches.map(m => 
       m.id === matchId ? { ...m, mvp: null } : m
     ));
@@ -5476,6 +5879,8 @@ const SoccerTeamTracker = () => {
   };
 
   const handleFileImport = (event) => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const file = event.target.files[0];
     if (!file) return;
     
@@ -5538,6 +5943,8 @@ const SoccerTeamTracker = () => {
   // ========== FUNZIONI DI RESET DATABASE ==========
   
   const resetStagione = async () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const conferma1 = window.confirm(
       '⚠️ ATTENZIONE! Questa operazione cancellerà:\n\n' +
       '✓ Tutti gli allenamenti\n' +
@@ -5682,6 +6089,8 @@ const SoccerTeamTracker = () => {
   };
   
   const resetCompleto = async () => {
+    if (!canEdit()) return; // 🔒 Lock check
+    
     const conferma1 = window.confirm(
       '🔴 ATTENZIONE! RESET COMPLETO!\n\n' +
       'Questa operazione cancellerà TUTTO:\n\n' +
@@ -10307,7 +10716,7 @@ const SoccerTeamTracker = () => {
                       alt="Logo squadra" 
                       className="w-20 h-20 md:w-32 md:h-32 object-contain rounded-lg"
                     />
-                    {userRole === 'admin' && (
+                    {userRole === 'admin' && hasLock && (
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 rounded-lg transition-all flex items-center justify-center gap-1">
                         <label className="opacity-0 group-hover:opacity-100 cursor-pointer bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700 transition-all">
                           <input
@@ -10328,7 +10737,7 @@ const SoccerTeamTracker = () => {
                     )}
                   </div>
                 ) : (
-                  userRole === 'admin' ? (
+                  userRole === 'admin' && hasLock ? (
                     <label className="w-20 h-20 md:w-32 md:h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all group">
                       <input
                         type="file"
@@ -10512,10 +10921,10 @@ const SoccerTeamTracker = () => {
                     <button
                       onClick={handleLogout}
                       className="flex-1 flex items-center justify-center gap-1 px-2 md:px-3 py-1.5 md:py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
-                      title="Chiudi applicazione"
+                      title="Salva dati e chiudi applicazione"
                     >
-                      <span className="text-base">✕</span>
-                      <span className="text-xs">Chiudi</span>
+                      <span className="text-base">💾</span>
+                      <span className="text-xs">Salva e Chiudi</span>
                     </button>
                   </div>
                 )}
@@ -12336,13 +12745,19 @@ const SoccerTeamTracker = () => {
                   </button>
                   <button
                     onClick={addTraining}
-                    disabled={userRole !== 'admin'}
+                    disabled={userRole !== 'admin' || !hasLock}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                      userRole === 'admin'
+                      userRole === 'admin' && hasLock
                         ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
                     }`}
-                    title={userRole !== 'admin' ? 'Solo Admin può aggiungere' : ''}
+                    title={
+                      userRole !== 'admin' 
+                        ? 'Solo Admin può aggiungere' 
+                        : !hasLock 
+                        ? `${lockedBy || 'Qualcuno'} sta modificando` 
+                        : ''
+                    }
                   >
                     <Plus size={20} />
                     Aggiungi Nuovo Allenamento
@@ -12475,13 +12890,19 @@ const SoccerTeamTracker = () => {
                               }
                             }
                           }}
-                          disabled={userRole !== 'admin'}
+                          disabled={userRole !== 'admin' || !hasLock}
                           className={`p-2 ${
-                            userRole === 'admin'
+                            userRole === 'admin' && hasLock
                               ? 'text-red-600 hover:text-red-700'
-                              : 'text-gray-400 cursor-not-allowed'
+                              : 'text-gray-400 cursor-not-allowed opacity-50'
                           }`}
-                          title={userRole !== 'admin' ? 'Solo Admin può eliminare' : ''}
+                          title={
+                            userRole !== 'admin' 
+                              ? 'Solo Admin può eliminare' 
+                              : !hasLock 
+                              ? `${lockedBy || 'Qualcuno'} sta modificando` 
+                              : ''
+                          }
                         >
                           <Trash2 size={20} />
                         </button>
@@ -12793,7 +13214,13 @@ const SoccerTeamTracker = () => {
                                 });
                                 showToast('✅ Esercizio aggiunto!', 'success');
                               }}
-                              className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                              disabled={!hasLock}
+                              className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
+                                hasLock
+                                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                              }`}
+                              title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                             >
                               ✅ Aggiungi Esercizio
                             </button>
@@ -12854,8 +13281,13 @@ const SoccerTeamTracker = () => {
                                             showToast('🗑️ Esercizio eliminato', 'success');
                                           }
                                         }}
-                                        className="p-2 text-red-600 hover:bg-red-50 rounded"
-                                        title="Elimina"
+                                        disabled={!hasLock}
+                                        className={`p-2 rounded ${
+                                          hasLock
+                                            ? 'text-red-600 hover:bg-red-50'
+                                            : 'text-gray-400 cursor-not-allowed opacity-50'
+                                        }`}
+                                        title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : 'Elimina'}
                                       >
                                         🗑️
                                       </button>
@@ -12932,7 +13364,7 @@ const SoccerTeamTracker = () => {
                             </p>
 
                             {/* Upload foto */}
-                            {(!training.foto || training.foto.length < 3) && userRole === 'admin' && (
+                            {(!training.foto || training.foto.length < 3) && userRole === 'admin' && hasLock && (
                               <div className="mb-6">
                                 <label className="flex items-center justify-center gap-3 p-6 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors bg-white">
                                   <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -12961,7 +13393,7 @@ const SoccerTeamTracker = () => {
                                       onClick={() => setEnlargedPhoto(foto.url || foto.data)}
                                     />
                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      {userRole === 'admin' && (
+                                      {userRole === 'admin' && hasLock && (
                                         <button
                                           onClick={() => handleRemoveTrainingPhoto(training.id, foto.id)}
                                           className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 shadow-lg"
@@ -13162,13 +13594,19 @@ const SoccerTeamTracker = () => {
                 <h2 className="text-2xl font-bold text-gray-800">Partite</h2>
                 <button
                   onClick={addMatch}
-                  disabled={userRole !== 'admin'}
+                  disabled={userRole !== 'admin' || !hasLock}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    userRole === 'admin'
+                    userRole === 'admin' && hasLock
                       ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
                   }`}
-                  title={userRole !== 'admin' ? 'Solo Admin può aggiungere' : ''}
+                  title={
+                    userRole !== 'admin' 
+                      ? 'Solo Admin può aggiungere' 
+                      : !hasLock 
+                      ? `${lockedBy || 'Qualcuno'} sta modificando` 
+                      : ''
+                  }
                 >
                   <Plus size={20} />
                   Aggiungi Nuova Partita
@@ -13323,13 +13761,19 @@ const SoccerTeamTracker = () => {
                                 }
                               }
                             }}
-                            disabled={userRole !== 'admin'}
+                            disabled={userRole !== 'admin' || !hasLock}
                             className={`p-2 ${
-                              userRole === 'admin'
+                              userRole === 'admin' && hasLock
                                 ? 'text-red-600 hover:text-red-700'
-                                : 'text-gray-400 cursor-not-allowed'
+                                : 'text-gray-400 cursor-not-allowed opacity-50'
                             }`}
-                            title={userRole !== 'admin' ? 'Solo Admin può eliminare' : 'Elimina partita'}
+                            title={
+                              userRole !== 'admin' 
+                                ? 'Solo Admin può eliminare' 
+                                : !hasLock 
+                                ? `${lockedBy || 'Qualcuno'} sta modificando` 
+                                : 'Elimina partita'
+                            }
                           >
                             <Trash2 size={20} />
                           </button>
@@ -13656,7 +14100,7 @@ const SoccerTeamTracker = () => {
                             </p>
 
                             {/* Upload foto */}
-                            {(!match.foto || match.foto.length < 3) && userRole === 'admin' && (
+                            {(!match.foto || match.foto.length < 3) && userRole === 'admin' && hasLock && (
                               <div className="mb-6">
                                 <label className="flex items-center justify-center gap-3 p-6 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors bg-white">
                                   <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -13685,7 +14129,7 @@ const SoccerTeamTracker = () => {
                                       onClick={() => setEnlargedPhoto(foto.url || foto.data)}
                                     />
                                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      {userRole === 'admin' && (
+                                      {userRole === 'admin' && hasLock && (
                                         <button
                                           onClick={() => handleRemoveMatchPhoto(match.id, foto.id)}
                                           className="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 shadow-lg"
@@ -15157,7 +15601,15 @@ const SoccerTeamTracker = () => {
                             >
                               <Save size={14} /> Salva
                             </button>
-                            <button onClick={() => clearPlayer(player.numero)} className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700">
+                            <button 
+                              onClick={() => clearPlayer(player.numero)} 
+                              disabled={!hasLock}
+                              className={`px-3 py-2 rounded text-sm ${
+                                hasLock 
+                                  ? 'bg-red-600 text-white hover:bg-red-700' 
+                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                              }`}
+                            >
                               Cancella
                             </button>
                           </>
@@ -15165,13 +15617,19 @@ const SoccerTeamTracker = () => {
                           <>
                             <button 
                               onClick={() => setEditingPlayer(player.numero)} 
-                              disabled={userRole !== 'admin'}
+                              disabled={userRole !== 'admin' || !hasLock}
                               className={`px-3 py-2 rounded text-sm flex-1 md:flex-none ${
-                                userRole === 'admin'
+                                userRole === 'admin' && hasLock
                                   ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                  : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
                               }`}
-                              title={userRole !== 'admin' ? 'Solo Admin può modificare' : ''}
+                              title={
+                                userRole !== 'admin' 
+                                  ? 'Solo Admin può modificare' 
+                                  : !hasLock 
+                                  ? `${lockedBy || 'Qualcuno'} sta modificando` 
+                                  : ''
+                              }
                             >
                               Modifica
                             </button>
@@ -16805,13 +17263,27 @@ const SoccerTeamTracker = () => {
                                   {!isTimerRunning ? (
                                     <button 
                                       onClick={startTimer} 
-                                      disabled={(halfTime === 1 && matchTimer >= 2700) || (halfTime === 2 && matchTimer >= 5400)} 
-                                      className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                                      disabled={!hasLock || (halfTime === 1 && matchTimer >= 2700) || (halfTime === 2 && matchTimer >= 5400)} 
+                                      className={`px-6 py-3 rounded-lg font-semibold ${
+                                        !hasLock 
+                                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                          : 'bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed'
+                                      }`}
+                                      title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                                     >
                                       ▶ Start
                                     </button>
                                   ) : (
-                                    <button onClick={pauseTimer} className="px-6 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-semibold">
+                                    <button 
+                                      onClick={pauseTimer} 
+                                      disabled={!hasLock}
+                                      className={`px-6 py-3 rounded-lg font-semibold ${
+                                        !hasLock
+                                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                          : 'bg-yellow-600 text-white hover:bg-yellow-700'
+                                      }`}
+                                      title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
+                                    >
                                       ⏸ Pausa
                                     </button>
                                   )}
@@ -16820,8 +17292,30 @@ const SoccerTeamTracker = () => {
                             </div>
                             {!matchEnded && (
                               <div className="flex flex-col gap-1">
-                                <button onClick={addMinute} className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xl">▲</button>
-                                <button onClick={removeMinute} className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-xl">▼</button>
+                                <button 
+                                  onClick={addMinute} 
+                                  disabled={!hasLock}
+                                  className={`px-3 py-2 rounded text-xl ${
+                                    !hasLock
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                                  }`}
+                                  title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
+                                >
+                                  ▲
+                                </button>
+                                <button 
+                                  onClick={removeMinute} 
+                                  disabled={!hasLock}
+                                  className={`px-3 py-2 rounded text-xl ${
+                                    !hasLock
+                                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                                  }`}
+                                  title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
+                                >
+                                  ▼
+                                </button>
                               </div>
                             )}
                           </div>
@@ -16863,8 +17357,30 @@ const SoccerTeamTracker = () => {
                             </div>
                             {!matchEnded && matchTimer >= 2700 && (
                               <div className="flex flex-col gap-1">
-                                <button onClick={addRecoveryMinute} className="px-3 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-xl">▲</button>
-                                <button onClick={removeRecoveryMinute} className="px-3 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-xl">▼</button>
+                                <button 
+                                  onClick={addRecoveryMinute} 
+                                  disabled={!hasLock}
+                                  className={`px-3 py-2 rounded text-xl ${
+                                    hasLock
+                                      ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                                      : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                  }`}
+                                  title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
+                                >
+                                  ▲
+                                </button>
+                                <button 
+                                  onClick={removeRecoveryMinute} 
+                                  disabled={!hasLock}
+                                  className={`px-3 py-2 rounded text-xl ${
+                                    hasLock
+                                      ? 'bg-yellow-600 text-white hover:bg-yellow-700'
+                                      : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                  }`}
+                                  title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
+                                >
+                                  ▼
+                                </button>
                               </div>
                             )}
                           </div>
@@ -17143,24 +17659,33 @@ const SoccerTeamTracker = () => {
                                     <div className="flex gap-2 flex-wrap relative z-20">
                                       {player.ruolo === 'Portiere' ? (
                                         <>
-                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">
+                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero] || !hasLock} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>
                                             ⚽ GOL SUBITO
                                           </button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero] || !hasLock} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero] || !hasLock} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟥</button>
                                         </>
                                       ) : (
                                         <>
-                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm">⚽ GOL</button>
-                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm">🎯 ASSIST</button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero]} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero] || !hasLock} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>⚽ GOL</button>
+                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero] || !hasLock} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🎯 ASSIST</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero] || !hasLock} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={match.sostituzioni[player.numero] || !hasLock} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟥</button>
                                         </>
                                       )}
                                     </div>
                                   )}
                                   {!match.sostituzioni[player.numero] && !substitutionMode && (
-                                    <button onClick={() => initiateSubstitution(player.numero)} className="w-full mt-2 px-3 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-semibold text-sm relative z-20">
+                                    <button 
+                                      onClick={() => initiateSubstitution(player.numero)} 
+                                      disabled={!hasLock}
+                                      className={`w-full mt-2 px-3 py-2 rounded font-semibold text-sm relative z-20 ${
+                                        hasLock
+                                          ? 'bg-orange-600 text-white hover:bg-orange-700'
+                                          : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                      }`}
+                                      title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
+                                    >
                                       🔄 SOSTITUISCI
                                     </button>
                                   )}
@@ -17246,16 +17771,16 @@ const SoccerTeamTracker = () => {
                                     <div className="flex gap-2 flex-wrap mt-2 relative z-20">
                                       {player.ruolo === 'Portiere' ? (
                                         <>
-                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">⚽ GOL SUBITO</button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddGoalConceded(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={!hasLock} className="flex-1 px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>⚽ GOL SUBITO</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={!hasLock} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={!hasLock} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟥</button>
                                         </>
                                       ) : (
                                         <>
-                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm">⚽ GOL</button>
-                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm">🎯 ASSIST</button>
-                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm">🟨</button>
-                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm">🟥</button>
+                                          <button onClick={() => quickAddGoal(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={!hasLock} className="flex-1 px-3 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>⚽ GOL</button>
+                                          <button onClick={() => quickAddAssist(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={!hasLock} className="flex-1 px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🎯 ASSIST</button>
+                                          <button onClick={() => quickAddYellowCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={!hasLock} className="px-3 py-2 bg-yellow-400 text-black rounded hover:bg-yellow-500 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟨</button>
+                                          <button onClick={() => quickAddRedCard(liveMatchMode, player.numero, Math.floor(matchTimer / 60))} disabled={!hasLock} className="px-3 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed" title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}>🟥</button>
                                         </>
                                       )}
                                     </div>
@@ -17554,13 +18079,19 @@ const SoccerTeamTracker = () => {
             <div className="mb-6">
               <button
                 onClick={() => setShowInjuryModal(true)}
-                disabled={userRole !== 'admin'}
+                disabled={userRole !== 'admin' || !hasLock}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg transition-colors font-semibold ${
-                  userRole === 'admin'
+                  userRole === 'admin' && hasLock
                     ? 'bg-red-600 text-white hover:bg-red-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
                 }`}
-                title={userRole !== 'admin' ? 'Solo Admin può registrare infortuni' : ''}
+                title={
+                  userRole !== 'admin' 
+                    ? 'Solo Admin può registrare infortuni' 
+                    : !hasLock 
+                    ? `${lockedBy || 'Qualcuno'} sta modificando` 
+                    : ''
+                }
               >
                 <Plus size={20} />
                 Registra Nuovo Infortunio
@@ -17624,7 +18155,8 @@ const SoccerTeamTracker = () => {
                           </div>
                           <div 
                             className="flex gap-2"
-                            style={userRole !== 'admin' ? {pointerEvents: 'none', opacity: 0.5} : {}}
+                            style={userRole !== 'admin' || !hasLock ? {pointerEvents: 'none', opacity: 0.5} : {}}
+                            title={!hasLock && userRole === 'admin' ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                           >
                             <button
                               onClick={() => updateInjuryStatus(injury.id, 'recovering')}
@@ -17704,7 +18236,7 @@ const SoccerTeamTracker = () => {
                           <div className="text-sm text-gray-600">
                             {new Date(injury.startDate).toLocaleDateString('it-IT')} → {new Date(injury.estimatedReturn).toLocaleDateString('it-IT')}
                           </div>
-                          {userRole === 'admin' && (
+                          {userRole === 'admin' && hasLock && (
                             <div className="flex gap-2">
                               <button
                                 onClick={() => {
@@ -18028,11 +18560,15 @@ const SoccerTeamTracker = () => {
                               <button
                                 key={player.numero}
                                 onClick={() => assignMVP(match.id, player.numero)}
-                                className={`relative p-4 rounded-lg border-2 transition-all hover:scale-105 ${
-                                  isCurrentMVP
-                                    ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 border-yellow-500 shadow-lg'
-                                    : 'bg-white border-gray-200 hover:border-yellow-400 hover:shadow-md'
+                                disabled={!hasLock}
+                                className={`relative p-4 rounded-lg border-2 transition-all ${
+                                  !hasLock
+                                    ? 'opacity-50 cursor-not-allowed bg-gray-100 border-gray-300'
+                                    : isCurrentMVP
+                                    ? 'bg-gradient-to-br from-yellow-100 to-yellow-200 border-yellow-500 shadow-lg hover:scale-105'
+                                    : 'bg-white border-gray-200 hover:border-yellow-400 hover:shadow-md hover:scale-105'
                                 }`}
+                                title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                               >
                                 {isCurrentMVP && (
                                   <div className="absolute -top-2 -right-2 bg-yellow-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-lg animate-pulse-slow">
@@ -18781,17 +19317,24 @@ const SoccerTeamTracker = () => {
                   </ul>
                 </div>
                 
-                <label className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer w-full">
-                  <Download size={20} className="rotate-180" />
-                  <span className="font-semibold">📱 Importa da File JSON</span>
-                  <input
-                    type="file"
-                    accept=".json,application/json,text/plain"
-                    onChange={handleFileImport}
-                    className="hidden"
-                    multiple={false}
-                  />
-                </label>
+                {hasLock ? (
+                  <label className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-4 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer w-full">
+                    <Download size={20} className="rotate-180" />
+                    <span className="font-semibold">📱 Importa da File JSON</span>
+                    <input
+                      type="file"
+                      accept=".json,application/json,text/plain"
+                      onChange={handleFileImport}
+                      className="hidden"
+                      multiple={false}
+                    />
+                  </label>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 bg-gray-300 text-gray-500 px-6 py-4 rounded-lg cursor-not-allowed w-full opacity-50" title={`${lockedBy || 'Qualcuno'} sta modificando`}>
+                    <Download size={20} className="rotate-180" />
+                    <span className="font-semibold">📱 Importa da File JSON</span>
+                  </div>
+                )}
               </div>
 
               {/* Statistiche Archivio */}
@@ -19142,7 +19685,13 @@ const SoccerTeamTracker = () => {
                     </div>
                     <button
                       onClick={resetStagione}
-                      className="w-full flex items-center justify-center gap-2 bg-orange-600 text-white px-6 py-4 rounded-lg hover:bg-orange-700 transition-colors font-semibold text-lg"
+                      disabled={!hasLock}
+                      className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-lg transition-colors font-semibold text-lg ${
+                        hasLock
+                          ? 'bg-orange-600 text-white hover:bg-orange-700'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                      }`}
+                      title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                     >
                       🔄 Reset Stagione (mantieni rosa)
                     </button>
@@ -19177,7 +19726,13 @@ const SoccerTeamTracker = () => {
                     </div>
                     <button
                       onClick={resetCompleto}
-                      className="w-full flex items-center justify-center gap-2 bg-red-700 text-white px-6 py-4 rounded-lg hover:bg-red-800 transition-colors font-semibold text-lg"
+                      disabled={!hasLock}
+                      className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-lg transition-colors font-semibold text-lg ${
+                        hasLock
+                          ? 'bg-red-700 text-white hover:bg-red-800'
+                          : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                      }`}
+                      title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                     >
                       🔴 Reset Completo (cancella tutto)
                     </button>
@@ -20028,6 +20583,115 @@ const SoccerTeamTracker = () => {
                   <div className="text-sm text-gray-600 mt-2">{loadingProgress}%</div>
                 </>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ========== MODAL OFFLINE ========== */}
+        {showOfflineModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+              <div className="text-center mb-4">
+                <div className="text-6xl mb-4">📶</div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">
+                  Nessuna connessione
+                </h3>
+                <p className="text-gray-600">
+                  Per salvare i dati e chiudere l'app devi essere connesso a Internet
+                </p>
+              </div>
+              
+              <div className="space-y-3 mb-4 bg-gray-50 p-4 rounded-lg">
+                <div className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-lg flex-shrink-0">✅</span>
+                  <span>Le tue modifiche sono salvate <strong>localmente</strong> sul dispositivo</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-lg flex-shrink-0">🔒</span>
+                  <span>Il tuo controllo è <strong>garantito</strong> (lock attivo)</span>
+                </div>
+                <div className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-lg flex-shrink-0">📶</span>
+                  <span>Torna online quando puoi per salvare sul cloud</span>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <button
+                  onClick={async () => {
+                    // Riprova salvataggio
+                    if (navigator.onLine) {
+                      setShowOfflineModal(false);
+                      await handleLogout(); // Richiama salvataggio
+                    } else {
+                      showToast('❌ Ancora offline', 'error');
+                    }
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-semibold transition-colors"
+                >
+                  🔄 Riprova Salvataggio
+                </button>
+                
+                <button
+                  onClick={() => setShowOfflineModal(false)}
+                  className="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 py-3 rounded-lg font-semibold transition-colors"
+                >
+                  Rimani nell'app
+                </button>
+              </div>
+              
+              <div className="mt-4 pt-4 border-t text-xs text-gray-500 text-center">
+                💡 Suggerimento: Attiva WiFi o dati mobili
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========== BANNER LOCK STATUS ========== */}
+        {userRole === 'admin' && !hasLock && lockedBy && (
+          <div className="fixed top-0 left-0 right-0 bg-yellow-500 text-white px-4 py-3 text-center z-40 shadow-lg">
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <span className="text-xl">🔒</span>
+              <span className="font-semibold">
+                MODALITÀ SOLO LETTURA - {lockedBy} sta modificando i dati
+              </span>
+            </div>
+            <div className="text-xs mt-1 opacity-90">
+              Potrai modificare quando {lockedBy} chiuderà l'app
+            </div>
+            {/* Pulsante forza rilascio - solo per admin principale */}
+            {user && user.email === 'moreschiroberto@gmail.com' && (
+              <button
+                onClick={() => forceReleaseLock(teamId)}
+                className="mt-2 bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded transition-colors"
+              >
+                🔓 Forza Rilascio (Emergenza)
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ========== INDICATORE CONNESSIONE ========== */}
+        <div className="fixed top-4 right-4 z-40">
+          {isOnline ? (
+            <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2 shadow-lg">
+              <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+              Online
+            </div>
+          ) : (
+            <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2 shadow-lg">
+              <span className="w-2 h-2 bg-white rounded-full"></span>
+              Offline
+            </div>
+          )}
+        </div>
+
+        {/* ========== BADGE LOCK STATUS (accanto nome utente) ========== */}
+        {userRole === 'admin' && hasLock && (
+          <div className="fixed top-4 left-4 z-40">
+            <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs flex items-center gap-2 shadow-lg">
+              <span className="text-sm">✏️</span>
+              IN MODIFICA
             </div>
           </div>
         )}
