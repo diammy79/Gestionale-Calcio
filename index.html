@@ -2844,6 +2844,70 @@ const SoccerTeamTracker = () => {
     initLock();
   }, [user, userRole, teamId]);
   
+  // ========== LOCK SYSTEM: LISTENER REAL-TIME ==========
+  useEffect(() => {
+    if (!user || userRole !== 'admin' || !teamId) return;
+    
+    console.log('👁️ Lock System: Attivo listener real-time');
+    
+    // Listener real-time sul documento lock
+    const lockRef = db.collection('teamLocks').doc(teamId);
+    const unsubscribe = lockRef.onSnapshot((doc) => {
+      if (doc.exists) {
+        const lock = doc.data();
+        const acquiredAt = new Date(lock.acquiredAt);
+        const now = new Date();
+        const hoursSinceAcquired = (now - acquiredAt) / 1000 / 60 / 60;
+        
+        // Lock valido se < 6 ore e attivo
+        if (hoursSinceAcquired < 6 && lock.isActive) {
+          if (lock.userId === user.uid) {
+            // Il lock è tuo
+            if (!hasLock) {
+              console.log('✅ Lock confermato via listener');
+              setHasLock(true);
+              setLockedBy(null);
+              setLockedByEmail(null);
+            }
+          } else {
+            // Il lock è di qualcun altro - AGGIORNA UI
+            if (hasLock) {
+              console.log('⚠️ LOCK PERSO! Qualcun altro ha preso il controllo');
+              showToast(`⚠️ ${lock.userName} ha preso il controllo!`, 'warning', 5000);
+            }
+            setHasLock(false);
+            setLockedBy(lock.userName);
+            setLockedByEmail(lock.userEmail);
+            setLockAcquiredAt(lock.acquiredAt);
+          }
+        } else {
+          // Lock scaduto o inattivo
+          if (hasLock) {
+            console.log('⏰ Lock scaduto via listener');
+          }
+          setHasLock(false);
+          setLockedBy(null);
+          setLockedByEmail(null);
+          setLockAcquiredAt(null);
+        }
+      } else {
+        // Nessun lock attivo
+        setHasLock(false);
+        setLockedBy(null);
+        setLockedByEmail(null);
+        setLockAcquiredAt(null);
+      }
+    }, (error) => {
+      console.error('❌ Errore listener lock:', error);
+    });
+    
+    // Cleanup
+    return () => {
+      console.log('🔌 Lock System: Disattivo listener');
+      unsubscribe();
+    };
+  }, [user, userRole, teamId, hasLock]);
+  
   // ========== LOCK SYSTEM: LISTENER ONLINE/OFFLINE ==========
   useEffect(() => {
     const handleOnline = () => {
@@ -3416,7 +3480,7 @@ const SoccerTeamTracker = () => {
   };
   
   /**
-   * Acquisici lock per modificare
+   * Acquisici lock per modificare (con transazione atomica)
    */
   const acquireLock = async (currentUser, currentTeamId) => {
     if (!currentUser || !currentTeamId) {
@@ -3427,61 +3491,83 @@ const SoccerTeamTracker = () => {
     const lockRef = db.collection('teamLocks').doc(currentTeamId);
     
     try {
-      const lockDoc = await lockRef.get();
-      
-      if (lockDoc.exists) {
-        const lock = lockDoc.data();
-        const acquiredAt = new Date(lock.acquiredAt);
-        const now = new Date();
-        const hoursSinceAcquired = (now - acquiredAt) / 1000 / 60 / 60;
+      // USA TRANSAZIONE per evitare race conditions
+      const result = await db.runTransaction(async (transaction) => {
+        const lockDoc = await transaction.get(lockRef);
         
-        // Lock scade dopo 6 ore
-        if (hoursSinceAcquired < 6 && lock.isActive) {
-          // Lock occupato da qualcun altro
-          if (lock.userId !== currentUser.uid) {
-            console.log('🔒 Lock occupato da:', lock.userName);
-            setLockedBy(lock.userName);
-            setLockedByEmail(lock.userEmail);
-            setLockAcquiredAt(lock.acquiredAt);
-            return {
-              success: false,
-              lockedBy: lock.userName,
-              lockedByEmail: lock.userEmail,
+        if (lockDoc.exists) {
+          const lock = lockDoc.data();
+          const acquiredAt = new Date(lock.acquiredAt);
+          const now = new Date();
+          const hoursSinceAcquired = (now - acquiredAt) / 1000 / 60 / 60;
+          
+          // Lock scade dopo 6 ore
+          if (hoursSinceAcquired < 6 && lock.isActive) {
+            // Lock occupato da qualcun altro
+            if (lock.userId !== currentUser.uid) {
+              console.log('🔒 Lock occupato da:', lock.userName);
+              return {
+                success: false,
+                lockedBy: lock.userName,
+                lockedByEmail: lock.userEmail,
+                acquiredAt: lock.acquiredAt
+              };
+            }
+            
+            // Lock già tuo (riconnessione)
+            console.log('🔓 Lock già tuo, riacquisito');
+            return { 
+              success: true, 
+              isOwner: true,
               acquiredAt: lock.acquiredAt
             };
           }
           
-          // Lock già tuo (riconnessione)
-          console.log('🔓 Lock già tuo, riacquisito');
-          setHasLock(true);
-          setLockAcquiredAt(lock.acquiredAt);
-          return { success: true, isOwner: true };
+          // Lock scaduto → Acquisisci
+          console.log('⏰ Lock scaduto (>6 ore), acquisisco');
         }
         
-        // Lock scaduto → Acquisisci
-        console.log('⏰ Lock scaduto (>6 ore), acquisisco');
-      }
-      
-      // Nessun lock o scaduto → Acquisisci
-      await lockRef.set({
-        userId: currentUser.uid,
-        userName: currentUser.displayName || currentUser.email,
-        userEmail: currentUser.email,
-        deviceInfo: getDeviceInfo(),
-        acquiredAt: new Date().toISOString(),
-        isActive: true
+        // Nessun lock o scaduto → Acquisisci (ATOMICAMENTE)
+        const newLock = {
+          userId: currentUser.uid,
+          userName: currentUser.displayName || currentUser.email,
+          userEmail: currentUser.email,
+          deviceInfo: getDeviceInfo(),
+          acquiredAt: new Date().toISOString(),
+          isActive: true
+        };
+        
+        transaction.set(lockRef, newLock);
+        
+        return { 
+          success: true, 
+          isOwner: true,
+          acquiredAt: newLock.acquiredAt
+        };
       });
       
-      console.log('✅ Lock acquisito con successo');
-      setHasLock(true);
-      setLockedBy(null);
-      setLockedByEmail(null);
-      setLockAcquiredAt(new Date().toISOString());
+      // Aggiorna UI in base al risultato della transazione
+      if (result.success) {
+        console.log('✅ Lock acquisito con successo');
+        setHasLock(true);
+        setLockedBy(null);
+        setLockedByEmail(null);
+        setLockAcquiredAt(result.acquiredAt);
+        showToast('✅ Hai il controllo!', 'success');
+      } else {
+        console.log('⚠️ Lock non acquisito');
+        setHasLock(false);
+        setLockedBy(result.lockedBy);
+        setLockedByEmail(result.lockedByEmail);
+        setLockAcquiredAt(result.acquiredAt);
+        showToast(`⚠️ ${result.lockedBy} sta modificando`, 'warning', 4000);
+      }
       
-      return { success: true, isOwner: true };
+      return result;
       
     } catch (error) {
       console.error('❌ Errore acquisizione lock:', error);
+      showToast('❌ Errore acquisizione lock', 'error');
       return { success: false, error: error.message };
     }
   };
