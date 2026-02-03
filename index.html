@@ -2163,6 +2163,7 @@ const SoccerTeamTracker = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const previousLockState = useRef({ hasLock: false, lockedBy: null }); // Per evitare toast duplicati
+  const sessionId = useRef(Math.random().toString(36).substr(2, 9) + Date.now().toString(36)); // ID unico sessione
   
   // State per Divisione Squadre
   const [numSquadre, setNumSquadre] = useState(2);
@@ -2541,6 +2542,12 @@ const SoccerTeamTracker = () => {
     console.log('🔄 Auto-Sync: Attivazione timer (ogni 5 minuti)');
     
     const syncInterval = setInterval(async () => {
+      // 🔒 CONTROLLO LOCK: Solo chi ha il lock può fare auto-sync!
+      if (!hasLock) {
+        console.log('🔒 Auto-Sync: SALTATO (non hai il lock)');
+        return;
+      }
+      
       console.log('⏰ Auto-Sync: Timer scattato, eseguo sync sicuro');
       try {
         // ✅ CONTROLLO TIMESTAMP PRIMA DI SALVARE
@@ -2614,7 +2621,7 @@ const SoccerTeamTracker = () => {
       console.log('🛑 Auto-Sync: Pulizia timer');
       clearInterval(syncInterval);
     };
-  }, [user, userRole, autoSyncEnabled, teamId, lastSaved]);
+  }, [user, userRole, autoSyncEnabled, teamId, lastSaved, hasLock]); // ← Aggiunto hasLock
 
   // ========== AUTO-DOWNLOAD CLOUD OGNI 2 MINUTI ==========
   useEffect(() => {
@@ -2830,7 +2837,8 @@ const SoccerTeamTracker = () => {
   useEffect(() => {
     if (!user || userRole !== 'admin' || !teamId) return;
     
-    console.log('🔒 Lock System: Attivo listener + acquisizione per', user.email);
+    const mySessionId = sessionId.current;
+    console.log('🔒 Lock System: Attivo listener per', user.email, '- SessionId:', mySessionId);
     
     // PRIMA: Attivo il listener (DEVE essere attivo PRIMA di acquireLock!)
     const lockRef = db.collection('teamLocks').doc(teamId);
@@ -2840,9 +2848,10 @@ const SoccerTeamTracker = () => {
       if (doc.exists) {
         const lock = doc.data();
         console.log('📡 Lock data:', {
-          userId: lock.userId,
-          userName: lock.userName,
-          myUserId: user.uid,
+          lockSessionId: lock.sessionId,
+          mySessionId: mySessionId,
+          lockUserName: lock.userName,
+          lockDevice: lock.deviceInfo,
           isActive: lock.isActive
         });
         
@@ -2852,9 +2861,10 @@ const SoccerTeamTracker = () => {
         
         // Lock valido se < 6 ore e attivo
         if (hoursSinceAcquired < 6 && lock.isActive) {
-          if (lock.userId === user.uid) {
-            // Il lock è TUO
-            console.log('✅ Listener: Il lock è TUO');
+          // CONFRONTO sessionId, NON userId!
+          if (lock.sessionId === mySessionId) {
+            // Il lock è TUO (stessa sessione)
+            console.log('✅ Listener: Il lock è TUO (sessionId match)');
             
             // Toast solo se è un CAMBIO di stato (non avevi lock prima)
             if (!previousLockState.current.hasLock) {
@@ -2869,21 +2879,22 @@ const SoccerTeamTracker = () => {
             // Aggiorna stato precedente
             previousLockState.current = { hasLock: true, lockedBy: null };
           } else {
-            // Il lock è di QUALCUN ALTRO
-            console.log('⚠️ Listener: Lock occupato da', lock.userName);
+            // Il lock è di ALTRA SESSIONE (altro device)
+            const lockInfo = `${lock.userName} (${lock.deviceInfo})`;
+            console.log('⚠️ Listener: Lock occupato da altra sessione:', lockInfo);
             
             // Toast solo se è un CAMBIO (prima avevi lock o non c'era nessuno)
-            if (previousLockState.current.hasLock || previousLockState.current.lockedBy !== lock.userName) {
-              showToast(`⚠️ ${lock.userName} sta modificando. Modalità solo lettura`, 'warning', 5000);
+            if (previousLockState.current.hasLock || previousLockState.current.lockedBy !== lockInfo) {
+              showToast(`⚠️ ${lockInfo} sta modificando`, 'warning', 5000);
             }
             
             setHasLock(false);
-            setLockedBy(lock.userName);
+            setLockedBy(`${lock.userName} (${lock.deviceInfo || 'dispositivo'})`);
             setLockedByEmail(lock.userEmail);
             setLockAcquiredAt(lock.acquiredAt);
             
             // Aggiorna stato precedente
-            previousLockState.current = { hasLock: false, lockedBy: lock.userName };
+            previousLockState.current = { hasLock: false, lockedBy: lockInfo };
           }
         } else {
           // Lock scaduto o inattivo
@@ -3497,6 +3508,9 @@ const SoccerTeamTracker = () => {
   
   /**
    * Acquisici lock per modificare (con transazione atomica)
+   * NOTA: Questa funzione NON modifica lo state React
+   * Solo il listener onSnapshot aggiorna hasLock/lockedBy
+   * USA sessionId per distinguere dispositivi dello stesso utente
    */
   const acquireLock = async (currentUser, currentTeamId) => {
     if (!currentUser || !currentTeamId) {
@@ -3505,6 +3519,9 @@ const SoccerTeamTracker = () => {
     }
     
     const lockRef = db.collection('teamLocks').doc(currentTeamId);
+    const mySessionId = sessionId.current;
+    
+    console.log('🔑 acquireLock - My sessionId:', mySessionId);
     
     try {
       // USA TRANSAZIONE per evitare race conditions
@@ -3517,21 +3534,32 @@ const SoccerTeamTracker = () => {
           const now = new Date();
           const hoursSinceAcquired = (now - acquiredAt) / 1000 / 60 / 60;
           
+          console.log('🔍 Lock esistente:', {
+            lockSessionId: lock.sessionId,
+            mySessionId: mySessionId,
+            lockUserId: lock.userId,
+            myUserId: currentUser.uid,
+            isActive: lock.isActive,
+            hoursSince: hoursSinceAcquired.toFixed(2)
+          });
+          
           // Lock scade dopo 6 ore
           if (hoursSinceAcquired < 6 && lock.isActive) {
-            // Lock occupato da qualcun altro
-            if (lock.userId !== currentUser.uid) {
-              console.log('🔒 Lock occupato da:', lock.userName);
+            // IMPORTANTE: Confronta sessionId, NON userId!
+            // (stesso utente può avere più device)
+            if (lock.sessionId !== mySessionId) {
+              console.log('🔒 Lock occupato da altra sessione');
               return {
                 success: false,
                 lockedBy: lock.userName,
                 lockedByEmail: lock.userEmail,
+                deviceInfo: lock.deviceInfo,
                 acquiredAt: lock.acquiredAt
               };
             }
             
-            // Lock già tuo (riconnessione)
-            console.log('🔓 Lock già tuo, riacquisito');
+            // Lock già tuo (stessa sessione - riconnessione)
+            console.log('🔓 Lock già tuo (stessa sessione)');
             return { 
               success: true, 
               isOwner: true,
@@ -3548,11 +3576,13 @@ const SoccerTeamTracker = () => {
           userId: currentUser.uid,
           userName: currentUser.displayName || currentUser.email,
           userEmail: currentUser.email,
+          sessionId: mySessionId, // ← ID SESSIONE UNICO!
           deviceInfo: getDeviceInfo(),
           acquiredAt: new Date().toISOString(),
           isActive: true
         };
         
+        console.log('✍️ Scrivo nuovo lock con sessionId:', mySessionId);
         transaction.set(lockRef, newLock);
         
         return { 
@@ -3688,15 +3718,25 @@ const SoccerTeamTracker = () => {
 
   // Gestione logout
   const handleLogout = async () => {
-    // ✅ ADMIN → Controlla connessione, salva, rilascia lock e chiude
+    // ✅ ADMIN → Controlla connessione, salva (se ha lock), rilascia lock e chiude
     if (userRole === 'admin') {
       // ✅ Chiedi conferma PRIMA di salvare
-      if (!window.confirm('Salvare i dati su cloud e chiudere l\'applicazione?')) {
-        return; // Annullato → Non fare nulla
+      const hasLockNow = hasLock; // Salva stato corrente
+      
+      if (hasLockNow) {
+        // Ha il lock → Può salvare
+        if (!window.confirm('Salvare i dati su cloud e chiudere l\'applicazione?')) {
+          return; // Annullato → Non fare nulla
+        }
+      } else {
+        // NON ha lock → Non può salvare
+        if (!window.confirm('⚠️ Non hai il lock di modifica.\n\nChiudere l\'applicazione senza salvare?')) {
+          return; // Annullato → Non fare nulla
+        }
       }
       
-      // ✅ CONTROLLO CONNESSIONE
-      if (!navigator.onLine) {
+      // ✅ CONTROLLO CONNESSIONE (solo se ha lock e deve salvare)
+      if (hasLockNow && !navigator.onLine) {
         // ❌ OFFLINE - Non può salvare
         console.log('⚠️ Offline - Impossibile salvare');
         setShowOfflineModal(true);
@@ -3704,31 +3744,39 @@ const SoccerTeamTracker = () => {
       }
       
       try {
-        showToast('☁️ Salvataggio automatico in corso...', 'info');
+        if (hasLockNow) {
+          showToast('☁️ Salvataggio automatico in corso...', 'info');
+          
+          // Delay per assicurare che tutti gli state siano aggiornati
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Salva su cloud (solo se ha lock)
+          await saveDataToCloud(true); // silent = true per non mostrare toast doppio
+          
+          showToast('✅ Dati salvati! A presto!', 'success');
+        } else {
+          showToast('👋 Chiusura in corso...', 'info');
+        }
         
-        // Delay per assicurare che tutti gli state siano aggiornati
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Salva su cloud
-        await saveDataToCloud(true); // silent = true per non mostrare toast doppio
-        
-        // ✅ Rilascia lock
-        await releaseLock(teamId);
-        
-        showToast('✅ Dati salvati! A presto!', 'success');
+        // ✅ Rilascia lock (se lo aveva)
+        if (hasLockNow) {
+          await releaseLock(teamId);
+        }
         
         // Piccolo delay per far vedere il toast
         await new Promise(resolve => setTimeout(resolve, 1000));
         
         window.close(); // Chiude la finestra
       } catch (error) {
-        console.error('❌ Errore salvataggio:', error);
-        showToast('❌ Errore salvataggio: ' + error.message, 'error');
+        console.error('❌ Errore durante chiusura:', error);
+        showToast('❌ Errore: ' + error.message, 'error');
         
         // Chiedi conferma se procedere comunque
-        if (window.confirm('Errore durante il salvataggio. Vuoi chiudere comunque?')) {
+        if (window.confirm('Errore durante la chiusura. Vuoi chiudere comunque?')) {
           // Rilascia lock anche se errore
-          await releaseLock(teamId);
+          if (hasLockNow) {
+            await releaseLock(teamId);
+          }
           window.close();
         }
       }
@@ -5670,7 +5718,8 @@ const SoccerTeamTracker = () => {
       silent, 
       userPresente: !!user, 
       teamIdPresente: !!teamId,
-      teamNameAttuale: teamName || '(vuoto)'
+      teamNameAttuale: teamName || '(vuoto)',
+      hasLock: hasLock  // ← Log stato lock
     });
     
     if (!user) {
@@ -5682,6 +5731,15 @@ const SoccerTeamTracker = () => {
     if (!teamId) {
       console.error('❌ saveDataToCloud: teamId non presente');
       showToast('❌ Team ID non trovato', 'error');
+      return;
+    }
+    
+    // 🔒 CONTROLLO LOCK: Solo chi ha il lock può salvare su cloud!
+    if (userRole === 'admin' && !hasLock) {
+      console.log('🔒 saveDataToCloud: BLOCCATO (non hai il lock)');
+      if (!silent) {
+        showToast('🔒 Non puoi salvare: un altro admin sta modificando', 'warning');
+      }
       return;
     }
     
@@ -10961,6 +11019,29 @@ const SoccerTeamTracker = () => {
 
               {/* Badge Ruolo, Logout e Chiudi App */}
               <div className="flex flex-col gap-1 md:gap-2">
+                {/* PULSANTE DEBUG: Reset Lock */}
+                {userRole === 'admin' && (
+                  <button
+                    onClick={async () => {
+                      if (window.confirm('🔧 DEBUG: Cancellare lock Firestore?\n\nUsa questo per resettare il lock prima di testare con 2 dispositivi.')) {
+                        try {
+                          await db.collection('teamLocks').doc(teamId).delete();
+                          console.log('✅ Lock documento cancellato da Firestore');
+                          showToast('✅ Lock resettato! Ricarica entrambi i dispositivi', 'success', 5000);
+                          setTimeout(() => window.location.reload(), 2000);
+                        } catch (e) {
+                          console.error('❌ Errore reset lock:', e);
+                          showToast('❌ Errore: ' + e.message, 'error');
+                        }
+                      }
+                    }}
+                    className="px-2 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-white text-xs font-semibold"
+                    title="DEBUG: Reset lock Firestore"
+                  >
+                    🔧 DEBUG: Reset Lock
+                  </button>
+                )}
+                
                 <div className={`px-2 md:px-4 py-1.5 md:py-2 rounded-lg font-bold text-xs md:text-sm text-center ${
                   userRole === 'admin' 
                     ? 'bg-yellow-400 text-yellow-900' 
@@ -13810,7 +13891,13 @@ const SoccerTeamTracker = () => {
                               e.stopPropagation();
                               setShowModuloModal(match.id);
                             }}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                            disabled={!hasLock}
+                            className={`px-4 py-2 rounded-lg transition-colors font-semibold ${
+                              hasLock
+                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                            }`}
+                            title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                           >
                             ⚽ Modulo
                           </button>
@@ -13819,7 +13906,13 @@ const SoccerTeamTracker = () => {
                               e.stopPropagation();
                               startLiveMatch(match.id);
                             }}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
+                            disabled={!hasLock}
+                            className={`px-4 py-2 rounded-lg transition-colors font-semibold ${
+                              hasLock
+                                ? 'bg-green-600 text-white hover:bg-green-700'
+                                : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                            }`}
+                            title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                           >
                             ⚡ Live
                           </button>
@@ -19182,15 +19275,25 @@ const SoccerTeamTracker = () => {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => downloadBackup(backup.url, backup.name)}
-                                className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
-                                title="Scarica backup"
+                                disabled={!hasLock}
+                                className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                  hasLock
+                                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                }`}
+                                title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : 'Scarica backup'}
                               >
                                 📥 Scarica
                               </button>
                               <button
                                 onClick={() => restoreDailyBackup(backup.url, backup.name)}
-                                className="px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
-                                title="Ripristina questo backup"
+                                disabled={!hasLock}
+                                className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                  hasLock
+                                    ? 'bg-green-500 text-white hover:bg-green-600'
+                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                }`}
+                                title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : 'Ripristina questo backup'}
                               >
                                 ♻️ Ripristina
                               </button>
@@ -19218,7 +19321,13 @@ const SoccerTeamTracker = () => {
                         }
                       }
                     }}
-                    className="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+                    disabled={!hasLock}
+                    className={`w-full px-4 py-3 rounded-lg transition-colors font-semibold ${
+                      hasLock
+                        ? 'bg-purple-600 text-white hover:bg-purple-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                    }`}
+                    title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                   >
                     🔧 Crea Backup Manuale Ora
                   </button>
@@ -19290,15 +19399,25 @@ const SoccerTeamTracker = () => {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => downloadBackup(backup.url, backup.name)}
-                                className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
-                                title="Scarica backup"
+                                disabled={!hasLock}
+                                className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                  hasLock
+                                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                }`}
+                                title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : 'Scarica backup'}
                               >
                                 📥 Scarica
                               </button>
                               <button
                                 onClick={() => restoreDailyBackup(backup.url, backup.name)}
-                                className="px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm font-medium"
-                                title="Ripristina questa stagione"
+                                disabled={!hasLock}
+                                className={`px-3 py-2 rounded-lg transition-colors text-sm font-medium ${
+                                  hasLock
+                                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                                }`}
+                                title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : 'Ripristina questa stagione'}
                               >
                                 ♻️ Ripristina
                               </button>
@@ -19355,7 +19474,13 @@ const SoccerTeamTracker = () => {
                 <div className="flex gap-4">
                   <button
                     onClick={downloadFullBackupWithPhotos}
-                    className="flex-1 px-4 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold flex items-center justify-center gap-2"
+                    disabled={!hasLock}
+                    className={`flex-1 px-4 py-3 rounded-lg transition-colors font-semibold flex items-center justify-center gap-2 ${
+                      hasLock
+                        ? 'bg-orange-600 text-white hover:bg-orange-700'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50'
+                    }`}
+                    title={!hasLock ? `${lockedBy || 'Qualcuno'} sta modificando` : ''}
                   >
                     <span>📥</span>
                     <span>Scarica Backup Completo</span>
