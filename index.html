@@ -4725,8 +4725,6 @@ const SoccerTeamTracker = () => {
         showToast('✅ Dati salvati su cloud!', 'success');
       }
       
-      updateLastSyncInfo('manual');
-      
     } catch (error) {
       console.error('❌ ERRORE SALVATAGGIO CLOUD:', error);
       console.error('Dettagli errore:', {
@@ -4863,36 +4861,10 @@ const SoccerTeamTracker = () => {
       });
       
       showToast('✅ Dati caricati da cloud!', 'success');
-      updateLastSyncInfo(skipConfirm ? 'auto' : 'manual');
       
     } catch (error) {
       console.error('Errore caricamento cloud:', error);
       showToast('❌ Errore caricamento: ' + error.message, 'error');
-    }
-  };
-
-  /**
-   * Aggiorna info ultimo sync
-   */
-  const updateLastSyncInfo = (type) => {
-    const info = {
-      timestamp: new Date().toISOString(),
-      type: type, // 'auto' | 'manual'
-      deviceId: generateDeviceId(),
-      deviceName: getDeviceName()
-    };
-    
-    setLastSyncInfo(info);
-    localStorage.setItem('lastSyncInfo', JSON.stringify(info));
-  };
-
-  /**
-   * Carica info ultimo sync
-   */
-  const loadLastSyncInfo = () => {
-    const stored = localStorage.getItem('lastSyncInfo');
-    if (stored) {
-      setLastSyncInfo(JSON.parse(stored));
     }
   };
 
