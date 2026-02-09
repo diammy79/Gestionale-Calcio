@@ -4877,7 +4877,9 @@ const SoccerTeamTracker = () => {
     if (!teamId) return null;
     
     try {
-      const lockDoc = await db.collection('adminLock').doc(teamId).get();
+      // ⚠️ IMPORTANTE: Forza lettura dal SERVER, non dalla cache locale!
+      // Altrimenti il secondo dispositivo non vede il lock del primo
+      const lockDoc = await db.collection('adminLock').doc(teamId).get({ source: 'server' });
       
       if (!lockDoc.exists) {
         return null; // Nessun admin attivo
