@@ -2299,13 +2299,14 @@ const SoccerTeamTracker = () => {
       // Controlla se c'è un altro admin attivo
       const activeAdmin = await checkActiveAdmin();
       
-      if (activeAdmin && activeAdmin.uid !== user.uid) {
-        // C'è un altro admin attivo
-        console.log('⚠️ Altro admin attivo:', activeAdmin);
+      // ✅ FIX: Blocca SEMPRE se c'è un lock attivo, anche se è lo stesso utente da altro dispositivo!
+      if (activeAdmin) {
+        // C'è un admin attivo (stesso utente o no, blocca comunque)
+        console.log('⚠️ Admin attivo trovato. Dispositivo:', activeAdmin.deviceName);
         setOtherAdminActive(activeAdmin);
         setShowAdminBlockModal(true);
       } else {
-        // Nessun altro admin, acquisici il lock
+        // Nessun admin attivo, acquisici il lock
         console.log('✅ Nessun admin attivo, acquisisco lock...');
         const acquired = await acquireAdminLock();
         
