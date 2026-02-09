@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  
+  <!-- ========== META TAGS ANTI-CACHE ========== -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
   <title>⚽ Gestionale Calcio</title>
   <!-- Google Font - Nunito (friendly e professionale) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1707,6 +1713,44 @@
 const { useState, useEffect, useMemo } = React;
 
 // ============================================
+// SISTEMA ANTI-CACHE CON VERSIONING
+// ============================================
+const APP_VERSION = '2026-02-09-17:40'; // Aggiorna ogni deploy!
+
+// Controlla versione e forza reload se necessario
+(() => {
+  const savedVersion = localStorage.getItem('appVersion');
+  
+  if (savedVersion && savedVersion !== APP_VERSION) {
+    console.log('🔄 NUOVA VERSIONE RILEVATA!');
+    console.log('   Vecchia:', savedVersion);
+    console.log('   Nuova:', APP_VERSION);
+    console.log('   🔄 Forzando hard reload con pulizia cache...');
+    
+    // Aggiorna versione
+    localStorage.setItem('appVersion', APP_VERSION);
+    
+    // Hard reload con pulizia cache
+    window.location.reload(true);
+    
+    // Se reload(true) non funziona, usa questo metodo alternativo
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      }).then(() => {
+        window.location.href = window.location.href + '?v=' + Date.now();
+      });
+    }
+  } else if (!savedVersion) {
+    // Prima volta, salva versione
+    console.log('✅ Prima apertura app, versione:', APP_VERSION);
+    localStorage.setItem('appVersion', APP_VERSION);
+  } else {
+    console.log('✅ Versione app corretta:', APP_VERSION);
+  }
+})();
+
+// ============================================
 // FIREBASE CONFIGURATION
 // ============================================
 const firebaseConfig = {
@@ -2173,15 +2217,27 @@ const SoccerTeamTracker = () => {
             });
             
             // ✅ AUTO-SYNC per TUTTI gli utenti al login (USER e ADMIN)
-            console.log('🔄 Auto-sync da cloud al login...');
+            console.log('🔄 Auto-sync da cloud al login...', {
+              userEmail: user.email,
+              role: role,
+              teamId: userTeamId
+            });
             // Piccolo delay per assicurarsi che tutto sia pronto
             setTimeout(async () => {
               try {
                 console.log('⏰ Inizio loadDataFromCloud...');
+                console.log('   📍 Parametri:', {
+                  skipConfirm: true,
+                  user: user.email,
+                  teamId: userTeamId,
+                  silent: true
+                });
+                
                 // Passa user e teamId esplicitamente + silent = true
                 await loadDataFromCloud(true, user, userTeamId, true);
-                console.log('✅ Auto-sync completato');
-                // ⚠️ TOAST RIMOSSO: loadDataFromCloud() con silent=true non mostra toast
+                
+                console.log('✅ Auto-sync completato con successo!');
+                console.log('   📊 Dati ora in memoria');
               } catch (error) {
                 console.error('❌ Errore auto-sync:', error);
                 console.error('Dettagli errore:', {
@@ -2189,7 +2245,8 @@ const SoccerTeamTracker = () => {
                   code: error.code,
                   stack: error.stack
                 });
-                // ⚠️ TOAST ERRORE RIMOSSO: loadDataFromCloud() mostra già il suo toast di errore
+                // ⚠️ Mostra toast di errore - importante sapere se auto-sync fallisce!
+                showToast('⚠️ Errore sincronizzazione automatica: ' + error.message, 'error');
               }
             }, 1500);
           } else {
@@ -4815,6 +4872,7 @@ const SoccerTeamTracker = () => {
       
       if (!doc.exists) {
         console.warn('⚠️ NESSUN DOCUMENTO SU FIREBASE!');
+        // Mostra toast anche se silent - è un errore importante!
         showToast('ℹ️ Nessun dato nel cloud', 'info');
         return;
       }
@@ -4906,6 +4964,7 @@ const SoccerTeamTracker = () => {
       
     } catch (error) {
       console.error('Errore caricamento cloud:', error);
+      // Mostra SEMPRE toast di errore, anche se silent=true
       showToast('❌ Errore caricamento: ' + error.message, 'error');
     }
   };
