@@ -2178,10 +2178,10 @@ const SoccerTeamTracker = () => {
             setTimeout(async () => {
               try {
                 console.log('⏰ Inizio loadDataFromCloud...');
-                // Passa user e teamId esplicitamente
-                await loadDataFromCloud(true, user, userTeamId);
+                // Passa user e teamId esplicitamente + silent = true
+                await loadDataFromCloud(true, user, userTeamId, true);
                 console.log('✅ Auto-sync completato');
-                showToast('✅ Dati sincronizzati dal cloud', 'success');
+                // ⚠️ TOAST RIMOSSO: loadDataFromCloud() con silent=true non mostra toast
               } catch (error) {
                 console.error('❌ Errore auto-sync:', error);
                 console.error('Dettagli errore:', {
@@ -2189,7 +2189,7 @@ const SoccerTeamTracker = () => {
                   code: error.code,
                   stack: error.stack
                 });
-                showToast('⚠️ Errore durante la sincronizzazione automatica', 'error');
+                // ⚠️ TOAST ERRORE RIMOSSO: loadDataFromCloud() mostra già il suo toast di errore
               }
             }, 1500);
           } else {
@@ -4782,7 +4782,7 @@ const SoccerTeamTracker = () => {
   /**
    * Carica dati da cloud Firebase
    */
-  const loadDataFromCloud = async (skipConfirm = false, explicitUser = null, explicitTeamId = null) => {
+  const loadDataFromCloud = async (skipConfirm = false, explicitUser = null, explicitTeamId = null, silent = false) => {
     const userToUse = explicitUser || user;
     const teamIdToUse = explicitTeamId || teamId;
     
@@ -4900,7 +4900,9 @@ const SoccerTeamTracker = () => {
         // teamLogoStorageUrl: data.teamLogoStorageUrl || ''  // ⚠️ RIMOSSO - Campo ridondante
       });
       
-      showToast('✅ Dati caricati da cloud!', 'success');
+      if (!silent) {
+        showToast('✅ Dati caricati da cloud!', 'success');
+      }
       
     } catch (error) {
       console.error('Errore caricamento cloud:', error);
