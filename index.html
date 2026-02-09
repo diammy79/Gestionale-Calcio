@@ -1722,6 +1722,16 @@ let firebaseApp, auth, db, storage;
 try {
   firebaseApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
   auth = firebase.auth();
+  
+  // ✅ IMPORTANTE: NON persistere la sessione - richiede login ad ogni apertura app
+  auth.setPersistence(firebase.auth.Auth.Persistence.NONE)
+    .then(() => {
+      console.log('🔐 Persistenza sessione: DISABILITATA (richiede login ogni volta)');
+    })
+    .catch((error) => {
+      console.error('⚠️ Errore impostazione persistenza:', error);
+    });
+  
   db = firebase.firestore();
   storage = firebase.storage();
   db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
@@ -1740,6 +1750,15 @@ const LoginScreen = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // ✅ Al mount, carica email salvata da localStorage
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('savedEmail');
+    if (savedEmail) {
+      setEmail(savedEmail);
+      console.log('📧 Email precaricata:', savedEmail);
+    }
+  }, []);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -1747,6 +1766,11 @@ const LoginScreen = ({ onLogin }) => {
 
     try {
       await auth.signInWithEmailAndPassword(email, password);
+      
+      // ✅ Salva email in localStorage (ma NON la password!)
+      localStorage.setItem('savedEmail', email);
+      console.log('💾 Email salvata in localStorage');
+      
     } catch (error) {
       setError('Email o password non validi');
       console.error('Errore login:', error);
@@ -5039,6 +5063,33 @@ const SoccerTeamTracker = () => {
       console.error('❌ Errore disconnessione forzata:', error);
       showToast('❌ Errore nella disconnessione forzata', 'error');
       return false;
+    }
+  };
+
+  /**
+   * Gestisce l'uscita del secondo admin che è stato bloccato
+   * Fa logout SENZA rilasciare il lock (perché non ce l'ha!)
+   */
+  const handleBlockedAdminExit = async () => {
+    try {
+      setShowAdminBlockModal(false);
+      showToast('👋 Logout in corso...', 'info');
+      
+      // NON rilasciare il lock - non ce l'abbiamo!
+      // Semplicemente fare logout da Firebase
+      await auth.signOut();
+      
+      // Il logout resetterà tutto automaticamente
+      console.log('✅ Admin bloccato disconnesso correttamente');
+      
+    } catch (error) {
+      console.error('❌ Errore logout admin bloccato:', error);
+      showToast('❌ Errore durante il logout', 'error');
+      
+      // In caso di errore, forza comunque il logout
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     }
   };
 
@@ -9826,15 +9877,12 @@ const SoccerTeamTracker = () => {
               <div className="space-y-3">
                 {/* Attendi */}
                 <button
-                  onClick={() => {
-                    setShowAdminBlockModal(false);
-                    showToast('⏳ Riprova tra qualche minuto quando l\'altro admin avrà finito', 'info');
-                  }}
+                  onClick={handleBlockedAdminExit}
                   className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-4 px-6 rounded-lg font-semibold transition-all hover:scale-102 shadow-lg"
                 >
                   <div className="flex items-center justify-center gap-3">
-                    <span className="text-2xl">⏳</span>
-                    <span>OK, Riproverò Più Tardi</span>
+                    <span className="text-2xl">👋</span>
+                    <span>OK, Torno Più Tardi (Logout)</span>
                   </div>
                 </button>
                 
