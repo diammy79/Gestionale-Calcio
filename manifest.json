@@ -2,7 +2,7 @@
   "name": "Moreschi Roberto - Gestionale Calcio",
   "short_name": "Gestionale Calcio",
   "description": "Gestione completa squadra calcio",
-  "start_url": "/?v=3",
+  "start_url": "/?v=20260209-2210",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
