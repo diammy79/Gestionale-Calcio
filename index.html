@@ -2914,7 +2914,15 @@ const SoccerTeamTracker = () => {
       showToast('✅ Dati salvati! A presto!', 'success');
       // Piccolo delay per far vedere il toast
       await new Promise(resolve => setTimeout(resolve, 1500));
-      window.close(); // Chiude solo la finestra, NON fa logout
+      
+      // ✅ Logout da Firebase invece di window.close()
+      try {
+        await auth.signOut();
+        console.log('✅ Logout completato - Torna al login');
+      } catch (error) {
+        console.error('❌ Errore logout:', error);
+        window.location.reload();
+      }
     } catch (error) {
       console.error('❌ Errore salvataggio:', error);
       showToast('❌ Errore: ' + error.message, 'error');
@@ -2932,8 +2940,17 @@ const SoccerTeamTracker = () => {
     }
     
     showToast('👋 A presto!', 'info');
-    setTimeout(() => {
-      window.close(); // Chiude solo la finestra, NON fa logout
+    setTimeout(async () => {
+      try {
+        // ✅ Logout da Firebase invece di window.close()
+        // Con persistenza NONE, torna automaticamente al login!
+        await auth.signOut();
+        console.log('✅ Logout completato - Torna al login');
+      } catch (error) {
+        console.error('❌ Errore logout:', error);
+        // Forza ricarica pagina se logout fallisce
+        window.location.reload();
+      }
     }, 500);
   };
 
