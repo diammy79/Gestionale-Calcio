@@ -1726,7 +1726,7 @@ const { useState, useEffect, useMemo } = React;
 // ============================================
 // SISTEMA ANTI-CACHE CON VERSIONING
 // ============================================
-const APP_VERSION = '2026-02-09-21:28'; // Auto-aggiornato da Claude
+const APP_VERSION = '2026-02-09-21:36'; // Auto-aggiornato da Claude
 
 // Controlla versione e forza reload se necessario
 (() => {
@@ -10274,11 +10274,7 @@ const SoccerTeamTracker = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mt-2">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-xs sm:text-sm text-gray-600">Sistema di tracciamento allenamenti, partite e statistiche</p>
-              {lastSaved && (
-                <span className="text-xs text-gray-500">
-                  • Ultimo salvataggio: {lastSaved.toLocaleTimeString('it-IT')}
-                </span>
-              )}
+              
               {/* Promemoria Backup - SOLO ADMIN */}
               {userRole === 'admin' && (() => {
                 if (!lastBackupDate) {
@@ -10324,9 +10320,16 @@ const SoccerTeamTracker = () => {
                 }
                 
                 return (
-                  <span className="text-xs text-gray-500" title={`Ultimo backup JSON: ${new Date(lastBackupDate).toLocaleString('it-IT')}`}>
-                    💾 Ultimo Backup locale (json): {new Date(lastBackupDate).toLocaleDateString('it-IT')} {new Date(lastBackupDate).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-xs text-gray-500" title={`Ultimo backup JSON: ${new Date(lastBackupDate).toLocaleString('it-IT')}`}>
+                      💾 Ultimo Backup locale (json): {new Date(lastBackupDate).toLocaleDateString('it-IT')} {new Date(lastBackupDate).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    {lastSynced && (
+                      <span className="text-xs text-gray-500" title={`Ultima sincronizzazione cloud: ${lastSynced.toLocaleString('it-IT')}`}>
+                        ☁️ Ultimo backup cloud: {lastSynced.toLocaleDateString('it-IT')} {lastSynced.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </div>
                 );
               })()}
             </div>
