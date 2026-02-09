@@ -4874,21 +4874,34 @@ const SoccerTeamTracker = () => {
    * Controlla se c'è un admin attivo per questo team
    */
   const checkActiveAdmin = async () => {
-    if (!teamId) return null;
+    if (!teamId) {
+      console.log('⚠️ checkActiveAdmin: teamId non presente');
+      return null;
+    }
     
     try {
+      console.log('📡 checkActiveAdmin: Inizio controllo lock per teamId:', teamId);
+      
       // ⚠️ IMPORTANTE: Forza lettura dal SERVER, non dalla cache locale!
       // Altrimenti il secondo dispositivo non vede il lock del primo
+      console.log('📡 checkActiveAdmin: Chiamo Firestore con { source: server }...');
       const lockDoc = await db.collection('adminLock').doc(teamId).get({ source: 'server' });
       
+      console.log('📡 checkActiveAdmin: Risposta ricevuta. lockDoc.exists:', lockDoc.exists);
+      
       if (!lockDoc.exists) {
+        console.log('✅ checkActiveAdmin: Nessun documento trovato, nessun admin attivo');
         return null; // Nessun admin attivo
       }
       
       const lockData = lockDoc.data();
+      console.log('📡 checkActiveAdmin: Documento trovato:', lockData);
+      
       const lastSeen = new Date(lockData.lastSeen);
       const now = new Date();
       const minutesSinceLastSeen = (now - lastSeen) / (1000 * 60);
+      
+      console.log('⏱️ checkActiveAdmin: Minuti dall\'ultimo ping:', minutesSinceLastSeen.toFixed(2));
       
       // Se l'ultimo ping è più vecchio di 90 secondi, consideriamo il lock scaduto
       if (minutesSinceLastSeen > 1.5) {
@@ -4898,10 +4911,14 @@ const SoccerTeamTracker = () => {
       }
       
       // Admin attivo e valido
+      console.log('⚠️ checkActiveAdmin: Admin ATTIVO trovato:', lockData.email);
       return lockData;
       
     } catch (error) {
-      console.error('❌ Errore controllo admin attivo:', error);
+      console.error('❌ checkActiveAdmin: ERRORE CATTURATO:', error);
+      console.error('❌ checkActiveAdmin: Tipo errore:', error.name);
+      console.error('❌ checkActiveAdmin: Messaggio:', error.message);
+      console.error('❌ checkActiveAdmin: Stack:', error.stack);
       return null;
     }
   };
