@@ -1726,7 +1726,7 @@ const { useState, useEffect, useMemo } = React;
 // ============================================
 // SISTEMA ANTI-CACHE CON VERSIONING
 // ============================================
-const APP_VERSION = '2026-02-09-18:35'; // Auto-aggiornato da Claude
+const APP_VERSION = '2026-02-09-21:28'; // Auto-aggiornato da Claude
 
 // Controlla versione e forza reload se necessario
 (() => {
@@ -4873,6 +4873,9 @@ const SoccerTeamTracker = () => {
       await db.collection('teamData').doc(teamId).set(cleanedData);
       console.log('✅ Salvataggio cloud completato con successo!');
       
+      // Aggiorna timestamp ultima sincronizzazione
+      setLastSynced(new Date());
+      
       if (!silent) {
         showToast('✅ Dati salvati su cloud!', 'success');
       }
@@ -5012,6 +5015,9 @@ const SoccerTeamTracker = () => {
         teamLogo: data.teamLogo || teamLogo                   // ✅ AGGIUNTO: Logo squadra (URL o base64)
         // teamLogoStorageUrl: data.teamLogoStorageUrl || ''  // ⚠️ RIMOSSO - Campo ridondante
       });
+      
+      // Aggiorna timestamp ultima sincronizzazione
+      setLastSynced(new Date());
       
       if (!silent) {
         showToast('✅ Dati caricati da cloud!', 'success');
