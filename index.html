@@ -1515,48 +1515,47 @@
     /* Testo caricamento */
     .preloader-text {
       color: white;
-      font-size: 18px;
+      font-size: 20px;
       font-weight: 600;
-      margin-bottom: 10px;
+      margin-bottom: 40px;
       animation: fadeInOut 2s ease-in-out infinite;
       -webkit-animation: fadeInOut 2s ease-in-out infinite;
       font-family: 'Nunito', sans-serif;
+      text-align: center;
     }
     
     @keyframes fadeInOut {
-      0%, 100% { opacity: 0.6; }
+      0%, 100% { opacity: 0.7; }
       50% { opacity: 1; }
     }
     
     @-webkit-keyframes fadeInOut {
-      0%, 100% { opacity: 0.6; }
+      0%, 100% { opacity: 0.7; }
       50% { opacity: 1; }
     }
     
     /* Titolo app */
     .preloader-title {
-      color: rgba(255, 255, 255, 0.95);
-      font-size: 28px;
-      font-weight: 700;
-      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+      color: rgba(255, 255, 255, 0.98);
+      font-size: 32px;
+      font-weight: 800;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
       letter-spacing: 0.5px;
       font-family: 'Nunito', sans-serif;
-    }
-    
-    /* Nome autore highlight */
-    .preloader-author {
-      color: #fbbf24;
-      font-weight: 800;
+      text-align: center;
+      margin-bottom: 8px;
+      line-height: 1.4;
     }
     
     /* Copyright */
     .preloader-copyright {
-      color: rgba(255, 255, 255, 0.6);
-      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      font-size: 12px;
       font-weight: 400;
-      margin-top: 20px;
-      letter-spacing: 0.3px;
+      margin-top: 30px;
+      letter-spacing: 0.5px;
       font-family: 'Nunito', sans-serif;
+      text-align: center;
     }
     
     /* Punti animati */
@@ -1586,7 +1585,45 @@
       80%, 100% { content: '...'; }
     }
     
-    /* 📱 RESPONSIVE MOBILE/TABLET */
+    /* 📱 RESPONSIVE TABLET (769px - 1024px) */
+    @media (min-width: 769px) and (max-width: 1024px) {
+      /* Pallone e contenitore dimensioni medie */
+      .preloader-ball-container {
+        width: 140px;
+        height: 140px;
+        margin-bottom: 50px;
+      }
+      
+      .preloader-ball {
+        font-size: 72px;
+      }
+      
+      .preloader-spinner {
+        width: 115px;
+        height: 115px;
+        border-width: 4px;
+      }
+      
+      /* Testo ben leggibile */
+      .preloader-text {
+        font-size: 22px;
+        margin-bottom: 50px;
+      }
+      
+      /* Titolo ben visibile */
+      .preloader-title {
+        font-size: 36px;
+        margin-bottom: 12px;
+      }
+      
+      /* Copyright */
+      .preloader-copyright {
+        font-size: 13px;
+        margin-top: 40px;
+      }
+    }
+    
+    /* 📱 RESPONSIVE MOBILE/TABLET PICCOLO */
     @media (max-width: 768px) {
       /* Contenitore pallone più piccolo */
       .preloader-ball-container {
@@ -1708,13 +1745,13 @@
       <div class="preloader-ball">⚽</div>
     </div>
     <div class="preloader-text">
-      Caricamento app<span class="preloader-dots"></span>
+      Caricamento<span class="preloader-dots"></span>
     </div>
     <div class="preloader-title">
-      <span class="preloader-author">Moreschi Roberto</span> - Gestionale Calcio
+      Moreschi Roberto<br>Gestionale Calcio
     </div>
     <div class="preloader-copyright">
-      © 2026 - Tutti i diritti riservati
+      © 2026 · Tutti i diritti riservati
     </div>
   </div>
   <!-- 🔴 ...FINO A QUI -->
@@ -1726,7 +1763,7 @@ const { useState, useEffect, useMemo } = React;
 // ============================================
 // SISTEMA ANTI-CACHE CON VERSIONING
 // ============================================
-const APP_VERSION = '2026-02-09-21:36'; // Auto-aggiornato da Claude
+const APP_VERSION = '2026-02-09-21:54'; // Auto-aggiornato da Claude
 
 // Controlla versione e forza reload se necessario
 (() => {
