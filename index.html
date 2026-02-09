@@ -1715,7 +1715,7 @@ const { useState, useEffect, useMemo } = React;
 // ============================================
 // SISTEMA ANTI-CACHE CON VERSIONING
 // ============================================
-const APP_VERSION = '2026-02-09-17:42'; // Auto-aggiornato da Claude
+const APP_VERSION = '2026-02-09-17:53'; // Auto-aggiornato da Claude
 
 // Controlla versione e forza reload se necessario
 (() => {
@@ -2451,6 +2451,50 @@ const SoccerTeamTracker = () => {
     
     saveData();
   }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, isLoading]);
+
+  // ========== AUTO-SALVATAGGIO CLOUD OGNI 5 MINUTI (SOLO ADMIN) ==========
+  useEffect(() => {
+    // Solo per admin con lock attivo
+    if (!user || userRole !== 'admin' || !adminLockActive) return;
+    
+    console.log('⏰ Auto-salvataggio cloud attivato (ogni 5 minuti)');
+    
+    // Prima salvataggio dopo 5 minuti
+    const autoSaveInterval = setInterval(async () => {
+      try {
+        console.log('💾 Auto-salvataggio cloud (5 min timer)...');
+        await saveDataToCloud(true); // silent = true, nessun toast
+        console.log('✅ Auto-salvataggio cloud completato');
+      } catch (error) {
+        console.error('❌ Errore auto-salvataggio cloud:', error);
+        // Non mostriamo toast per non disturbare l'utente
+      }
+    }, 5 * 60 * 1000); // 5 minuti
+    
+    return () => clearInterval(autoSaveInterval);
+  }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato]);
+
+  // ========== POLLING AUTO-RELOAD PER USER (OGNI MINUTO) ==========
+  useEffect(() => {
+    // Solo per user (non admin)
+    if (!user || userRole !== 'user') return;
+    
+    console.log('🔄 Polling auto-reload attivato per USER (ogni minuto)');
+    
+    // Prima reload dopo 1 minuto
+    const pollingInterval = setInterval(async () => {
+      try {
+        console.log('🔄 Polling: ricarico dati da cloud...');
+        await loadDataFromCloud(true, user, teamId, true); // silent = true
+        console.log('✅ Polling: dati aggiornati da cloud');
+      } catch (error) {
+        console.error('❌ Errore polling reload:', error);
+        // Continua il polling anche se c'è errore
+      }
+    }, 60 * 1000); // 1 minuto
+    
+    return () => clearInterval(pollingInterval);
+  }, [user, userRole, teamId]);
 
   // ========== CARICAMENTO DATA ULTIMO BACKUP ==========
   useEffect(() => {
