@@ -2172,28 +2172,26 @@ const SoccerTeamTracker = () => {
               sameAsUid: userTeamId === user.uid
             });
             
-            // ✅ AUTO-SYNC per utenti USER al login
-            if (role === 'user') {
-              console.log('🔄 Utente USER rilevato - Avvio auto-sync da cloud...');
-              // Piccolo delay per assicurarsi che tutto sia pronto
-              setTimeout(async () => {
-                try {
-                  console.log('⏰ Inizio loadDataFromCloud per USER...');
-                  // Passa user e teamId esplicitamente
-                  await loadDataFromCloud(true, user, userTeamId);
-                  console.log('✅ Auto-sync completato per USER');
-                  showToast('✅ Dati sincronizzati automaticamente dal cloud', 'success');
-                } catch (error) {
-                  console.error('❌ Errore auto-sync USER:', error);
-                  console.error('Dettagli errore:', {
-                    message: error.message,
-                    code: error.code,
-                    stack: error.stack
-                  });
-                  showToast('⚠️ Errore durante la sincronizzazione automatica', 'error');
-                }
-              }, 1500);
-            }
+            // ✅ AUTO-SYNC per TUTTI gli utenti al login (USER e ADMIN)
+            console.log('🔄 Auto-sync da cloud al login...');
+            // Piccolo delay per assicurarsi che tutto sia pronto
+            setTimeout(async () => {
+              try {
+                console.log('⏰ Inizio loadDataFromCloud...');
+                // Passa user e teamId esplicitamente
+                await loadDataFromCloud(true, user, userTeamId);
+                console.log('✅ Auto-sync completato');
+                showToast('✅ Dati sincronizzati dal cloud', 'success');
+              } catch (error) {
+                console.error('❌ Errore auto-sync:', error);
+                console.error('Dettagli errore:', {
+                  message: error.message,
+                  code: error.code,
+                  stack: error.stack
+                });
+                showToast('⚠️ Errore durante la sincronizzazione automatica', 'error');
+              }
+            }, 1500);
           } else {
             setUserRole('user');
           }
