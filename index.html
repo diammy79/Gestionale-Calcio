@@ -1709,7 +1709,7 @@
   </style>
   <meta name="theme-color" content="#1e3a8a">
   <meta name="description" content="Gestionale Calcio - Gestione Squadra Completa">
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest.json?v=20260209-2210">
   
   <!-- iOS Splash Screens -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1750,32 +1750,41 @@ const { useState, useEffect, useMemo } = React;
 // ============================================
 // SISTEMA ANTI-CACHE CON VERSIONING
 // ============================================
-const APP_VERSION = '2026-02-09-22:01'; // Auto-aggiornato da Claude
+const APP_VERSION = '2026-02-09-22:10'; // Auto-aggiornato da Claude
 
 // Controlla versione e forza reload se necessario
-(() => {
+(async () => {
   const savedVersion = localStorage.getItem('appVersion');
   
   if (savedVersion && savedVersion !== APP_VERSION) {
     console.log('🔄 NUOVA VERSIONE RILEVATA!');
     console.log('   Vecchia:', savedVersion);
     console.log('   Nuova:', APP_VERSION);
-    console.log('   🔄 Forzando hard reload con pulizia cache...');
+    console.log('   🧹 Pulizia cache completa...');
     
-    // Aggiorna versione
+    // 1. Pulisci tutte le cache
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      console.log('   📦 Cache trovate:', cacheNames.length);
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+      console.log('   ✅ Cache eliminate');
+    }
+    
+    // 2. Unregister tutti i service worker
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      console.log('   🔧 Service Workers trovati:', registrations.length);
+      await Promise.all(registrations.map(reg => reg.unregister()));
+      console.log('   ✅ Service Workers rimossi');
+    }
+    
+    // 3. Aggiorna versione
     localStorage.setItem('appVersion', APP_VERSION);
     
-    // Hard reload con pulizia cache
-    window.location.reload(true);
+    // 4. Hard reload con cache busting
+    console.log('   🔄 Forzando hard reload...');
+    window.location.href = window.location.pathname + '?cb=' + Date.now();
     
-    // Se reload(true) non funziona, usa questo metodo alternativo
-    if ('caches' in window) {
-      caches.keys().then(names => {
-        names.forEach(name => caches.delete(name));
-      }).then(() => {
-        window.location.href = window.location.href + '?v=' + Date.now();
-      });
-    }
   } else if (!savedVersion) {
     // Prima volta, salva versione
     console.log('✅ Prima apertura app, versione:', APP_VERSION);
