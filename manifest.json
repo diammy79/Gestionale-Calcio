@@ -2,7 +2,7 @@
   "name": "Moreschi Roberto - Gestionale Calcio",
   "short_name": "Gestionale Calcio",
   "description": "Gestione completa squadra calcio",
-  "start_url": "/?v=20260210-1645",
+  "start_url": "/?v=20260210-1705",
   "scope": "/",
   "display": "standalone",
   "background_color": "#1e3a8a",
@@ -10,16 +10,22 @@
   "orientation": "any",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%231e3a8a'/%3E%3Ctext x='256' y='190' font-size='200' text-anchor='middle' fill='white'%3E⚽%3C/text%3E%3Ctext x='256' y='295' font-size='50' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='bold'%3EMoreschi Roberto%3C/text%3E%3Ctext x='256' y='355' font-size='50' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='bold'%3EGestionale Calcio%3C/text%3E%3Ctext x='256' y='425' font-size='38' text-anchor='middle' fill='%2393c5fd' font-family='Arial, sans-serif' font-weight='600'%3ECaricamento in corso...%3C/text%3E%3Ctext x='256' y='480' font-size='26' text-anchor='middle' fill='rgba(255,255,255,0.7)' font-family='Arial, sans-serif'%3E© 2026%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%231e3a8a'/%3E%3Ctext x='256' y='200' font-size='340' text-anchor='middle' fill='white'%3E⚽%3C/text%3E%3Ctext x='256' y='360' font-size='48' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='bold'%3EMoreschi Roberto%3C/text%3E%3Ctext x='256' y='415' font-size='48' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='bold'%3EGestionale Calcio%3C/text%3E%3Ctext x='256' y='475' font-size='36' text-anchor='middle' fill='%2393c5fd' font-family='Arial, sans-serif' font-weight='600'%3ECaricamento...%3C/text%3E%3C/svg%3E",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%231e3a8a'/%3E%3Ctext x='96' y='70' font-size='80' text-anchor='middle' fill='white'%3E⚽%3C/text%3E%3Ctext x='96' y='115' font-size='20' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='bold'%3EMoreschi Roberto%3C/text%3E%3Ctext x='96' y='140' font-size='20' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='bold'%3EGestionale Calcio%3C/text%3E%3Ctext x='96' y='165' font-size='16' text-anchor='middle' fill='%2393c5fd' font-family='Arial, sans-serif' font-weight='600'%3ECaricamento...%3C/text%3E%3Ctext x='96' y='182' font-size='11' text-anchor='middle' fill='rgba(255,255,255,0.7)' font-family='Arial, sans-serif'%3E© 2026%3C/text%3E%3C/svg%3E",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%231e3a8a'/%3E%3Crect x='16' y='16' width='160' height='160' rx='30' fill='%231e3a8a'/%3E%3Ctext x='96' y='115' font-size='90' text-anchor='middle' fill='white'%3E⚽%3C/text%3E%3Ctext x='96' y='160' font-size='16' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='600'%3EGestionale Calcio%3C/text%3E%3C/svg%3E",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%231e3a8a'/%3E%3Ctext x='96' y='115' font-size='90' text-anchor='middle' fill='white'%3E⚽%3C/text%3E%3Ctext x='96' y='160' font-size='16' text-anchor='middle' fill='white' font-family='Arial, sans-serif' font-weight='600'%3EGestionale Calcio%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "screenshots": [
