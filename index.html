@@ -1750,7 +1750,7 @@ const { useState, useEffect, useMemo } = React;
 // ============================================
 // SISTEMA ANTI-CACHE CON VERSIONING
 // ============================================
-const APP_VERSION = '2026-02-10-17:05'; // Auto-aggiornato da Claude
+const APP_VERSION = '2026-02-10-17:20'; // Auto-aggiornato da Claude
 
 // Controlla versione e forza reload se necessario
 (async () => {
@@ -2038,6 +2038,7 @@ const SoccerTeamTracker = () => {
   const [user, setUser] = useState(null);
   const [teamId, setTeamId] = useState(null); // Team ID condiviso tra ADMIN e USER
   const [userRole, setUserRole] = useState(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine); // Stato connessione
   const [authLoading, setAuthLoading] = useState(true);
 
   const [isLoading, setIsLoading] = useState(true);
@@ -2496,24 +2497,47 @@ const SoccerTeamTracker = () => {
     saveData();
   }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, isLoading]);
 
-  // ========== AUTO-SALVATAGGIO CLOUD OGNI 5 MINUTI (SOLO ADMIN) ==========
+  // ========== GESTIONE STATO CONNESSIONE (ONLINE/OFFLINE) ==========
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      console.log('🌐 Connessione ristabilita!');
+      showToast('🌐 Connessione ristabilita!', 'success');
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      console.log('⚠️ Connessione persa - Modalità OFFLINE');
+      showToast('⚠️ OFFLINE: Le modifiche saranno salvate quando tornerai online', 'warning', 8000);
+    };
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // ========== AUTO-SALVATAGGIO CLOUD OGNI 2 MINUTI (SOLO ADMIN) ==========
   useEffect(() => {
     // Solo per admin con lock attivo
     if (!user || userRole !== 'admin' || !adminLockActive) return;
     
-    console.log('⏰ Auto-salvataggio cloud attivato (ogni 5 minuti)');
+    console.log('⏰ Auto-salvataggio cloud attivato (ogni 2 minuti)');
     
-    // Prima salvataggio dopo 5 minuti
+    // Salvataggio automatico ogni 2 minuti
     const autoSaveInterval = setInterval(async () => {
       try {
-        console.log('💾 Auto-salvataggio cloud (5 min timer)...');
+        console.log('💾 Auto-salvataggio cloud (2 min timer)...');
         await saveDataToCloud(true); // silent = true, nessun toast
         console.log('✅ Auto-salvataggio cloud completato');
       } catch (error) {
         console.error('❌ Errore auto-salvataggio cloud:', error);
         // Non mostriamo toast per non disturbare l'utente
       }
-    }, 5 * 60 * 1000); // 5 minuti
+    }, 2 * 60 * 1000); // 2 minuti
     
     return () => clearInterval(autoSaveInterval);
   }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato]);
@@ -3026,6 +3050,43 @@ const SoccerTeamTracker = () => {
   const handleExitWithSave = async () => {
     try {
       setShowExitModal(false);
+      
+      // ✅ CHECK CONNESSIONE PRIMA DI TENTARE SALVATAGGIO
+      if (!navigator.onLine) {
+        showToast('⚠️ SEI OFFLINE! Impossibile salvare sul cloud.', 'error', 5000);
+        
+        // Mostra dialog conferma
+        const conferma = window.confirm(
+          '⚠️ SEI OFFLINE!\n\n' +
+          'Non posso salvare i dati sul cloud perché non sei connesso.\n\n' +
+          '📱 OPZIONI:\n' +
+          '• Click OK → Torna nell\'app e riconnettiti\n' +
+          '• Click ANNULLA → Esci SENZA salvare (PERDI MODIFICHE!)\n\n' +
+          'Cosa vuoi fare?'
+        );
+        
+        if (conferma) {
+          // Torna all'app
+          showToast('💡 Riconnettiti e riprova', 'info', 5000);
+          return; // Non chiude
+        } else {
+          // Conferma uscita senza salvare
+          const confermaUscita = window.confirm(
+            '⚠️ ATTENZIONE!\n\n' +
+            'Sei sicuro di voler uscire SENZA salvare?\n\n' +
+            'PERDERAI tutte le modifiche fatte da quando sei offline!\n\n' +
+            'Click OK per uscire comunque (PERDI DATI)\n' +
+            'Click ANNULLA per rimanere nell\'app'
+          );
+          
+          if (confermaUscita) {
+            // Esci senza salvare
+            await handleExitWithoutSave();
+          }
+          return;
+        }
+      }
+      
       showToast('☁️ Preparazione dati per il salvataggio...', 'info');
       
       // ⚠️ CRITICO: Delay per assicurare che tutti gli state siano aggiornati
@@ -3068,8 +3129,20 @@ const SoccerTeamTracker = () => {
       }
     } catch (error) {
       console.error('❌ Errore salvataggio:', error);
-      showToast('❌ Errore: ' + error.message, 'error');
-      // Non chiudere se c'è errore
+      
+      // ✅ Messaggio d'errore più chiaro
+      const isNetworkError = error.message.includes('fetch') || 
+                            error.message.includes('network') || 
+                            error.message.includes('Network') ||
+                            !navigator.onLine;
+      
+      if (isNetworkError) {
+        showToast('⚠️ ERRORE DI RETE! Verifica la connessione e riprova.', 'error', 8000);
+      } else {
+        showToast('❌ Errore salvataggio: ' + error.message, 'error', 8000);
+      }
+      
+      // Non chiudere se c'è errore - resta aperto per permettere retry
     }
   };
 
@@ -9960,6 +10033,21 @@ const SoccerTeamTracker = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4">
+      {/* ========== BANNER STATO OFFLINE ========== */}
+      {!isOnline && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white px-4 py-3 shadow-lg animate-fade-in">
+          <div className="max-w-7xl mx-auto flex items-center justify-center gap-3">
+            <svg className="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+              <span className="font-bold">⚠️ MODALITÀ OFFLINE</span>
+              <span className="text-sm">Le modifiche verranno salvate automaticamente quando tornerai online</span>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* ========== BADGE CARICAMENTO DATI (Solo durante caricamento iniziale) ========== */}
       {loadingData && (
         <div className="fixed top-4 right-4 z-40 animate-fade-in">
