@@ -1750,7 +1750,7 @@ const { useState, useEffect, useMemo } = React;
 // ============================================
 // SISTEMA ANTI-CACHE CON VERSIONING
 // ============================================
-const APP_VERSION = '2026-02-10-17:30'; // Auto-aggiornato da Claude
+const APP_VERSION = '2026-02-12-11:10'; // Auto-aggiornato da Claude
 
 // Controlla versione e forza reload se necessario
 (async () => {
@@ -10419,52 +10419,28 @@ const SoccerTeamTracker = () => {
                   {userRole === 'admin' ? '👑 ADMIN' : '👁️ VISUALIZZATORE'}
                 </div>
                 
-                {/* USER: Solo Logout */}
+                {/* USER: Solo Chiudi rosso */}
                 {userRole === 'user' && (
                   <button
-                    onClick={async () => {
-                      try {
-                        await auth.signOut();
-                      } catch (error) {
-                        console.error('Errore logout:', error);
-                        showToast('❌ Errore logout', 'error');
-                      }
-                    }}
-                    className="flex items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
-                    title="Cambia utente"
+                    onClick={handleLogout}
+                    className="flex items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
+                    title="Chiudi applicazione"
                   >
-                    <LogOut className="w-4 h-4 md:w-5 md:h-5" />
-                    <span>Logout</span>
+                    <span className="text-base">✕</span>
+                    <span>Chiudi</span>
                   </button>
                 )}
                 
-                {/* ADMIN: Logout + Chiudi */}
+                {/* ADMIN: Solo "Salva ed Esci" rosso */}
                 {userRole === 'admin' && (
-                  <div className="flex gap-1 md:gap-2">
-                    <button
-                      onClick={async () => {
-                        try {
-                          await auth.signOut();
-                        } catch (error) {
-                          console.error('Errore logout:', error);
-                          showToast('❌ Errore logout', 'error');
-                        }
-                      }}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 md:px-3 py-1.5 md:py-2 bg-orange-500 hover:bg-orange-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
-                      title="Cambia utente"
-                    >
-                      <LogOut className="w-4 h-4" />
-                      <span className="text-xs">Logout</span>
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="flex-1 flex items-center justify-center gap-1 px-2 md:px-3 py-1.5 md:py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
-                      title="Chiudi applicazione"
-                    >
-                      <span className="text-base">✕</span>
-                      <span className="text-xs">Chiudi</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center justify-center gap-1 md:gap-2 px-2 md:px-4 py-1.5 md:py-2 bg-red-500 hover:bg-red-600 rounded-lg transition-colors font-semibold text-white whitespace-nowrap text-xs md:text-sm"
+                    title="Salva i dati e chiudi l'applicazione"
+                  >
+                    <span className="text-base">💾</span>
+                    <span>Salva ed Esci</span>
+                  </button>
                 )}
               </div>
             </div>
