@@ -3102,72 +3102,59 @@ const SoccerTeamTracker = () => {
   // ========== FUNZIONI MODAL CHIUSURA APP ==========
   
   const handleExitWithSave = async () => {
+    setShowExitModal(false);
+    
+    // CHECK CONNESSIONE
+    if (!navigator.onLine) {
+      setShowOfflineExitModal(true);
+      return;
+    }
+    
+    showToast('☁️ Salvataggio su cloud in corso...', 'info', 5000);
+    
     try {
-      setShowExitModal(false);
-      
-      // ✅ CHECK CONNESSIONE PRIMA DI TENTARE SALVATAGGIO
-      if (!navigator.onLine) {
-        // Mostra modal custom offline invece di window.confirm
-        setShowOfflineExitModal(true);
-        return; // Aspetta azione utente sul modal
-      }
-      
-      showToast('☁️ Preparazione dati per il salvataggio...', 'info');
-      
-      // ⚠️ CRITICO: Delay per assicurare che tutti gli state siano aggiornati
-      // React aggiorna gli state in modo asincrono, quindi aspettiamo che
-      // eventuali modifiche recenti (fuoriRosa, injuries) siano completate
+      // Attendi che React abbia propagato gli ultimi state
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Log dettagliato PRIMA del salvataggio
-      console.log('🔍 State PRIMA del salvataggio cloud:', {
-        players: players.length,
-        injuries: injuries.length,
-        injuriesData: injuries,
-        playersWithFuoriRosa: players.filter(p => p.fuoriRosa).length,
-        fuoriRosaData: players.filter(p => p.fuoriRosa).map(p => ({ numero: p.numero, nome: p.nome, fuoriRosa: p.fuoriRosa }))
-      });
-      
-      showToast('☁️ Salvataggio su cloud in corso...', 'info');
-      await saveDataToCloud(true); // silent = true per non mostrare toast doppio
-      
-      // Log DOPO il salvataggio
+      // Salva su cloud
+      await saveDataToCloud(true); // silent = true
       console.log('✅ Salvataggio cloud completato');
       
-      // ✅ NUOVO: Rilascia lock admin prima di chiudere
+      // Rilascia lock admin (non bloccante - non fermiamo il logout se fallisce)
       if (userRole === 'admin' && adminLockActive) {
-        await releaseAdminLock();
-        console.log('✅ Lock admin rilasciato prima della chiusura');
+        try {
+          await releaseAdminLock();
+          console.log('✅ Lock admin rilasciato');
+        } catch (lockErr) {
+          console.warn('⚠️ Errore rilascio lock (ignorato):', lockErr);
+        }
       }
       
-      showToast('✅ Dati salvati! A presto!', 'success');
-      // Piccolo delay per far vedere il toast
+      showToast('✅ Dati salvati! A presto!', 'success', 2000);
       await new Promise(resolve => setTimeout(resolve, 1500));
       
-      // ✅ Logout da Firebase invece di window.close()
-      try {
-        await auth.signOut();
-        console.log('✅ Logout completato - Torna al login');
-      } catch (error) {
-        console.error('❌ Errore logout:', error);
-        window.location.reload();
-      }
-    } catch (error) {
-      console.error('❌ Errore salvataggio:', error);
+      // Logout → con persistenza NONE torna automaticamente alla schermata di login
+      console.log('🚪 Eseguo logout Firebase...');
+      await auth.signOut();
+      console.log('✅ Logout completato');
       
-      // ✅ Messaggio d'errore più chiaro
-      const isNetworkError = error.message.includes('fetch') || 
-                            error.message.includes('network') || 
-                            error.message.includes('Network') ||
-                            !navigator.onLine;
+    } catch (saveError) {
+      console.error('❌ Errore handleExitWithSave:', saveError);
+      
+      const isNetworkError = !navigator.onLine ||
+                            (saveError.message || '').includes('fetch') || 
+                            (saveError.message || '').includes('network') || 
+                            (saveError.message || '').includes('Network');
       
       if (isNetworkError) {
-        showToast('⚠️ ERRORE DI RETE! Verifica la connessione e riprova.', 'error', 8000);
+        showToast('⚠️ Errore di rete! Verifica la connessione e riprova.', 'error', 8000);
       } else {
-        showToast('❌ Errore salvataggio: ' + error.message, 'error', 8000);
+        showToast('❌ Errore salvataggio: ' + (saveError.message || 'Errore sconosciuto'), 'error', 8000);
+        // Se l'errore non è di rete, tenta comunque il logout dopo 3 secondi
+        setTimeout(async () => {
+          try { await auth.signOut(); } catch (e) { window.location.reload(); }
+        }, 3000);
       }
-      
-      // Non chiudere se c'è errore - resta aperto per permettere retry
     }
   };
 
@@ -8696,7 +8683,7 @@ const SoccerTeamTracker = () => {
       
       console.log('✅ Backup giornaliero creato:', filename);
       
-      // Pulisci backup vecchi (mantieni ultimi 7 giorni)
+      // Pulisci backup vecchi (mantieni ultimi 5)
       await cleanOldBackups();
       
       // Aggiorna data ultimo backup
@@ -8710,26 +8697,29 @@ const SoccerTeamTracker = () => {
     }
   };
 
-  // Pulisci backup più vecchi di 7 giorni
+  // Pulisci backup mantenendo solo gli ultimi 5
   const cleanOldBackups = async () => {
     try {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      
       const backupsRef = storage.ref('backups/firestore/daily');
       const backupsList = await backupsRef.listAll();
       
-      for (const backup of backupsList.items) {
-        // Nome file: 2026-01-28_15-30-45.json
-        const filename = backup.name.replace('.json', '');
-        const datePart = filename.split('_')[0]; // 2026-01-28
-        const backupDate = new Date(datePart);
-        
-        if (backupDate < sevenDaysAgo) {
-          await backup.delete();
-          console.log('🗑️ Backup vecchio eliminato:', backup.name);
-        }
+      if (backupsList.items.length <= 5) {
+        console.log('✅ Backup ok, non supera il limite di 5');
+        return; // Non serve pulire
       }
+      
+      // Ordina per nome (che contiene la data/ora) in ordine decrescente
+      // Formato: 2026-01-28_15-30-45.json → ordine alfabetico = ordine cronologico
+      const sortedItems = [...backupsList.items].sort((a, b) => b.name.localeCompare(a.name));
+      
+      // Elimina tutti i backup oltre i primi 5
+      const toDelete = sortedItems.slice(5);
+      for (const backup of toDelete) {
+        await backup.delete();
+        console.log('🗑️ Backup vecchio eliminato:', backup.name);
+      }
+      
+      console.log(`✅ Pulizia completata: mantenuti ${Math.min(sortedItems.length, 5)} backup, eliminati ${toDelete.length}`);
     } catch (error) {
       console.error('⚠️ Errore pulizia backup vecchi:', error);
     }
@@ -9074,14 +9064,20 @@ const SoccerTeamTracker = () => {
   useEffect(() => {
     if (!user || !teamId) return;
     
+    // Flag per evitare chiamate multiple simultanee
+    let backupInProgress = false;
+    
     const checkAndRunDailyBackup = () => {
+      // Evita chiamate multiple simultanee
+      if (backupInProgress) return;
+      
       const now = new Date();
       const lastBackup = localStorage.getItem('lastBackupDate');
       
-      // Se non c'è mai stato un backup, o l'ultimo è di ieri, fai backup
       if (!lastBackup) {
         console.log('🔄 Primo backup mai fatto, eseguo backup...');
-        createDailyBackup();
+        backupInProgress = true;
+        createDailyBackup().finally(() => { backupInProgress = false; });
         return;
       }
       
@@ -9091,18 +9087,19 @@ const SoccerTeamTracker = () => {
       // Se sono passate più di 24 ore, fai backup
       if (hoursSinceLastBackup >= 24) {
         console.log('🔄 Sono passate 24h dall\'ultimo backup, eseguo backup...');
-        createDailyBackup();
+        backupInProgress = true;
+        createDailyBackup().finally(() => { backupInProgress = false; });
       }
     };
     
-    // Check al mount
+    // Check al mount (solo una volta per sessione)
     checkAndRunDailyBackup();
     
     // Check ogni ora
     const interval = setInterval(checkAndRunDailyBackup, 60 * 60 * 1000);
     
     return () => clearInterval(interval);
-  }, [user, teamId, players, matches, trainings]);
+  }, [user, teamId]); // ✅ SOLO user e teamId - non ri-triggera ad ogni modifica dati
 
   // ========== FINE NUOVE FUNZIONI SISTEMA BACKUP ==========
 
@@ -18430,7 +18427,7 @@ const SoccerTeamTracker = () => {
                     </p>
                     <p className="flex items-center justify-between">
                       <span className="text-gray-700">🔄 Rotazione:</span>
-                      <span className="font-semibold text-gray-900">Ultimi 7 giorni</span>
+                      <span className="font-semibold text-gray-900">Ultimi 5 backup</span>
                     </p>
                     <p className="flex items-center justify-between">
                       <span className="text-gray-700">📦 Dimensione:</span>
@@ -18443,14 +18440,43 @@ const SoccerTeamTracker = () => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
                     <h5 className="font-semibold text-gray-800">📋 Backup Disponibili ({availableBackups.length})</h5>
-                    <button
-                      onClick={loadAvailableBackups}
-                      disabled={loadingBackups}
-                      className="text-sm px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
-                    >
-                      {loadingBackups ? '⏳' : '🔄'} Aggiorna
-                    </button>
+                    <div className="flex gap-2">
+                      {availableBackups.length > 5 && (
+                        <button
+                          onClick={async () => {
+                            if (window.confirm(`⚠️ Hai ${availableBackups.length} backup.\n\nVuoi eliminare quelli in eccesso mantenendo solo gli ultimi 5?\n\nQuesta operazione è irreversibile.`)) {
+                              showLoadingWithProgress('🗑️ Pulizia backup in corso...', 0);
+                              await cleanOldBackups();
+                              hideLoading();
+                              showToast('✅ Backup in eccesso eliminati!', 'success');
+                              await loadAvailableBackups();
+                            }
+                          }}
+                          disabled={loadingBackups}
+                          className="text-sm px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors disabled:opacity-50"
+                          title="Elimina backup in eccesso, mantieni solo gli ultimi 5"
+                        >
+                          🗑️ Pulisci ({availableBackups.length - 5} in eccesso)
+                        </button>
+                      )}
+                      <button
+                        onClick={loadAvailableBackups}
+                        disabled={loadingBackups}
+                        className="text-sm px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors disabled:opacity-50"
+                      >
+                        {loadingBackups ? '⏳' : '🔄'} Aggiorna
+                      </button>
+                    </div>
                   </div>
+                  
+                  {availableBackups.length > 5 && (
+                    <div className="bg-orange-50 border border-orange-300 rounded-lg p-3 mb-3 flex items-start gap-2">
+                      <span className="text-orange-500 text-lg flex-shrink-0">⚠️</span>
+                      <p className="text-sm text-orange-800">
+                        Hai <strong>{availableBackups.length} backup</strong> (limite: 5). Clicca <strong>"Pulisci"</strong> per rimuovere quelli in eccesso e liberare spazio.
+                      </p>
+                    </div>
+                  )}
                   
                   {loadingBackups ? (
                     <div className="text-center py-4 text-gray-600">
@@ -18585,7 +18611,7 @@ const SoccerTeamTracker = () => {
                   <div className="text-sm text-gray-700 space-y-2">
                     <p className="font-semibold text-gray-800">Come Funziona il Sistema Backup</p>
                     <ul className="space-y-1 ml-4">
-                      <li>• <strong>Backup Automatici:</strong> Salvati su cloud ogni 24h, contengono tutti i dati + URL foto (~2 MB)</li>
+                      <li>• <strong>Backup Automatici:</strong> Salvati su cloud ogni 24h, vengono mantenuti gli ultimi 5 (~2 MB ciascuno)</li>
                       <li>• <strong>Backup Completo:</strong> Download sul PC con tutti i dati + URL foto (~2 MB)</li>
                       <li>• <strong>Foto NON Embedded:</strong> Le foto restano SEMPRE nell'archivio cloud (già protette)</li>
                       <li>• <strong>Storage Locale:</strong> IndexedDB mantiene copia locale per funzionamento offline</li>
@@ -18662,8 +18688,8 @@ const SoccerTeamTracker = () => {
                     <span className="font-semibold text-gray-900">~{storageStats.jsonSizeMB || 2} MB</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Backup automatici (7 giorni):</span>
-                    <span className="font-semibold text-gray-900">~14 MB</span>
+                    <span className="text-gray-700">Backup automatici (ultimi 5):</span>
+                    <span className="font-semibold text-gray-900">~10 MB</span>
                   </div>
                   
                   {loadingStorageSize ? (
