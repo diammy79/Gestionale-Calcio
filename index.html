@@ -8713,14 +8713,18 @@ const SoccerTeamTracker = () => {
   // Pulisci backup vecchi - mantieni solo gli ultimi 5
   const cleanOldBackups = async () => {
     try {
+      console.log('🧹 Avvio pulizia backup obsoleti...');
+      setIsCleaningBackups(true);
+
       const backupsRef = storage.ref('backups/firestore/daily');
       const backupsList = await backupsRef.listAll();
       
-      console.log('🔍 Backup totali trovati:', backupsList.items.length);
+      console.log(`🔍 Backup totali trovati: ${backupsList.items.length}`);
       
       // Se ci sono 5 o meno backup, non fare nulla
       if (backupsList.items.length <= 5) {
-        console.log('✅ Solo', backupsList.items.length, 'backup presenti, nessuna pulizia necessaria');
+        alert('✅ Hai già solo 5 o meno backup. Nessuna pulizia necessaria!');
+        setIsCleaningBackups(false);
         return;
       }
       
@@ -8769,24 +8773,70 @@ const SoccerTeamTracker = () => {
         console.log(`  ${i + 1}. ${b.name} - ${b.timestamp.toISOString()}`);
       });
       
-      // Mantieni solo i primi 5, elimina il resto
-      const backupsToDelete = backupsWithDates.slice(5); // Dal 6° in poi
+      // 🆕 LOGICA COMBINATA: mantieni almeno 5 backup E tutti quelli degli ultimi 7 giorni
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const backupsToDelete = backupsWithDates.filter((backup, index) => {
+        // Mantieni SEMPRE i primi 5 (più recenti)
+        if (index < 5) {
+          return false;
+        }
+        
+        // Se è oltre il 5° ma dentro i 7 giorni, mantieni comunque
+        const backupDate = new Date(backup.timestamp);
+        if (backupDate > sevenDaysAgo) {
+          console.log(`  ⏰ Mantengo ${backup.name} (oltre 5° ma dentro 7 giorni)`);
+          return false;
+        }
+        
+        // Altrimenti elimina (oltre 5° E oltre 7 giorni)
+        return true;
+      });
+
+      if (backupsToDelete.length === 0) {
+        alert('✅ Tutti i backup sono recenti (ultimi 7 giorni). Nessuna pulizia necessaria!');
+        setIsCleaningBackups(false);
+        return;
+      }
       
       console.log(`🗑️ Eliminazione di ${backupsToDelete.length} backup vecchi...`);
+      
+      let deletedCount = 0;
+      let errorCount = 0;
       
       for (const backup of backupsToDelete) {
         try {
           await backup.item.delete();
+          deletedCount++;
           console.log('✅ Backup eliminato:', backup.name);
         } catch (error) {
+          errorCount++;
           console.error('❌ Errore eliminazione backup:', backup.name, error);
         }
       }
       
-      console.log('✅ Pulizia completata! Rimangono 5 backup più recenti.');
+      const keptCount = backupsWithDates.length - deletedCount;
+      
+      console.log(`✅ Pulizia completata!`);
+      console.log(`   - Eliminati: ${deletedCount} backup`);
+      console.log(`   - Mantenuti: ${keptCount} backup (ultimi 5 + backup ultimi 7 giorni)`);
+      console.log(`   - Errori: ${errorCount}`);
+
+      if (errorCount > 0) {
+        alert(`⚠️ Pulizia completata con ${errorCount} errori.\n\nEliminati: ${deletedCount} backup\nMantenuti: ${keptCount} backup\n\nVerifica le regole di Firebase Storage!`);
+      } else {
+        alert(`✅ Pulizia completata con successo!\n\nEliminati: ${deletedCount} backup obsoleti\nMantenuti: ${keptCount} backup (ultimi 5 + backup ultimi 7 giorni)`);
+      }
+
+      // Ricarica la lista backup
+      await loadAvailableBackups();
       
     } catch (error) {
       console.error('❌ Errore pulizia backup vecchi:', error);
+      alert('❌ Errore durante la pulizia dei backup: ' + error.message);
+    } finally {
+      setIsCleaningBackups(false);
     }
   };
 
