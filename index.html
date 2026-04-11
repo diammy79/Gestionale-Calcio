@@ -8714,7 +8714,6 @@ const SoccerTeamTracker = () => {
   const cleanOldBackups = async () => {
     try {
       console.log('🧹 Avvio pulizia backup obsoleti...');
-      setIsCleaningBackups(true);
 
       const backupsRef = storage.ref('backups/firestore/daily');
       const backupsList = await backupsRef.listAll();
@@ -8724,7 +8723,6 @@ const SoccerTeamTracker = () => {
       // Se ci sono 5 o meno backup, non fare nulla
       if (backupsList.items.length <= 5) {
         alert('✅ Hai già solo 5 o meno backup. Nessuna pulizia necessaria!');
-        setIsCleaningBackups(false);
         return;
       }
       
@@ -8796,7 +8794,6 @@ const SoccerTeamTracker = () => {
 
       if (backupsToDelete.length === 0) {
         alert('✅ Tutti i backup sono recenti (ultimi 7 giorni). Nessuna pulizia necessaria!');
-        setIsCleaningBackups(false);
         return;
       }
       
@@ -8835,8 +8832,6 @@ const SoccerTeamTracker = () => {
     } catch (error) {
       console.error('❌ Errore pulizia backup vecchi:', error);
       alert('❌ Errore durante la pulizia dei backup: ' + error.message);
-    } finally {
-      setIsCleaningBackups(false);
     }
   };
 
