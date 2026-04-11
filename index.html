@@ -2575,24 +2575,24 @@ const SoccerTeamTracker = () => {
     };
   }, []);
 
-  // ========== AUTO-SALVATAGGIO CLOUD OGNI 2 MINUTI (SOLO ADMIN) ==========
+  // ========== AUTO-SALVATAGGIO CLOUD OGNI 4 MINUTI (SOLO ADMIN) ==========
   useEffect(() => {
     // Solo per admin con lock attivo
     if (!user || userRole !== 'admin' || !adminLockActive) return;
     
-    console.log('⏰ Auto-salvataggio cloud attivato (ogni 2 minuti)');
+    console.log('⏰ Auto-salvataggio cloud attivato (ogni 4 minuti)');
     
-    // Salvataggio automatico ogni 2 minuti
+    // Salvataggio automatico ogni 4 minuti (ottimizzato per tablet)
     const autoSaveInterval = setInterval(async () => {
       try {
-        console.log('💾 Auto-salvataggio cloud (2 min timer)...');
+        console.log('💾 Auto-salvataggio cloud (4 min timer)...');
         await saveDataToCloud(true); // silent = true, nessun toast
         console.log('✅ Auto-salvataggio cloud completato');
       } catch (error) {
         console.error('❌ Errore auto-salvataggio cloud:', error);
         // Non mostriamo toast per non disturbare l'utente
       }
-    }, 2 * 60 * 1000); // 2 minuti
+    }, 4 * 60 * 1000); // 4 minuti (ottimizzato per dispositivi lenti)
     
     return () => clearInterval(autoSaveInterval);
   }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato]);
@@ -4994,15 +4994,15 @@ const SoccerTeamTracker = () => {
     // 🆕 ASPETTA se c'è già un salvataggio in corso
     if (isSavingToCloud) {
       console.log('⏳ Salvataggio già in corso, attendo...');
-      // Aspetta max 10 secondi che il salvataggio finisca
+      // Aspetta max 30 secondi che il salvataggio finisca (ottimizzato per tablet)
       let waitTime = 0;
-      while (isSavingToCloud && waitTime < 10000) {
+      while (isSavingToCloud && waitTime < 30000) {
         await new Promise(resolve => setTimeout(resolve, 500));
         waitTime += 500;
       }
       if (isSavingToCloud) {
-        console.warn('⚠️ Timeout attesa salvataggio precedente');
-        throw new Error('Timeout: salvataggio precedente non completato');
+        console.warn('⚠️ Timeout attesa salvataggio precedente (30 sec)');
+        throw new Error('Timeout: salvataggio precedente non completato dopo 30 secondi');
       }
     }
     
