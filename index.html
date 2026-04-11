@@ -2056,6 +2056,7 @@ const SoccerTeamTracker = () => {
   const [userRole, setUserRole] = useState(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine); // Stato connessione
   const [authLoading, setAuthLoading] = useState(true);
+  const [isSavingToCloud, setIsSavingToCloud] = useState(false); // 🆕 Flag per evitare salvataggi simultanei
 
   const [isLoading, setIsLoading] = useState(true);
   const [loadingData, setLoadingData] = useState(true); // Track caricamento dati in background
@@ -3128,11 +3129,27 @@ const SoccerTeamTracker = () => {
         fuoriRosaData: players.filter(p => p.fuoriRosa).map(p => ({ numero: p.numero, nome: p.nome, fuoriRosa: p.fuoriRosa }))
       });
       
-      showToast('☁️ Salvataggio su cloud in corso...', 'info');
-      await saveDataToCloud(true); // silent = true per non mostrare toast doppio
-      
-      // Log DOPO il salvataggio
-      console.log('✅ Salvataggio cloud completato');
+      // 🆕 Tentativo salvataggio con gestione errori migliorata
+      let saveSuccessful = false;
+      try {
+        showToast('☁️ Salvataggio su cloud in corso...', 'info');
+        await saveDataToCloud(true); // silent = true per non mostrare toast doppio
+        saveSuccessful = true;
+        console.log('✅ Salvataggio cloud completato');
+      } catch (saveError) {
+        console.error('❌ Errore durante salvataggio:', saveError);
+        
+        // 🆕 Gestione specifica errore resource-exhausted
+        if (saveError.code === 'resource-exhausted' || saveError.message.includes('resource-exhausted')) {
+          showToast('⚠️ Firebase sovraccarico. Dati potrebbero non essere salvati. Uscita in corso...', 'warning', 4000);
+        } else {
+          showToast('❌ Errore salvataggio: ' + saveError.message, 'error', 3000);
+        }
+        
+        // 🆕 COMUNQUE PROCEDI CON LOGOUT (importante!)
+        // Aspetta 2 secondi per far vedere il messaggio
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
       
       // ✅ NUOVO: Rilascia lock admin prima di chiudere
       if (userRole === 'admin' && adminLockActive) {
@@ -3140,7 +3157,13 @@ const SoccerTeamTracker = () => {
         console.log('✅ Lock admin rilasciato prima della chiusura');
       }
       
-      showToast('✅ Dati salvati! A presto!', 'success');
+      // 🆕 Mostra messaggio appropriato
+      if (saveSuccessful) {
+        showToast('✅ Dati salvati! A presto!', 'success');
+      } else {
+        showToast('⚠️ Logout in corso...', 'info');
+      }
+      
       // Piccolo delay per far vedere il toast
       await new Promise(resolve => setTimeout(resolve, 1500));
       
@@ -3153,21 +3176,19 @@ const SoccerTeamTracker = () => {
         window.location.reload();
       }
     } catch (error) {
-      console.error('❌ Errore salvataggio:', error);
+      console.error('❌ Errore generale in handleExitWithSave:', error);
       
-      // ✅ Messaggio d'errore più chiaro
-      const isNetworkError = error.message.includes('fetch') || 
-                            error.message.includes('network') || 
-                            error.message.includes('Network') ||
-                            !navigator.onLine;
+      // 🆕 LOGOUT FORZATO anche in caso di errore totale
+      showToast('⚠️ Errore durante chiusura. Logout forzato...', 'warning', 3000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      if (isNetworkError) {
-        showToast('⚠️ ERRORE DI RETE! Verifica la connessione e riprova.', 'error', 8000);
-      } else {
-        showToast('❌ Errore salvataggio: ' + error.message, 'error', 8000);
+      try {
+        await auth.signOut();
+        console.log('✅ Logout forzato completato');
+      } catch (logoutError) {
+        console.error('❌ Errore logout forzato:', logoutError);
+        window.location.reload();
       }
-      
-      // Non chiudere se c'è errore - resta aperto per permettere retry
     }
   };
 
@@ -4966,8 +4987,24 @@ const SoccerTeamTracker = () => {
       silent, 
       userPresente: !!user, 
       teamIdPresente: !!teamId,
-      teamNameAttuale: teamName || '(vuoto)'
+      teamNameAttuale: teamName || '(vuoto)',
+      isSavingToCloud: isSavingToCloud // 🆕 Verifica se c'è già un salvataggio
     });
+    
+    // 🆕 ASPETTA se c'è già un salvataggio in corso
+    if (isSavingToCloud) {
+      console.log('⏳ Salvataggio già in corso, attendo...');
+      // Aspetta max 10 secondi che il salvataggio finisca
+      let waitTime = 0;
+      while (isSavingToCloud && waitTime < 10000) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+        waitTime += 500;
+      }
+      if (isSavingToCloud) {
+        console.warn('⚠️ Timeout attesa salvataggio precedente');
+        throw new Error('Timeout: salvataggio precedente non completato');
+      }
+    }
     
     if (!user) {
       console.error('❌ saveDataToCloud: user non presente');
@@ -4982,6 +5019,9 @@ const SoccerTeamTracker = () => {
     }
     
     try {
+      // 🆕 Imposta flag per bloccare altri salvataggi
+      setIsSavingToCloud(true);
+      
       console.log('📤 Inizio preparazione dati per cloud...', {
         userId: user.uid,
         teamId: teamId,
@@ -5051,6 +5091,9 @@ const SoccerTeamTracker = () => {
         showToast('❌ Errore salvataggio: ' + error.message, 'error');
       }
       throw error; // Rilancia per gestione in handleExitWithSave
+    } finally {
+      // 🆕 Rilascia sempre il flag, anche in caso di errore
+      setIsSavingToCloud(false);
     }
   };
 
