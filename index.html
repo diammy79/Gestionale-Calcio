@@ -3110,17 +3110,28 @@ const SoccerTeamTracker = () => {
       return;
     }
     
-    showToast('☁️ Salvataggio su cloud in corso...', 'info', 5000);
+    // Cattura user e teamId localmente PRIMA di qualsiasi await
+    // (evita problemi di closure con state React)
+    const currentUser = user;
+    const currentTeamId = teamId;
+    
+    if (!currentUser || !currentTeamId) {
+      showToast('❌ Sessione non valida. Ricarica l\'app e riprova.', 'error', 8000);
+      console.error('❌ handleExitWithSave: user o teamId mancante', { user: !!currentUser, teamId: !!currentTeamId });
+      return;
+    }
+    
+    showToast('☁️ Salvataggio su cloud in corso...', 'info', 8000);
     
     try {
       // Attendi che React abbia propagato gli ultimi state
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // Salva su cloud
-      await saveDataToCloud(true); // silent = true
+      // Salva su cloud passando user e teamId esplicitamente
+      await saveDataToCloud(true, currentUser, currentTeamId);
       console.log('✅ Salvataggio cloud completato');
       
-      // Rilascia lock admin (non bloccante - non fermiamo il logout se fallisce)
+      // Rilascia lock admin (non bloccante)
       if (userRole === 'admin' && adminLockActive) {
         try {
           await releaseAdminLock();
@@ -3130,7 +3141,7 @@ const SoccerTeamTracker = () => {
         }
       }
       
-      showToast('✅ Dati salvati! A presto!', 'success', 2000);
+      showToast('✅ Dati salvati! A presto!', 'success', 3000);
       await new Promise(resolve => setTimeout(resolve, 1500));
       
       // Logout → con persistenza NONE torna automaticamente alla schermata di login
@@ -3149,11 +3160,7 @@ const SoccerTeamTracker = () => {
       if (isNetworkError) {
         showToast('⚠️ Errore di rete! Verifica la connessione e riprova.', 'error', 8000);
       } else {
-        showToast('❌ Errore salvataggio: ' + (saveError.message || 'Errore sconosciuto'), 'error', 8000);
-        // Se l'errore non è di rete, tenta comunque il logout dopo 3 secondi
-        setTimeout(async () => {
-          try { await auth.signOut(); } catch (e) { window.location.reload(); }
-        }, 3000);
+        showToast('❌ Errore: ' + (saveError.message || 'Errore sconosciuto'), 'error', 8000);
       }
     }
   };
@@ -4947,32 +4954,33 @@ const SoccerTeamTracker = () => {
   /**
    * Salva dati su cloud Firebase
    */
-  const saveDataToCloud = async (silent = false) => {
+  const saveDataToCloud = async (silent = false, explicitUser = null, explicitTeamId = null) => {
+    const userToUse = explicitUser || user;
+    const teamIdToUse = explicitTeamId || teamId;
+    
     // 🔍 LOG DEBUG PRIMISSIMO - Verifica se funzione viene chiamata
     console.log('🚀 saveDataToCloud CHIAMATA!', { 
       silent, 
-      userPresente: !!user, 
-      teamIdPresente: !!teamId,
+      userPresente: !!userToUse, 
+      teamIdPresente: !!teamIdToUse,
       teamNameAttuale: teamName || '(vuoto)'
     });
     
-    if (!user) {
+    if (!userToUse) {
       console.error('❌ saveDataToCloud: user non presente');
-      showToast('❌ Devi essere autenticato per salvare su cloud', 'error');
-      return;
+      throw new Error('Utente non autenticato - impossibile salvare');
     }
     
-    if (!teamId) {
+    if (!teamIdToUse) {
       console.error('❌ saveDataToCloud: teamId non presente');
-      showToast('❌ Team ID non trovato', 'error');
-      return;
+      throw new Error('Team ID non trovato - impossibile salvare');
     }
     
     try {
       console.log('📤 Inizio preparazione dati per cloud...', {
-        userId: user.uid,
-        teamId: teamId,
-        saveLocation: `teamData/${teamId}`
+        userId: userToUse.uid,
+        teamId: teamIdToUse,
+        saveLocation: `teamData/${teamIdToUse}`
       });
       
       // ✅ Assicura che tutti i giocatori abbiano il campo fuoriRosa
@@ -4986,29 +4994,21 @@ const SoccerTeamTracker = () => {
         trainings,
         matches,
         injuries,
-        squadreGirone,        // ✅ AGGIUNTO: Squadre del girone
-        risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
-        appTitle,             // ✅ AGGIUNTO: Titolo app
-        teamName,             // ✅ AGGIUNTO: Nome squadra
-        teamLogo,             // ✅ AGGIUNTO: Logo squadra (URL Storage o base64)
-        // teamLogoStorageUrl, // ⚠️ RIMOSSO - Campo ridondante
+        squadreGirone,
+        risultatiCampionato,
+        appTitle,
+        teamName,
+        teamLogo,
         timestamp: new Date().toISOString(),
         deviceId: generateDeviceId(),
         deviceName: getDeviceName()
       };
       
-      // Log dettagliato per debug
       console.log('💾 Salvataggio su cloud:', {
         players: playersWithFuoriRosa.length,
         trainings: trainings.length,
         matches: matches.length,
         injuries: injuries.length,
-        squadreGirone: squadreGirone.length,
-        risultatiCampionato: risultatiCampionato.length,
-        fuoriRosa: playersWithFuoriRosa.filter(p => p.fuoriRosa).length,
-        appTitle: appTitle,
-        teamName: teamName || '(vuoto)',  // ✅ Log per debug
-        hasTeamLogo: !!teamLogo,
         timestamp: data.timestamp
       });
       
@@ -5016,8 +5016,7 @@ const SoccerTeamTracker = () => {
       const cleanedData = cleanUndefinedFields(data);
       
       console.log('🧹 Dati puliti, invio a cloud...');
-      // ⚠️ USA TEAMID invece di user.uid
-      await db.collection('teamData').doc(teamId).set(cleanedData);
+      await db.collection('teamData').doc(teamIdToUse).set(cleanedData);
       console.log('✅ Salvataggio cloud completato con successo!');
       
       // Aggiorna timestamp ultima sincronizzazione
@@ -5029,15 +5028,10 @@ const SoccerTeamTracker = () => {
       
     } catch (error) {
       console.error('❌ ERRORE SALVATAGGIO CLOUD:', error);
-      console.error('Dettagli errore:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
-      });
       if (!silent) {
         showToast('❌ Errore salvataggio: ' + error.message, 'error');
       }
-      throw error; // Rilancia per gestione in handleExitWithSave
+      throw error; // Rilancia sempre per gestione nel chiamante
     }
   };
 
@@ -8675,7 +8669,8 @@ const SoccerTeamTracker = () => {
       
       const jsonString = JSON.stringify(backupData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
-      const filename = `backups/firestore/daily/${fullTimestamp}.json`;
+      // Path con user.uid per isolare i backup per utente
+      const filename = `backups/firestore/daily/${user.uid}/${fullTimestamp}.json`;
       
       // Upload su Firebase Storage
       const storageRef = storage.ref(filename);
@@ -8699,17 +8694,17 @@ const SoccerTeamTracker = () => {
 
   // Pulisci backup mantenendo solo gli ultimi 5
   const cleanOldBackups = async () => {
+    if (!user) return;
     try {
-      const backupsRef = storage.ref('backups/firestore/daily');
+      const backupsRef = storage.ref(`backups/firestore/daily/${user.uid}`);
       const backupsList = await backupsRef.listAll();
       
       if (backupsList.items.length <= 5) {
         console.log('✅ Backup ok, non supera il limite di 5');
-        return; // Non serve pulire
+        return;
       }
       
-      // Ordina per nome (che contiene la data/ora) in ordine decrescente
-      // Formato: 2026-01-28_15-30-45.json → ordine alfabetico = ordine cronologico
+      // Ordina per nome decrescente (più recente prima)
       const sortedItems = [...backupsList.items].sort((a, b) => b.name.localeCompare(a.name));
       
       // Elimina tutti i backup oltre i primi 5
@@ -8719,7 +8714,7 @@ const SoccerTeamTracker = () => {
         console.log('🗑️ Backup vecchio eliminato:', backup.name);
       }
       
-      console.log(`✅ Pulizia completata: mantenuti ${Math.min(sortedItems.length, 5)} backup, eliminati ${toDelete.length}`);
+      console.log(`✅ Pulizia completata: mantenuti ${Math.min(sortedItems.length, 5)}, eliminati ${toDelete.length}`);
     } catch (error) {
       console.error('⚠️ Errore pulizia backup vecchi:', error);
     }
@@ -8731,37 +8726,65 @@ const SoccerTeamTracker = () => {
     
     setLoadingBackups(true);
     try {
-      const backupsRef = storage.ref('backups/firestore/daily');
-      const backupsList = await backupsRef.listAll();
+      let allItems = [];
+      
+      // 1. Cerca nel nuovo path con user.uid (backup recenti)
+      try {
+        const newRef = storage.ref(`backups/firestore/daily/${user.uid}`);
+        const newList = await newRef.listAll();
+        allItems = [...allItems, ...newList.items];
+        console.log(`📁 Path nuovo (${user.uid}): ${newList.items.length} backup`);
+      } catch (e) {
+        console.log('Path nuovo non accessibile:', e.message);
+      }
+      
+      // 2. Cerca nel vecchio path (senza uid) per mostrare i backup esistenti
+      try {
+        const oldRef = storage.ref('backups/firestore/daily');
+        const oldList = await oldRef.listAll();
+        // Prende solo i file diretti (non sottocartelle/prefissi)
+        allItems = [...allItems, ...oldList.items];
+        console.log(`📁 Path vecchio: ${oldList.items.length} backup`);
+      } catch (e) {
+        console.log('Path vecchio non accessibile:', e.message);
+      }
       
       const backups = await Promise.all(
-        backupsList.items.map(async (item) => {
-          const metadata = await item.getMetadata();
-          const url = await item.getDownloadURL();
-          
-          // Nome file: 2026-01-28_15-30-45.json
-          const filename = item.name.replace('.json', '');
-          const parts = filename.split('_');
-          const dateStr = parts[0]; // 2026-01-28
-          const timeStr = parts[1] ? parts[1].replace(/-/g, ':') : '00:00:00'; // 15:30:45
-          
-          return {
-            name: item.name,
-            date: dateStr,
-            time: timeStr,
-            fullTimestamp: `${dateStr} ${timeStr}`,
-            size: metadata.size,
-            url: url,
-            created: metadata.timeCreated
-          };
+        allItems.map(async (item) => {
+          try {
+            const metadata = await item.getMetadata();
+            const url = await item.getDownloadURL();
+            
+            const filename = item.name.replace('.json', '');
+            const parts = filename.split('_');
+            const dateStr = parts[0];
+            const timeStr = parts[1] ? parts[1].replace(/-/g, ':') : '00:00:00';
+            
+            return {
+              name: item.name,
+              fullPath: item.fullPath,
+              date: dateStr,
+              time: timeStr,
+              fullTimestamp: `${dateStr} ${timeStr}`,
+              size: metadata.size,
+              url: url,
+              created: metadata.timeCreated,
+              itemRef: item  // Salva ref per eliminazione
+            };
+          } catch (e) {
+            console.warn('Errore lettura backup:', item.name, e.message);
+            return null;
+          }
         })
       );
       
-      // Ordina per data+ora (più recente prima)
-      backups.sort((a, b) => new Date(b.fullTimestamp) - new Date(a.fullTimestamp));
+      // Filtra null e ordina per data (più recente prima)
+      const validBackups = backups
+        .filter(Boolean)
+        .sort((a, b) => new Date(b.fullTimestamp) - new Date(a.fullTimestamp));
       
-      setAvailableBackups(backups);
-      console.log('📋 Backup disponibili caricati:', backups.length);
+      setAvailableBackups(validBackups);
+      console.log('📋 Backup disponibili caricati:', validBackups.length);
     } catch (error) {
       console.error('❌ Errore caricamento backup:', error);
       setAvailableBackups([]);
@@ -18446,10 +18469,24 @@ const SoccerTeamTracker = () => {
                           onClick={async () => {
                             if (window.confirm(`⚠️ Hai ${availableBackups.length} backup.\n\nVuoi eliminare quelli in eccesso mantenendo solo gli ultimi 5?\n\nQuesta operazione è irreversibile.`)) {
                               showLoadingWithProgress('🗑️ Pulizia backup in corso...', 0);
-                              await cleanOldBackups();
-                              hideLoading();
-                              showToast('✅ Backup in eccesso eliminati!', 'success');
-                              await loadAvailableBackups();
+                              try {
+                                // Elimina tutti i backup oltre i primi 5 usando i ref salvati
+                                const toDelete = availableBackups.slice(5);
+                                for (const backup of toDelete) {
+                                  try {
+                                    await backup.itemRef.delete();
+                                    console.log('🗑️ Eliminato:', backup.name);
+                                  } catch (e) {
+                                    console.warn('Errore eliminazione backup:', backup.name, e.message);
+                                  }
+                                }
+                                hideLoading();
+                                showToast(`✅ Eliminati ${toDelete.length} backup in eccesso!`, 'success');
+                                await loadAvailableBackups();
+                              } catch (e) {
+                                hideLoading();
+                                showToast('❌ Errore durante la pulizia: ' + e.message, 'error');
+                              }
                             }
                           }}
                           disabled={loadingBackups}
