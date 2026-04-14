@@ -8754,7 +8754,7 @@ const SoccerTeamTracker = () => {
   };
 
   // Pulisci backup vecchi - mantieni solo gli ultimi 5
-  const cleanOldBackups = async () => {
+  const cleanOldBackups = async (silent = true) => {
     try {
       console.log('🧹 Avvio pulizia backup obsoleti...');
 
@@ -8765,7 +8765,10 @@ const SoccerTeamTracker = () => {
       
       // Se ci sono 5 o meno backup, non fare nulla
       if (backupsList.items.length <= 5) {
-        alert('✅ Hai già solo 5 o meno backup. Nessuna pulizia necessaria!');
+        if (!silent) {
+          alert('✅ Hai già solo 5 o meno backup. Nessuna pulizia necessaria!');
+        }
+        console.log('✅ Hai già solo 5 o meno backup. Nessuna pulizia necessaria!');
         return;
       }
       
@@ -8836,7 +8839,10 @@ const SoccerTeamTracker = () => {
       });
 
       if (backupsToDelete.length === 0) {
-        alert('✅ Tutti i backup sono recenti (ultimi 7 giorni). Nessuna pulizia necessaria!');
+        if (!silent) {
+          alert('✅ Tutti i backup sono recenti (ultimi 7 giorni). Nessuna pulizia necessaria!');
+        }
+        console.log('✅ Tutti i backup sono recenti (ultimi 7 giorni). Nessuna pulizia necessaria!');
         return;
       }
       
@@ -8863,10 +8869,12 @@ const SoccerTeamTracker = () => {
       console.log(`   - Mantenuti: ${keptCount} backup (ultimi 5 + backup ultimi 7 giorni)`);
       console.log(`   - Errori: ${errorCount}`);
 
-      if (errorCount > 0) {
-        alert(`⚠️ Pulizia completata con ${errorCount} errori.\n\nEliminati: ${deletedCount} backup\nMantenuti: ${keptCount} backup\n\nVerifica le regole di Firebase Storage!`);
-      } else {
-        alert(`✅ Pulizia completata con successo!\n\nEliminati: ${deletedCount} backup obsoleti\nMantenuti: ${keptCount} backup (ultimi 5 + backup ultimi 7 giorni)`);
+      if (!silent) {
+        if (errorCount > 0) {
+          alert(`⚠️ Pulizia completata con ${errorCount} errori.\n\nEliminati: ${deletedCount} backup\nMantenuti: ${keptCount} backup\n\nVerifica le regole di Firebase Storage!`);
+        } else {
+          alert(`✅ Pulizia completata con successo!\n\nEliminati: ${deletedCount} backup obsoleti\nMantenuti: ${keptCount} backup (ultimi 5 + backup ultimi 7 giorni)`);
+        }
       }
 
       // Ricarica la lista backup
@@ -8874,7 +8882,9 @@ const SoccerTeamTracker = () => {
       
     } catch (error) {
       console.error('❌ Errore pulizia backup vecchi:', error);
-      alert('❌ Errore durante la pulizia dei backup: ' + error.message);
+      if (!silent) {
+        alert('❌ Errore durante la pulizia dei backup: ' + error.message);
+      }
     }
   };
 
@@ -15150,7 +15160,13 @@ const SoccerTeamTracker = () => {
                                 </div>
                                 <div>
                                   <div className="text-2xl font-bold text-purple-600">
-                                    {trainings.reduce((sum, t) => sum + (t.presenze[player.numero] ? 1 : 0), 0)}
+                                    {trainings.filter(t => {
+                                      // Considera solo allenamenti dopo la data di ingresso in rosa
+                                      if (!player.dataCreazione) return true; // Se non ha dataCreazione, conta tutti
+                                      const playerJoinDate = new Date(player.dataCreazione);
+                                      const trainingDate = new Date(t.data);
+                                      return trainingDate >= playerJoinDate && t.presenze[player.numero];
+                                    }).length}
                                   </div>
                                   <div className="text-xs text-gray-600">Allenamenti</div>
                                 </div>
@@ -18672,7 +18688,7 @@ const SoccerTeamTracker = () => {
                       if (window.confirm('🗑️ PULIZIA BACKUP VECCHI\n\nQuesta operazione eliminerà TUTTI i backup tranne i 5 più recenti.\n\nSei sicuro di voler procedere?')) {
                         showLoadingWithProgress('🗑️ Pulizia backup vecchi in corso...', 0);
                         try {
-                          await cleanOldBackups();
+                          await cleanOldBackups(false); // silent=false per mostrare gli alert
                           hideLoading();
                           showToast('✅ Pulizia completata! Rimangono solo i 5 backup più recenti.', 'success');
                           await loadAvailableBackups();
