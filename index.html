@@ -9,6 +9,35 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   
+  <!-- ========== SISTEMA AUTO-AGGIORNAMENTO ========== -->
+  <script>
+    (function() {
+      // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
+      const APP_VERSION = '2.0.2'; // Auto-save 8min + timeout 60sec
+      
+      // Controlla versione salvata
+      const savedVersion = localStorage.getItem('app_version');
+      
+      if (savedVersion && savedVersion !== APP_VERSION) {
+        console.log('🔄 Nuova versione rilevata:', APP_VERSION, '(precedente:', savedVersion + ')');
+        console.log('🔄 Svuotamento cache e ricaricamento...');
+        
+        // Salva nuova versione
+        localStorage.setItem('app_version', APP_VERSION);
+        
+        // Forza reload con cache bypass
+        window.location.reload(true);
+      } else if (!savedVersion) {
+        // Prima installazione
+        console.log('✅ Prima installazione - Versione:', APP_VERSION);
+        localStorage.setItem('app_version', APP_VERSION);
+      } else {
+        // Stessa versione
+        console.log('✅ App aggiornata - Versione:', APP_VERSION);
+      }
+    })();
+  </script>
+  
   <title>⚽ Gestionale Calcio</title>
   
   <!-- ========== FAVICON ========== -->
@@ -2575,24 +2604,24 @@ const SoccerTeamTracker = () => {
     };
   }, []);
 
-  // ========== AUTO-SALVATAGGIO CLOUD OGNI 4 MINUTI (SOLO ADMIN) ==========
+  // ========== AUTO-SALVATAGGIO CLOUD OGNI 8 MINUTI (SOLO ADMIN) ==========
   useEffect(() => {
     // Solo per admin con lock attivo
     if (!user || userRole !== 'admin' || !adminLockActive) return;
     
-    console.log('⏰ Auto-salvataggio cloud attivato (ogni 4 minuti)');
+    console.log('⏰ Auto-salvataggio cloud attivato (ogni 8 minuti)');
     
-    // Salvataggio automatico ogni 4 minuti (ottimizzato per tablet)
+    // Salvataggio automatico ogni 8 minuti (ottimizzato per dispositivi lenti)
     const autoSaveInterval = setInterval(async () => {
       try {
-        console.log('💾 Auto-salvataggio cloud (4 min timer)...');
+        console.log('💾 Auto-salvataggio cloud (8 min timer)...');
         await saveDataToCloud(true); // silent = true, nessun toast
         console.log('✅ Auto-salvataggio cloud completato');
       } catch (error) {
         console.error('❌ Errore auto-salvataggio cloud:', error);
         // Non mostriamo toast per non disturbare l'utente
       }
-    }, 4 * 60 * 1000); // 4 minuti (ottimizzato per dispositivi lenti)
+    }, 8 * 60 * 1000); // 8 minuti (ottimizzato per tablet)
     
     return () => clearInterval(autoSaveInterval);
   }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato]);
@@ -4994,15 +5023,15 @@ const SoccerTeamTracker = () => {
     // 🆕 ASPETTA se c'è già un salvataggio in corso
     if (isSavingToCloud) {
       console.log('⏳ Salvataggio già in corso, attendo...');
-      // Aspetta max 30 secondi che il salvataggio finisca (ottimizzato per tablet)
+      // Aspetta max 60 secondi che il salvataggio finisca (ottimizzato per tablet lenti)
       let waitTime = 0;
-      while (isSavingToCloud && waitTime < 30000) {
+      while (isSavingToCloud && waitTime < 60000) {
         await new Promise(resolve => setTimeout(resolve, 500));
         waitTime += 500;
       }
       if (isSavingToCloud) {
-        console.warn('⚠️ Timeout attesa salvataggio precedente (30 sec)');
-        throw new Error('Timeout: salvataggio precedente non completato dopo 30 secondi');
+        console.warn('⚠️ Timeout attesa salvataggio precedente (60 sec)');
+        throw new Error('Timeout: salvataggio precedente non completato dopo 60 secondi');
       }
     }
     
