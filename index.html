@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.0.2'; // Auto-save 8min + timeout 60sec
+      const APP_VERSION = '2.0.3'; // Fix reset stagionale: setModuloAvversario + rimosso setAnalisiSelezionata
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -5618,8 +5618,7 @@ const SoccerTeamTracker = () => {
       setMatches([]);
       setExpandedTrainings({});
       setModuloTattico({});
-      setModuloAvversarioState({});
-      setAnalisiSelezionata({});
+      setModuloAvversario('');
       setConvocati(new Set());
       
       // Salvo i dati resettati
@@ -5675,8 +5674,7 @@ const SoccerTeamTracker = () => {
       setInfortunati(new Set());
       setExpandedTrainings({});
       setModuloTattico({});
-      setModuloAvversarioState({});
-      setAnalisiSelezionata({});
+      setModuloAvversario('');
       setConvocati(new Set());
       
       // Cancello dal database
