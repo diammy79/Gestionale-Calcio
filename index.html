@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.0.3'; // Fix reset stagionale: setModuloAvversario + rimosso setAnalisiSelezionata
+      const APP_VERSION = '2.0.4'; // Fix reset: aggiunto reset squadreGirone + risultatiCampionato
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -5620,10 +5620,14 @@ const SoccerTeamTracker = () => {
       setModuloTattico({});
       setModuloAvversario('');
       setConvocati(new Set());
+      setSquadreGirone([]);
+      setRisultatiCampionato([]);
       
       // Salvo i dati resettati
       await saveToIndexedDB('trainings', []);
       await saveToIndexedDB('matches', []);
+      await saveToIndexedDB('squadreGirone', []);
+      await saveToIndexedDB('risultatiCampionato', []);
       
       alert('✅ Stagione resettata con successo!\n\nLa rosa giocatori è stata mantenuta.');
     } catch (error) {
@@ -5676,6 +5680,8 @@ const SoccerTeamTracker = () => {
       setModuloTattico({});
       setModuloAvversario('');
       setConvocati(new Set());
+      setSquadreGirone([]);
+      setRisultatiCampionato([]);
       
       // Cancello dal database
       const db = await initDB();
