@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.1.0'; // Rimossa sezione Coppa/Torneo
+      const APP_VERSION = '2.2.0'; // Nuova sezione Valutazione Nuovi Giocatori/Portieri + fix padding rosa a 30
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2045,6 +2045,89 @@ const initDB = () => {
   });
 };
 
+// ========== COSTANTI VALUTAZIONE GIOCATORI/PORTIERI ==========
+const VALUTAZIONE_RATING_SCORES = { 'Ottimo': 4, 'Buono': 3, 'Sufficiente': 2, 'Insufficiente': 1 };
+const VALUTAZIONE_RATING_OPTIONS = ['Ottimo', 'Buono', 'Sufficiente', 'Insufficiente'];
+const VALUTAZIONE_ATTEGGIAMENTO_OPTIONS = ['Scontroso', 'Lamentoso', 'Normale', 'Timido'];
+const VALUTAZIONE_STRUTTURA_OPTIONS = ['Longilineo', 'Normolineo', 'Brevilineo'];
+
+const VALUTAZIONE_CAMPI = {
+  giocatore: {
+    fisico: ['Forza', 'Velocità', 'Resistenza', 'Coordinazione', 'Rapidità', 'Progressione', 'Recupero', 'Elevazione'],
+    tecniche: ['Guida della palla', 'Difesa della palla', 'Contrasto', 'Dribbling', 'Stop', 'Passaggio', 'Tiro in porta', 'Colpo di testa', 'Uno contro uno', 'Cross e calci d\'angolo', 'Uso piede debole'],
+    tattiche: ['Posizionamento nel ruolo', 'Marcamento', 'Smarcamento', 'Visione di gioco', 'Inserimento Offensivo', 'Chiusure difensive'],
+    comportamento: ['Motivazione', 'Concentrazione', 'Spirito di sacrificio']
+  },
+  portiere: {
+    fisico: ['Forza', 'Velocità', 'Resistenza', 'Coordinazione', 'Rapidità', 'Progressione', 'Recupero', 'Elevazione'],
+    tecniche: ['Presa Alta', 'Presa Bassa', 'Tuffo', 'Uscita alta', 'Uscita bassa', 'Deviazioni', 'Uso dei pugni', 'Smistamento con le mani', 'Rinvio con i piedi', 'Passaggio', 'Parata su rigore'],
+    tattiche: ['piazzamento', 'cambiamento di posizione', 'difesa della porta', 'guida della difesa', 'lettura situazionale', 'transizione'],
+    comportamento: ['Motivazione', 'Concentrazione', 'Spirito di sacrificio']
+  }
+};
+
+const VALUTAZIONE_CATEGORIE_LABEL = {
+  fisico: "QUALITA' FISICO/ATLETICHE",
+  tecniche: "QUALITA' TECNICHE",
+  tattiche: "QUALITA' TATTICHE",
+  comportamento: "COMPORTAMENTO SUL CAMPO"
+};
+
+// Crea un form vuoto per una nuova valutazione
+const creaValutazioneVuota = (tipo = 'giocatore') => {
+  const campi = VALUTAZIONE_CAMPI[tipo];
+  const ratings = {};
+  const note = {};
+  Object.keys(campi).forEach(categoria => {
+    ratings[categoria] = {};
+    campi[categoria].forEach(voce => { ratings[categoria][voce] = ''; });
+    note[categoria] = '';
+  });
+  return {
+    id: null,
+    tipo,
+    cognomeNome: '',
+    anno: new Date().getFullYear().toString(),
+    ruoloGenerico: tipo === 'portiere' ? 'Portiere' : '',
+    attitudinePrincipale: tipo === 'portiere' ? 'Portiere' : '',
+    strutturaFisica: '',
+    altezza: '',
+    peso: '',
+    piedeForte: 'dx',
+    ratings,
+    note,
+    atteggiamentoInPartita: '',
+    dataValutazione: new Date().toISOString().split('T')[0]
+  };
+};
+
+// Calcola il punteggio (0-100) di una categoria e il punteggio complessivo
+const calcolaPunteggiValutazione = (valutazione) => {
+  const campi = VALUTAZIONE_CAMPI[valutazione.tipo] || VALUTAZIONE_CAMPI.giocatore;
+  const punteggiCategoria = {};
+  let sommaTotale = 0;
+  let countTotale = 0;
+  
+  Object.keys(campi).forEach(categoria => {
+    let somma = 0;
+    let count = 0;
+    campi[categoria].forEach(voce => {
+      const rating = valutazione.ratings?.[categoria]?.[voce];
+      if (rating && VALUTAZIONE_RATING_SCORES[rating]) {
+        somma += VALUTAZIONE_RATING_SCORES[rating];
+        count++;
+      }
+    });
+    punteggiCategoria[categoria] = count > 0 ? Math.round((somma / (count * 4)) * 100) : null;
+    sommaTotale += somma;
+    countTotale += count;
+  });
+  
+  const punteggioComplessivo = countTotale > 0 ? Math.round((sommaTotale / (countTotale * 4)) * 100) : null;
+  
+  return { punteggiCategoria, punteggioComplessivo };
+};
+
 const saveToIndexedDB = async (key, data) => {
   try {
     const db = await initDB();
@@ -2247,6 +2330,13 @@ const SoccerTeamTracker = () => {
   const [selectedPlayerForInjury, setSelectedPlayerForInjury] = useState(null);
   const [showEditInjuryModal, setShowEditInjuryModal] = useState(false);
   const [editingInjury, setEditingInjury] = useState(null);
+
+  // ========== VALUTAZIONE NUOVI GIOCATORI ==========
+  const [valutazioni, setValutazioni] = useState([]);
+  const [showValutazioneModal, setShowValutazioneModal] = useState(false);
+  const [editingValutazioneId, setEditingValutazioneId] = useState(null);
+  const [valutazioneFiltroTipo, setValutazioneFiltroTipo] = useState('tutti'); // 'tutti', 'giocatore', 'portiere'
+  const [valutazioneForm, setValutazioneForm] = useState(null); // oggetto form in editing
   
   // Calendario
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -2368,23 +2458,6 @@ const SoccerTeamTracker = () => {
             fuoriRosa: p.fuoriRosa || false // ✅ Normalizza fuoriRosa
           }));
           
-          if (loadedPlayers.length < 30) {
-            const currentLength = loadedPlayers.length;
-            for (let i = currentLength + 1; i <= 30; i++) {
-              loadedPlayers.push({ 
-                numero: i, 
-                nome: "", 
-                ruolo: "", 
-                dataNascita: "", 
-                telefono: "", 
-                foto: "", 
-                piede: "",
-                dataCreazione: "",
-                fuoriRosa: false // ✅ Default false per nuovi slot
-              });
-            }
-          }
-          
           setPlayers(loadedPlayers);
           setTrainings(savedData.trainings || []);
           setMatches(savedData.matches || []);
@@ -2395,6 +2468,7 @@ const SoccerTeamTracker = () => {
           setInjuries(savedData.injuries || []);
           setSquadreGirone(savedData.squadreGirone || []);
           setRisultatiCampionato(savedData.risultatiCampionato || []);
+          setValutazioni(savedData.valutazioni || []);
           setLastSaved(savedData.lastSaved ? new Date(savedData.lastSaved) : null);
         }
       } catch (error) {
@@ -2525,6 +2599,7 @@ const SoccerTeamTracker = () => {
         injuries,
         squadreGirone,
         risultatiCampionato,
+        valutazioni,
         lastSaved: new Date().toISOString()
       };
       
@@ -2535,7 +2610,7 @@ const SoccerTeamTracker = () => {
     };
     
     saveData();
-  }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, isLoading]);
+  }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, valutazioni, isLoading]);
 
   // ========== GESTIONE STATO CONNESSIONE (ONLINE/OFFLINE) ==========
   useEffect(() => {
@@ -2617,7 +2692,7 @@ const SoccerTeamTracker = () => {
     }, 8 * 60 * 1000); // 8 minuti (ottimizzato per tablet)
     
     return () => clearInterval(autoSaveInterval);
-  }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato]);
+  }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato, valutazioni]);
 
   // ========== POLLING AUTO-RELOAD PER USER (OGNI MINUTO) ==========
   useEffect(() => {
@@ -3563,6 +3638,96 @@ const SoccerTeamTracker = () => {
     setPlayers([...players, newPlayer]);
     setEditingPlayer(newNumber); // Apre subito in modifica
     showToast(`➕ Nuovo slot #${newNumber} aggiunto!`, 'success');
+  };
+
+  // ========== VALUTAZIONE NUOVI GIOCATORI - CRUD ==========
+  const apriNuovaValutazione = (tipo = 'giocatore') => {
+    setValutazioneForm(creaValutazioneVuota(tipo));
+    setEditingValutazioneId(null);
+    setShowValutazioneModal(true);
+  };
+
+  const apriModificaValutazione = (valutazione) => {
+    // Deep clone per non modificare lo state originale mentre si edita
+    setValutazioneForm(JSON.parse(JSON.stringify(valutazione)));
+    setEditingValutazioneId(valutazione.id);
+    setShowValutazioneModal(true);
+  };
+
+  const chiudiValutazioneModal = () => {
+    setShowValutazioneModal(false);
+    setValutazioneForm(null);
+    setEditingValutazioneId(null);
+  };
+
+  const aggiornaCampoValutazione = (campo, valore) => {
+    setValutazioneForm(prev => ({ ...prev, [campo]: valore }));
+  };
+
+  const aggiornaRatingValutazione = (categoria, voce, valore) => {
+    setValutazioneForm(prev => ({
+      ...prev,
+      ratings: {
+        ...prev.ratings,
+        [categoria]: { ...prev.ratings[categoria], [voce]: valore }
+      }
+    }));
+  };
+
+  const aggiornaNotaValutazione = (categoria, valore) => {
+    setValutazioneForm(prev => ({
+      ...prev,
+      note: { ...prev.note, [categoria]: valore }
+    }));
+  };
+
+  const cambiaTipoValutazione = (nuovoTipo) => {
+    // Ricrea i campi ratings/note per il nuovo tipo, mantenendo i dati anagrafici già inseriti
+    const nuovoForm = creaValutazioneVuota(nuovoTipo);
+    setValutazioneForm(prev => ({
+      ...nuovoForm,
+      id: prev.id,
+      cognomeNome: prev.cognomeNome,
+      anno: prev.anno,
+      altezza: prev.altezza,
+      peso: prev.peso,
+      piedeForte: prev.piedeForte,
+      strutturaFisica: prev.strutturaFisica,
+      dataValutazione: prev.dataValutazione
+    }));
+  };
+
+  const salvaValutazione = () => {
+    if (!valutazioneForm.cognomeNome.trim()) {
+      showToast('⚠️ Inserisci Cognome e Nome del giocatore da valutare', 'warning');
+      return;
+    }
+
+    if (editingValutazioneId) {
+      // Modifica esistente
+      setValutazioni(valutazioni.map(v => 
+        v.id === editingValutazioneId ? { ...valutazioneForm, id: editingValutazioneId } : v
+      ));
+      showToast(`✅ Valutazione di ${valutazioneForm.cognomeNome} aggiornata!`, 'success');
+    } else {
+      // Nuova valutazione
+      const nuovaValutazione = {
+        ...valutazioneForm,
+        id: `val_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        dataCreazione: new Date().toISOString()
+      };
+      setValutazioni([...valutazioni, nuovaValutazione]);
+      showToast(`✅ Valutazione di ${valutazioneForm.cognomeNome} aggiunta alla lista!`, 'success');
+    }
+
+    chiudiValutazioneModal();
+  };
+
+  const eliminaValutazione = (id) => {
+    const val = valutazioni.find(v => v.id === id);
+    if (!window.confirm(`⚠️ Eliminare definitivamente la valutazione di ${val?.cognomeNome || 'questo giocatore'}?\n\nQuesta azione NON può essere annullata!`)) return;
+    setValutazioni(valutazioni.filter(v => v.id !== id));
+    showToast('🗑️ Valutazione eliminata', 'success');
   };
 
   const handleImageUpload = async (numero, e) => {
@@ -5101,6 +5266,7 @@ const SoccerTeamTracker = () => {
         injuries,
         squadreGirone,        // ✅ AGGIUNTO: Squadre del girone
         risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
+        valutazioni,          // ✅ AGGIUNTO: Valutazioni nuovi giocatori
         appTitle,             // ✅ AGGIUNTO: Titolo app
         teamName,             // ✅ AGGIUNTO: Nome squadra
         teamLogo,             // ✅ AGGIUNTO: Logo squadra (URL Storage o base64)
@@ -5118,6 +5284,7 @@ const SoccerTeamTracker = () => {
         injuries: injuries.length,
         squadreGirone: squadreGirone.length,
         risultatiCampionato: risultatiCampionato.length,
+        valutazioni: valutazioni.length,
         fuoriRosa: playersWithFuoriRosa.filter(p => p.fuoriRosa).length,
         appTitle: appTitle,
         teamName: teamName || '(vuoto)',  // ✅ Log per debug
@@ -5248,6 +5415,7 @@ const SoccerTeamTracker = () => {
       if (data.injuries) setInjuries(data.injuries);
       if (data.squadreGirone) setSquadreGirone(data.squadreGirone);              // ✅ AGGIUNTO
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
+      if (data.valutazioni) setValutazioni(data.valutazioni);                    // ✅ AGGIUNTO: Valutazioni giocatori
       if (data.appTitle) setAppTitle(data.appTitle);                             // ✅ AGGIUNTO: Titolo app
       // Carica teamName anche se vuoto (usa hasOwnProperty per verificare esistenza)
       if (data.hasOwnProperty('teamName')) setTeamName(data.teamName || '');     // ✅ AGGIUNTO: Nome squadra
@@ -5273,6 +5441,7 @@ const SoccerTeamTracker = () => {
         injuries: data.injuries || [],
         squadreGirone: data.squadreGirone || [],              // ✅ AGGIUNTO
         risultatiCampionato: data.risultatiCampionato || [],  // ✅ AGGIUNTO
+        valutazioni: data.valutazioni || [],                  // ✅ AGGIUNTO: Valutazioni giocatori
         appTitle: data.appTitle || appTitle,                  // ✅ AGGIUNTO: Titolo app
         teamName: data.teamName || '',                        // ✅ AGGIUNTO: Nome squadra
         teamLogo: data.teamLogo || teamLogo                   // ✅ AGGIUNTO: Logo squadra (URL o base64)
@@ -5584,6 +5753,19 @@ const SoccerTeamTracker = () => {
           setFormationPositions(data.formationPositions);
         }
         
+        // ✅ Ripristina classifica coppa/girone (con controllo retrocompatibilità)
+        if (data.squadreGirone) {
+          setSquadreGirone(data.squadreGirone);
+        }
+        if (data.risultatiCampionato) {
+          setRisultatiCampionato(data.risultatiCampionato);
+        }
+        
+        // ✅ Ripristina valutazioni nuovi giocatori (con controllo retrocompatibilità)
+        if (data.valutazioni) {
+          setValutazioni(data.valutazioni);
+        }
+        
         // Ripristina impostazioni
         if (data.appTitle) setAppTitle(data.appTitle);
         if (data.teamName) setTeamName(data.teamName);
@@ -5713,6 +5895,7 @@ const SoccerTeamTracker = () => {
       setConvocati(new Set());
       setSquadreGirone([]);
       setRisultatiCampionato([]);
+      setValutazioni([]);
       
       // Cancello dal database
       const db = await initDB();
@@ -5821,6 +6004,7 @@ const SoccerTeamTracker = () => {
                 matches, 
                 squadreGirone,            // ✅ AGGIUNTO
                 risultatiCampionato,      // ✅ AGGIUNTO
+                valutazioni,              // ✅ AGGIUNTO
                 lastSaved: localLastSaved 
               },
               cloud: { 
@@ -5829,6 +6013,7 @@ const SoccerTeamTracker = () => {
                 matches: cloudData.matches,
                 squadreGirone: cloudData.squadreGirone || [],              // ✅ AGGIUNTO
                 risultatiCampionato: cloudData.risultatiCampionato || [],  // ✅ AGGIUNTO
+                valutazioni: cloudData.valutazioni || [],                 // ✅ AGGIUNTO
                 lastSynced: cloudLastSynced 
               }
             });
@@ -5885,6 +6070,10 @@ const SoccerTeamTracker = () => {
         console.log('   ✅ Carico Risultati Campionato:', cloudData.risultatiCampionato.length);
         setRisultatiCampionato(cloudData.risultatiCampionato);
       }
+      if (cloudData.valutazioni) {
+        console.log('   ✅ Carico Valutazioni:', cloudData.valutazioni.length);
+        setValutazioni(cloudData.valutazioni);
+      }
       
       setLastSynced(new Date(cloudData.lastSynced));
       setSyncStatus('success');
@@ -5911,6 +6100,7 @@ const SoccerTeamTracker = () => {
         injuries: cloudData.injuries || [],
         squadreGirone: cloudData.squadreGirone || [],
         risultatiCampionato: cloudData.risultatiCampionato || [],
+        valutazioni: cloudData.valutazioni || [],
         lastSaved: new Date().toISOString()
       };
       await saveToIndexedDB('squadraRealDOR', dataToSave);
@@ -8782,6 +8972,7 @@ const SoccerTeamTracker = () => {
         injuries,
         squadreGirone,
         risultatiCampionato,
+        valutazioni,
         infoPartita,
         moduloTattico,
         formationPositions,
@@ -9042,6 +9233,7 @@ const SoccerTeamTracker = () => {
         setInjuries(backup.injuries || []);
         setSquadreGirone(backup.squadreGirone || []);
         setRisultatiCampionato(backup.risultatiCampionato || []);
+        setValutazioni(backup.valutazioni || []);
         setTeamName(backup.teamName || '');
         setTeamLogo(backup.teamLogo || '');
         setAppTitle(backup.appTitle || 'Gestionale Calcio');
@@ -9058,6 +9250,7 @@ const SoccerTeamTracker = () => {
             injuries: backup.injuries || [],
             squadreGirone: backup.squadreGirone || [],
             risultatiCampionato: backup.risultatiCampionato || [],
+            valutazioni: backup.valutazioni || [],
             teamName: backup.teamName || '',
             teamLogo: backup.teamLogo || '',
             appTitle: backup.appTitle || 'Gestionale Calcio',
@@ -9125,6 +9318,7 @@ const SoccerTeamTracker = () => {
       formationPositions,
       squadreGirone,
       risultatiCampionato,
+      valutazioni,
       stats: {
         totalPlayers: players.filter(p => p.nome).length,
         totalTrainings: trainings.length,
@@ -10869,6 +11063,7 @@ const SoccerTeamTracker = () => {
               ...(userRole === 'admin' ? ['divisione'] : []),
               ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
               'calendar', 'injuries', 'roster',
+              ...(userRole === 'admin' ? ['valutazioni'] : []),
               ...(userRole === 'admin' ? ['report', 'backup', 'admin', 'reset'] : [])
             ].map(tab => (
               <button
@@ -10974,6 +11169,12 @@ const SoccerTeamTracker = () => {
                   <>
                     <span className="tab-text-portrait hidden sm:inline">🔴 Reset Database</span>
                     <span className="tab-icon-only sm:hidden">🔴</span>
+                  </>
+                )}
+                {tab === 'valutazioni' && (
+                  <>
+                    <span className="tab-text-portrait hidden sm:inline">📝 Valutazioni</span>
+                    <span className="tab-icon-only sm:hidden">📝</span>
                   </>
                 )}
               </button>
@@ -15431,6 +15632,348 @@ const SoccerTeamTracker = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* ========== SEZIONE VALUTAZIONE NUOVI GIOCATORI ========== */}
+          {activeTab === 'valutazioni' && (
+            <div>
+              <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">📝 Valutazione Nuovi Giocatori</h2>
+                  <p className="text-sm text-gray-500">Scouting e osservazione candidati - Sezione indipendente dalla rosa ufficiale</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => apriNuovaValutazione('giocatore')}
+                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                  >
+                    <span>➕</span> Nuovo Giocatore
+                  </button>
+                  <button
+                    onClick={() => apriNuovaValutazione('portiere')}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                  >
+                    <span>🧤</span> Nuovo Portiere
+                  </button>
+                </div>
+              </div>
+
+              {/* Filtro tipo */}
+              <div className="flex gap-2 mb-4">
+                {['tutti', 'giocatore', 'portiere'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setValutazioneFiltroTipo(f)}
+                    className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                      valutazioneFiltroTipo === f
+                        ? 'bg-gray-800 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {f === 'tutti' ? `Tutti (${valutazioni.length})` : 
+                     f === 'giocatore' ? `⚽ Giocatori (${valutazioni.filter(v => v.tipo === 'giocatore').length})` :
+                     `🧤 Portieri (${valutazioni.filter(v => v.tipo === 'portiere').length})`}
+                  </button>
+                ))}
+              </div>
+
+              {/* Lista valutazioni */}
+              {valutazioni.filter(v => valutazioneFiltroTipo === 'tutti' || v.tipo === valutazioneFiltroTipo).length === 0 ? (
+                <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
+                  <div className="text-5xl mb-3">📋</div>
+                  <p className="font-semibold">Nessuna valutazione presente</p>
+                  <p className="text-sm mt-1">Clicca "Nuovo Giocatore" o "Nuovo Portiere" per iniziare una scheda di valutazione</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {valutazioni
+                    .filter(v => valutazioneFiltroTipo === 'tutti' || v.tipo === valutazioneFiltroTipo)
+                    .slice()
+                    .sort((a, b) => (a.cognomeNome || '').localeCompare(b.cognomeNome || ''))
+                    .map(val => {
+                      const { punteggioComplessivo } = calcolaPunteggiValutazione(val);
+                      return (
+                        <div key={val.id} className="bg-white border rounded-lg p-4 card-hover animate-fade-in">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{val.tipo === 'portiere' ? '🧤' : '⚽'}</span>
+                              <div>
+                                <p className="font-bold text-gray-800">{val.cognomeNome || '(senza nome)'}</p>
+                                <p className="text-xs text-gray-500">
+                                  {val.ruoloGenerico || '-'} • Anno {val.anno || '-'} • 
+                                  {val.strutturaFisica ? ` ${val.strutturaFisica} • ` : ' '}
+                                  Valutato il {val.dataValutazione ? new Date(val.dataValutazione).toLocaleDateString('it-IT') : '-'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {punteggioComplessivo !== null && (
+                                <div className={`px-3 py-1 rounded-full text-sm font-bold ${
+                                  punteggioComplessivo >= 75 ? 'bg-green-100 text-green-800' :
+                                  punteggioComplessivo >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-red-100 text-red-800'
+                                }`}>
+                                  {punteggioComplessivo}/100
+                                </div>
+                              )}
+                              <button
+                                onClick={() => apriModificaValutazione(val)}
+                                className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                              >
+                                Modifica
+                              </button>
+                              <button
+                                onClick={() => eliminaValutazione(val.id)}
+                                className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ========== MODAL VALUTAZIONE GIOCATORE/PORTIERE ========== */}
+          {showValutazioneModal && valutazioneForm && (
+            <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[110] p-2 md:p-4 animate-fade-in">
+              <div className="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto animate-scale-up">
+                {/* Header modal */}
+                <div className={`sticky top-0 z-10 p-4 md:p-6 border-b flex justify-between items-center ${valutazioneForm.tipo === 'portiere' ? 'bg-blue-50' : 'bg-green-50'}`}>
+                  <h3 className="text-xl font-bold text-gray-800">
+                    {valutazioneForm.tipo === 'portiere' ? '🧤' : '⚽'} Scheda Valutazione {valutazioneForm.tipo === 'portiere' ? 'Portiere' : 'Giocatore'}
+                  </h3>
+                  <button onClick={chiudiValutazioneModal} className="text-gray-500 hover:text-gray-800 text-2xl leading-none">×</button>
+                </div>
+
+                <div className="p-4 md:p-6 space-y-6">
+                  {/* Selettore tipo (solo per nuova valutazione) */}
+                  {!editingValutazioneId && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => cambiaTipoValutazione('giocatore')}
+                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
+                          valutazioneForm.tipo === 'giocatore' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        ⚽ Giocatore
+                      </button>
+                      <button
+                        onClick={() => cambiaTipoValutazione('portiere')}
+                        className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-all ${
+                          valutazioneForm.tipo === 'portiere' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
+                        🧤 Portiere
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Dati anagrafici */}
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Cognome e Nome *</label>
+                      <input
+                        type="text"
+                        value={valutazioneForm.cognomeNome}
+                        onChange={(e) => aggiornaCampoValutazione('cognomeNome', e.target.value)}
+                        placeholder="Cognome Nome..."
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Anno</label>
+                      <input
+                        type="text"
+                        value={valutazioneForm.anno}
+                        onChange={(e) => aggiornaCampoValutazione('anno', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Data Valutazione</label>
+                      <input
+                        type="date"
+                        value={valutazioneForm.dataValutazione}
+                        onChange={(e) => aggiornaCampoValutazione('dataValutazione', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Ruolo Generico</label>
+                      <input
+                        type="text"
+                        value={valutazioneForm.ruoloGenerico}
+                        onChange={(e) => aggiornaCampoValutazione('ruoloGenerico', e.target.value)}
+                        placeholder={valutazioneForm.tipo === 'portiere' ? 'Portiere' : 'Es: Difensore centrale'}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Attitudine Principale</label>
+                      <input
+                        type="text"
+                        value={valutazioneForm.attitudinePrincipale}
+                        onChange={(e) => aggiornaCampoValutazione('attitudinePrincipale', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Struttura Fisica</label>
+                      <select
+                        value={valutazioneForm.strutturaFisica}
+                        onChange={(e) => aggiornaCampoValutazione('strutturaFisica', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                      >
+                        <option value="">Seleziona...</option>
+                        {VALUTAZIONE_STRUTTURA_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-600 mb-1">Piede Forte</label>
+                      <select
+                        value={valutazioneForm.piedeForte}
+                        onChange={(e) => aggiornaCampoValutazione('piedeForte', e.target.value)}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                      >
+                        <option value="dx">Destro</option>
+                        <option value="sx">Sinistro</option>
+                        <option value="ambidestro">Ambidestro</option>
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Altezza (cm)</label>
+                        <input
+                          type="text"
+                          value={valutazioneForm.altezza}
+                          onChange={(e) => aggiornaCampoValutazione('altezza', e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Peso (kg)</label>
+                        <input
+                          type="text"
+                          value={valutazioneForm.peso}
+                          onChange={(e) => aggiornaCampoValutazione('peso', e.target.value)}
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Categorie di valutazione */}
+                  {Object.keys(VALUTAZIONE_CAMPI[valutazioneForm.tipo]).map(categoria => {
+                    const voci = VALUTAZIONE_CAMPI[valutazioneForm.tipo][categoria];
+                    const { punteggiCategoria } = calcolaPunteggiValutazione(valutazioneForm);
+                    const punteggioCat = punteggiCategoria[categoria];
+                    return (
+                      <div key={categoria} className="border rounded-lg overflow-hidden">
+                        <div className="bg-green-100 px-4 py-2 flex justify-between items-center">
+                          <span className="font-bold text-green-900 text-sm">{VALUTAZIONE_CATEGORIE_LABEL[categoria]}</span>
+                          {punteggioCat !== null && (
+                            <span className="bg-green-700 text-white text-xs font-bold px-2 py-1 rounded">{punteggioCat}/100</span>
+                          )}
+                        </div>
+                        <div className="p-3 space-y-2">
+                          {voci.map(voce => (
+                            <div key={voce} className="flex flex-wrap items-center gap-2 py-1 border-b border-gray-100 last:border-0">
+                              <span className="text-sm text-gray-700 flex-1 min-w-[140px]">{voce}</span>
+                              <div className="flex gap-1 flex-wrap">
+                                {VALUTAZIONE_RATING_OPTIONS.map(opt => (
+                                  <button
+                                    key={opt}
+                                    onClick={() => aggiornaRatingValutazione(categoria, voce, opt)}
+                                    className={`px-2 py-1 rounded text-xs font-semibold transition-all ${
+                                      valutazioneForm.ratings[categoria][voce] === opt
+                                        ? opt === 'Ottimo' ? 'bg-green-600 text-white'
+                                        : opt === 'Buono' ? 'bg-blue-600 text-white'
+                                        : opt === 'Sufficiente' ? 'bg-yellow-500 text-white'
+                                        : 'bg-red-600 text-white'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                  >
+                                    {opt}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          {/* Note per categoria */}
+                          <div className="pt-2">
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">Note</label>
+                            <textarea
+                              value={valutazioneForm.note[categoria]}
+                              onChange={(e) => aggiornaNotaValutazione(categoria, e.target.value)}
+                              rows={2}
+                              placeholder="Note opzionali..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:border-green-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Comportamento sul campo - atteggiamento */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="bg-green-100 px-4 py-2">
+                      <span className="font-bold text-green-900 text-sm">ATTEGGIAMENTO IN PARTITA</span>
+                    </div>
+                    <div className="p-3 flex flex-wrap gap-2">
+                      {VALUTAZIONE_ATTEGGIAMENTO_OPTIONS.map(opt => (
+                        <button
+                          key={opt}
+                          onClick={() => aggiornaCampoValutazione('atteggiamentoInPartita', opt)}
+                          className={`px-3 py-1.5 rounded text-sm font-semibold transition-all ${
+                            valutazioneForm.atteggiamentoInPartita === opt
+                              ? 'bg-gray-800 text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Punteggio complessivo */}
+                  {(() => {
+                    const { punteggioComplessivo } = calcolaPunteggiValutazione(valutazioneForm);
+                    return punteggioComplessivo !== null ? (
+                      <div className={`rounded-lg p-4 text-center font-bold text-lg ${
+                        punteggioComplessivo >= 75 ? 'bg-green-100 text-green-800' :
+                        punteggioComplessivo >= 50 ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        PUNTEGGIO COMPLESSIVO: {punteggioComplessivo}/100
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+
+                {/* Footer azioni */}
+                <div className="sticky bottom-0 bg-white border-t p-4 flex gap-3 justify-end">
+                  <button
+                    onClick={chiudiValutazioneModal}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    onClick={salvaValutazione}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700"
+                  >
+                    💾 Salva Valutazione
+                  </button>
+                </div>
               </div>
             </div>
           )}
