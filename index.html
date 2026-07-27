@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.2.0'; // Nuova sezione Valutazione Nuovi Giocatori/Portieri + fix padding rosa a 30
+      const APP_VERSION = '2.2.1'; // Sezione Valutazioni visibile anche a user (sola lettura, azioni solo admin)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -11062,8 +11062,7 @@ const SoccerTeamTracker = () => {
               'trainings',
               ...(userRole === 'admin' ? ['divisione'] : []),
               ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
-              'calendar', 'injuries', 'roster',
-              ...(userRole === 'admin' ? ['valutazioni'] : []),
+              'calendar', 'injuries', 'roster', 'valutazioni',
               ...(userRole === 'admin' ? ['report', 'backup', 'admin', 'reset'] : [])
             ].map(tab => (
               <button
@@ -15645,18 +15644,22 @@ const SoccerTeamTracker = () => {
                   <p className="text-sm text-gray-500">Scouting e osservazione candidati - Sezione indipendente dalla rosa ufficiale</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => apriNuovaValutazione('giocatore')}
-                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-                  >
-                    <span>➕</span> Nuovo Giocatore
-                  </button>
-                  <button
-                    onClick={() => apriNuovaValutazione('portiere')}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
-                  >
-                    <span>🧤</span> Nuovo Portiere
-                  </button>
+                  {userRole === 'admin' && (
+                    <>
+                      <button
+                        onClick={() => apriNuovaValutazione('giocatore')}
+                        className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                      >
+                        <span>➕</span> Nuovo Giocatore
+                      </button>
+                      <button
+                        onClick={() => apriNuovaValutazione('portiere')}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-blue-800 transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                      >
+                        <span>🧤</span> Nuovo Portiere
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -15684,7 +15687,9 @@ const SoccerTeamTracker = () => {
                 <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
                   <div className="text-5xl mb-3">📋</div>
                   <p className="font-semibold">Nessuna valutazione presente</p>
-                  <p className="text-sm mt-1">Clicca "Nuovo Giocatore" o "Nuovo Portiere" per iniziare una scheda di valutazione</p>
+                  {userRole === 'admin' && (
+                    <p className="text-sm mt-1">Clicca "Nuovo Giocatore" o "Nuovo Portiere" per iniziare una scheda di valutazione</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -15718,18 +15723,22 @@ const SoccerTeamTracker = () => {
                                   {punteggioComplessivo}/100
                                 </div>
                               )}
-                              <button
-                                onClick={() => apriModificaValutazione(val)}
-                                className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                              >
-                                Modifica
-                              </button>
-                              <button
-                                onClick={() => eliminaValutazione(val.id)}
-                                className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-                              >
-                                🗑️
-                              </button>
+                              {userRole === 'admin' && (
+                                <>
+                                  <button
+                                    onClick={() => apriModificaValutazione(val)}
+                                    className="px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                                  >
+                                    Modifica
+                                  </button>
+                                  <button
+                                    onClick={() => eliminaValutazione(val.id)}
+                                    className="px-3 py-2 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                                  >
+                                    🗑️
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
