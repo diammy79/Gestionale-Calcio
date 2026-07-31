@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.2.1'; // Sezione Valutazioni visibile anche a user (sola lettura, azioni solo admin)
+      const APP_VERSION = '2.3.0'; // Foto giocatore/portiere nella scheda Valutazioni (upload cloud, stesso schema rosa)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2084,9 +2084,10 @@ const creaValutazioneVuota = (tipo = 'giocatore') => {
     note[categoria] = '';
   });
   return {
-    id: null,
+    id: `val_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     tipo,
     cognomeNome: '',
+    foto: '',
     anno: new Date().getFullYear().toString(),
     ruoloGenerico: tipo === 'portiere' ? 'Portiere' : '',
     attitudinePrincipale: tipo === 'portiere' ? 'Portiere' : '',
@@ -3688,6 +3689,7 @@ const SoccerTeamTracker = () => {
       ...nuovoForm,
       id: prev.id,
       cognomeNome: prev.cognomeNome,
+      foto: prev.foto,
       anno: prev.anno,
       altezza: prev.altezza,
       peso: prev.peso,
@@ -3710,10 +3712,9 @@ const SoccerTeamTracker = () => {
       ));
       showToast(`✅ Valutazione di ${valutazioneForm.cognomeNome} aggiornata!`, 'success');
     } else {
-      // Nuova valutazione
+      // Nuova valutazione (id già assegnato alla creazione del form, usato anche per la foto)
       const nuovaValutazione = {
         ...valutazioneForm,
-        id: `val_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         dataCreazione: new Date().toISOString()
       };
       setValutazioni([...valutazioni, nuovaValutazione]);
@@ -3728,6 +3729,107 @@ const SoccerTeamTracker = () => {
     if (!window.confirm(`⚠️ Eliminare definitivamente la valutazione di ${val?.cognomeNome || 'questo giocatore'}?\n\nQuesta azione NON può essere annullata!`)) return;
     setValutazioni(valutazioni.filter(v => v.id !== id));
     showToast('🗑️ Valutazione eliminata', 'success');
+  };
+
+  // 📷 Upload foto per scheda valutazione (stesso schema usato per la rosa: compressione + Firebase Storage)
+  const handleValutazioneImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('❌ Seleziona un file immagine valido (JPG, PNG, ecc.)');
+      e.target.value = '';
+      return;
+    }
+
+    const maxSize = 5 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert(`❌ File troppo grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 5MB.`);
+      e.target.value = '';
+      return;
+    }
+
+    if (!user) {
+      alert('❌ Devi essere autenticato per caricare foto su cloud');
+      e.target.value = '';
+      return;
+    }
+
+    showToast('📤 Caricamento foto su cloud...', 'info', 2000);
+
+    try {
+      // Comprimi immagine prima dell'upload (stesso schema foto giocatori: 300x300, JPEG 85%)
+      const compressedBlob = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxWidth = 300;
+            const maxHeight = 300;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = (width * maxHeight) / height;
+                height = maxHeight;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob(
+              (blob) => resolve(blob),
+              'image/jpeg',
+              0.85
+            );
+          };
+          img.onerror = () => reject(new Error('Errore caricamento immagine'));
+          img.src = event.target.result;
+        };
+        reader.onerror = () => reject(new Error('Errore lettura file'));
+        reader.readAsDataURL(file);
+      });
+
+      // Upload su cloud (cartella dedicata alle valutazioni)
+      const storageRef = storage.ref();
+      const fileName = `valutazioni/${user.uid}/${valutazioneForm.id}_${Date.now()}.jpg`;
+      const fileRef = storageRef.child(fileName);
+      
+      const uploadTask = await fileRef.put(compressedBlob);
+      const downloadURL = await fileRef.getDownloadURL();
+      
+      // Elimina vecchia foto se presente
+      if (valutazioneForm.foto && valutazioneForm.foto.startsWith('https://firebasestorage')) {
+        try {
+          const oldRef = storage.refFromURL(valutazioneForm.foto);
+          await oldRef.delete();
+        } catch (err) {
+          console.log('Vecchia foto valutazione non trovata o già eliminata');
+        }
+      }
+      
+      // Salva URL nel form
+      aggiornaCampoValutazione('foto', downloadURL);
+      
+      const sizeKB = Math.round((uploadTask.bytesTransferred || 0) / 1024);
+      showToast(`✅ Foto caricata su cloud! (${sizeKB}KB)`, 'success');
+      
+      e.target.value = '';
+    } catch (error) {
+      console.error('Errore upload foto valutazione:', error);
+      showToast('❌ Errore caricamento foto: ' + error.message, 'error', 5000);
+      e.target.value = '';
+    }
   };
 
   const handleImageUpload = async (numero, e) => {
@@ -15703,7 +15805,17 @@ const SoccerTeamTracker = () => {
                         <div key={val.id} className="bg-white border rounded-lg p-4 card-hover animate-fade-in">
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-3">
-                              <span className="text-2xl">{val.tipo === 'portiere' ? '🧤' : '⚽'}</span>
+                              {val.foto ? (
+                                <img 
+                                  src={val.foto} 
+                                  alt={val.cognomeNome} 
+                                  className="w-12 h-12 rounded-full object-cover cursor-pointer hover:opacity-80 transition-opacity flex-shrink-0"
+                                  onClick={() => setEnlargedPhoto({ foto: val.foto, nome: val.cognomeNome })}
+                                  title="Clicca per ingrandire"
+                                />
+                              ) : (
+                                <span className="text-2xl">{val.tipo === 'portiere' ? '🧤' : '⚽'}</span>
+                              )}
                               <div>
                                 <p className="font-bold text-gray-800">{val.cognomeNome || '(senza nome)'}</p>
                                 <p className="text-xs text-gray-500">
@@ -15786,15 +15898,42 @@ const SoccerTeamTracker = () => {
 
                   {/* Dati anagrafici */}
                   <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">Cognome e Nome *</label>
-                      <input
-                        type="text"
-                        value={valutazioneForm.cognomeNome}
-                        onChange={(e) => aggiornaCampoValutazione('cognomeNome', e.target.value)}
-                        placeholder="Cognome Nome..."
-                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
-                      />
+                    <div className="md:col-span-2 flex gap-4">
+                      {/* Foto giocatore/portiere */}
+                      <div className="w-24 h-24 bg-gray-200 rounded-lg flex items-center justify-center flex-shrink-0 relative">
+                        {valutazioneForm.foto ? (
+                          <img 
+                            src={valutazioneForm.foto} 
+                            alt={valutazioneForm.cognomeNome} 
+                            className="w-full h-full object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity" 
+                            onClick={() => setEnlargedPhoto({ foto: valutazioneForm.foto, nome: valutazioneForm.cognomeNome })}
+                            title="Clicca per ingrandire"
+                          />
+                        ) : (
+                          <div className="text-gray-400 text-center">
+                            <span className="text-3xl">{valutazioneForm.tipo === 'portiere' ? '🧤' : '⚽'}</span>
+                          </div>
+                        )}
+                        <label className="absolute bottom-0 right-0 bg-blue-600 text-white p-1 rounded-tl rounded-br cursor-pointer hover:bg-blue-700">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleValutazioneImageUpload}
+                            className="hidden"
+                          />
+                          <span className="text-xs">📷</span>
+                        </label>
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Cognome e Nome *</label>
+                        <input
+                          type="text"
+                          value={valutazioneForm.cognomeNome}
+                          onChange={(e) => aggiornaCampoValutazione('cognomeNome', e.target.value)}
+                          placeholder="Cognome Nome..."
+                          className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-yellow-500"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-600 mb-1">Anno</label>
