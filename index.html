@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.3.2'; // Marcatori sotto il punteggio in Live Match (stile grafica TV)
+      const APP_VERSION = '2.3.3'; // Statistiche: tabella sempre visibile anche su tablet (non più card singola)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -14835,7 +14835,7 @@ const SoccerTeamTracker = () => {
                 <h2 className="text-2xl md:text-2xl font-bold text-gray-800 mb-2 md:mb-3">📊 Statistiche Giocatori</h2>
                 
                 {/* Mini Stats Cards - Desktop: Grid 4 col */}
-                <div className="hidden md:grid md:grid-cols-4 gap-2 mb-3">
+                <div className="hidden sm:grid sm:grid-cols-4 gap-2 mb-3">
                   <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg p-3 text-white shadow-md">
                     <div className="text-xs opacity-90">Giocatori</div>
                     <div className="flex items-baseline gap-2">
@@ -14928,8 +14928,8 @@ const SoccerTeamTracker = () => {
                 `}</style>
               </div>
               
-              {/* Layout DESKTOP - Tabella Moderna - SCROLLABILE */}
-              <div className="hidden md:block flex-1 overflow-y-auto">
+              {/* Layout Tabella Moderna - SEMPRE VISIBILE (PC e Tablet) - SCROLLABILE */}
+              <div className="block flex-1 overflow-y-auto overflow-x-auto">
                 <div className="bg-white rounded-lg shadow-lg">
                   <table className="w-full text-xs">
                     <thead className="bg-gradient-to-r from-blue-600 to-blue-700 text-white sticky top-0">
@@ -15092,8 +15092,8 @@ const SoccerTeamTracker = () => {
                 </div>
               </div>
               
-              {/* Layout MOBILE - Card Moderne - SCROLLABILE */}
-              <div className="block md:hidden flex-1 overflow-y-auto">
+              {/* Layout Card Singola - DISATTIVATO (ora si usa sempre la tabella, anche su tablet) */}
+              <div className="hidden flex-1 overflow-y-auto">
                 <div className="w-full space-y-4 pb-4">
                   {calculateStats().map((stat, index) => {
                     const totAllenamenti = stat.allenamenti_presenze + stat.allenamenti_assenze;
