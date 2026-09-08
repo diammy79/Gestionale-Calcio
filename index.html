@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.3.3'; // Statistiche: tabella sempre visibile anche su tablet (non più card singola)
+      const APP_VERSION = '2.3.4'; // Fix riconoscimento cognomi composti (Del Sordo, Di Marco, ecc.) in MVP/timeline/sostituzioni/tattica
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2043,6 +2043,23 @@ const initDB = () => {
       }
     };
   });
+};
+
+// ========== HELPER COGNOME (gestisce cognomi composti tipo "Del Sordo", "Di Marco", "Van Persie") ==========
+const PREFISSI_COGNOME = ['del', 'della', 'dello', 'delli', 'degli', 'dei', 'di', 'de', 'da', 'dal', 'dalla', 'dallo', 'lo', 'la', 'le', 'van', 'von', 'der', 'den', 'du', 'des', 'mac', "d'"];
+
+// Estrae solo il cognome da "Cognome Nome" (formato usato in tutta l'app), 
+// gestendo correttamente i cognomi composti da più parole
+const getCognome = (nomeCompleto) => {
+  if (!nomeCompleto) return '';
+  const parole = nomeCompleto.trim().split(/\s+/);
+  if (parole.length <= 1) return parole[0] || '';
+  
+  let i = 0;
+  while (i < parole.length - 1 && PREFISSI_COGNOME.includes(parole[i].toLowerCase())) {
+    i++;
+  }
+  return parole.slice(0, i + 1).join(' ');
 };
 
 // ========== COSTANTI VALUTAZIONE GIOCATORI/PORTIERI ==========
@@ -13752,7 +13769,7 @@ const SoccerTeamTracker = () => {
                                 <>
                                   <span>🏆</span>
                                   <span className="hidden sm:inline">
-                                    MVP: {players.find(p => p.numero === match.mvp)?.nome.split(' ')[0] || `#${match.mvp}`}
+                                    MVP: {getCognome(players.find(p => p.numero === match.mvp)?.nome) || `#${match.mvp}`}
                                   </span>
                                 </>
                               ) : (
@@ -17668,7 +17685,7 @@ const SoccerTeamTracker = () => {
                                   const nostriMarcatori = (match.timeline || [])
                                     .filter(e => e.tipo === 'gol')
                                     .sort((a, b) => (a.minuto ?? 999) - (b.minuto ?? 999))
-                                    .map(e => `${e.playerNome.split(' ')[0]}${(e.minuto !== null && e.minuto !== undefined) ? ` ${e.minuto}'` : ''}`);
+                                    .map(e => `${getCognome(e.playerNome)}${(e.minuto !== null && e.minuto !== undefined) ? ` ${e.minuto}'` : ''}`);
                                   
                                   const marcatoriCasa = siamoInCasa ? nostriMarcatori : [];
                                   const marcatoriTrasferta = siamoInCasa ? [] : nostriMarcatori;
@@ -17934,7 +17951,7 @@ const SoccerTeamTracker = () => {
                                       {icon}
                                     </div>
                                     <div className="text-xs text-gray-800 mt-1 whitespace-nowrap font-semibold">
-                                      {evento.playerNome.split(' ')[0]}
+                                      {getCognome(evento.playerNome)}
                                     </div>
                                   </div>
                                 );
@@ -17956,8 +17973,8 @@ const SoccerTeamTracker = () => {
                                 if (!playerOut || !playerIn) return null;
                                 
                                 // Estrai cognomi
-                                const cognomeOut = playerOut.nome.split(' ')[0];
-                                const cognomeIn = playerIn.nome.split(' ')[0];
+                                const cognomeOut = getCognome(playerOut.nome);
+                                const cognomeIn = getCognome(playerIn.nome);
                                 
                                 return (
                                   <div 
@@ -19006,7 +19023,7 @@ const SoccerTeamTracker = () => {
                                   
                                   <div className="text-center">
                                     <p className="font-bold text-sm text-gray-800 mb-1">
-                                      {player.nome.split(' ')[0]}
+                                      {getCognome(player.nome)}
                                     </p>
                                     <p className="text-xs text-gray-600 mb-2 line-clamp-2">
                                       {player.nome}
