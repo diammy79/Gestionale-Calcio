@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.4.1'; // Export PDF statistiche rispetta il filtro Tutte/Campionato/Coppa attivo
+      const APP_VERSION = '2.4.2'; // Colori ruolo in Statistiche: Difensori (blu) e Centro/Trequarti/Esterno (verde) riconosciuti correttamente
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2043,6 +2043,59 @@ const initDB = () => {
       }
     };
   });
+};
+
+// ========== CLASSIFICAZIONE RUOLO (usata per ordinamento e colori) ==========
+// Restituisce un numero d'ordine in base al ruolo, riconoscendo tutte le varianti testuali
+const getRuoloOrder = (ruolo) => {
+  if (!ruolo) return 999;
+  const r = ruolo.toLowerCase().trim();
+  
+  // 1. Portieri
+  if (r.includes('portier') || r === 'por' || r === 'p') return 1;
+  
+  // 2. Difensori centrali
+  if ((r.includes('difensor') && r.includes('central')) || 
+      r === 'dc' || r === 'difensore centrale') return 2;
+  
+  // 3. Terzini
+  if (r.includes('terzin') || r === 'td' || r === 'ts' || 
+      r === 'terzino destro' || r === 'terzino sinistro') return 3;
+  
+  // 4. Centrocampisti centrali
+  if ((r.includes('centroc') && r.includes('central')) || 
+      r === 'cc' || r === 'centrocampista centrale' ||
+      r.includes('mediano') || r.includes('regista')) return 4;
+  
+  // 5. Esterni alti (esterni di centrocampo)
+  if ((r.includes('esterno') || r.includes('ala')) && 
+      !r.includes('attacc') && !r.includes('trequart')) return 5;
+  
+  // 6. Trequartisti
+  if (r.includes('trequart') || r === 'tq' || r === 'trequartista') return 6;
+  
+  // 7. Attaccanti
+  if (r.includes('attacc') || r.includes('punta') || 
+      r === 'at' || r === 'pc' || r === 'as' || r === 'ad') return 7;
+  
+  // Altri difensori (fallback)
+  if (r.includes('difensor') || r.includes('libero')) return 2.5;
+  
+  // Altri centrocampisti (fallback)
+  if (r.includes('centroc') || r.includes('mezzala')) return 4.5;
+  
+  return 999; // Ruoli non riconosciuti vanno alla fine
+};
+
+// Colore badge in base al ruolo: Portiere (giallo), Difensori (blu), 
+// Centrocampisti/Trequartisti/Esterni (verde, stesso colore), Attaccanti (rosso)
+const getRuoloColorClasses = (ruolo) => {
+  const ordine = getRuoloOrder(ruolo);
+  if (ordine === 1) return 'bg-yellow-100 text-yellow-700'; // Portiere
+  if (ordine === 2 || ordine === 2.5 || ordine === 3) return 'bg-blue-100 text-blue-700'; // Difensori (centrali, terzini, altri)
+  if (ordine === 4 || ordine === 4.5 || ordine === 5 || ordine === 6) return 'bg-green-100 text-green-700'; // Centrocampisti, esterni, trequartisti
+  if (ordine === 7) return 'bg-red-100 text-red-700'; // Attaccanti
+  return 'bg-gray-100 text-gray-700'; // Ruolo non riconosciuto/non impostato
 };
 
 // ========== HELPER COGNOME (gestisce cognomi composti tipo "Del Sordo", "Di Marco", "Van Persie") ==========
@@ -7166,46 +7219,7 @@ const SoccerTeamTracker = () => {
       });
     });
 
-    // Funzione helper per ordinamento per ruolo
-    const getRuoloOrder = (ruolo) => {
-      if (!ruolo) return 999;
-      const r = ruolo.toLowerCase().trim();
-      
-      // 1. Portieri
-      if (r.includes('portier') || r === 'por' || r === 'p') return 1;
-      
-      // 2. Difensori centrali
-      if ((r.includes('difensor') && r.includes('central')) || 
-          r === 'dc' || r === 'difensore centrale') return 2;
-      
-      // 3. Terzini
-      if (r.includes('terzin') || r === 'td' || r === 'ts' || 
-          r === 'terzino destro' || r === 'terzino sinistro') return 3;
-      
-      // 4. Centrocampisti centrali
-      if ((r.includes('centroc') && r.includes('central')) || 
-          r === 'cc' || r === 'centrocampista centrale' ||
-          r.includes('mediano') || r.includes('regista')) return 4;
-      
-      // 5. Esterni alti (esterni di centrocampo)
-      if ((r.includes('esterno') || r.includes('ala')) && 
-          !r.includes('attacc') && !r.includes('trequart')) return 5;
-      
-      // 6. Trequartisti
-      if (r.includes('trequart') || r === 'tq' || r === 'trequartista') return 6;
-      
-      // 7. Attaccanti
-      if (r.includes('attacc') || r.includes('punta') || 
-          r === 'at' || r === 'pc' || r === 'as' || r === 'ad') return 7;
-      
-      // Altri difensori (fallback)
-      if (r.includes('difensor') || r.includes('libero')) return 2.5;
-      
-      // Altri centrocampisti (fallback)
-      if (r.includes('centroc') || r.includes('mezzala')) return 4.5;
-      
-      return 999; // Ruoli non riconosciuti vanno alla fine
-    };
+    // Nota: ordinamento per ruolo tramite getRuoloOrder (funzione globale)
 
     return Object.values(stats)
       .filter(s => s.nome)
@@ -15058,13 +15072,7 @@ const SoccerTeamTracker = () => {
                             </td>
                             <td className="p-3 font-semibold text-gray-800">{stat.nome}</td>
                             <td className="p-3">
-                              <span className={`
-                                px-3 py-1 rounded-full text-xs font-semibold
-                                ${stat.ruolo === 'Portiere' ? 'bg-yellow-100 text-yellow-700' : ''}
-                                ${stat.ruolo === 'Difensore' ? 'bg-blue-100 text-blue-700' : ''}
-                                ${stat.ruolo === 'Centrocampista' ? 'bg-green-100 text-green-700' : ''}
-                                ${stat.ruolo === 'Attaccante' ? 'bg-red-100 text-red-700' : ''}
-                              `}>
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRuoloColorClasses(stat.ruolo)}`}>
                                 {stat.ruolo}
                               </span>
                             </td>
