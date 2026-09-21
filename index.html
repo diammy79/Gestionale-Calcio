@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.4.2'; // Colori ruolo in Statistiche: Difensori (blu) e Centro/Trequarti/Esterno (verde) riconosciuti correttamente
+      const APP_VERSION = '2.4.5'; // Rosa: data di nascita mostrata in formato gg/mm/yyyy (visualizzazione, non modifica)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -15689,7 +15689,7 @@ const SoccerTeamTracker = () => {
                               />
                             ) : (
                               <div className={player.dataNascita ? '' : 'text-gray-400 italic'}>
-                                {player.dataNascita ? `${player.dataNascita} (${calculateAge(player.dataNascita)} anni)` : '-'}
+                                {player.dataNascita ? `${player.dataNascita.split('-').reverse().join('/')} (${calculateAge(player.dataNascita)} anni)` : '-'}
                               </div>
                             )}
                           </div>
@@ -17797,10 +17797,8 @@ const SoccerTeamTracker = () => {
                               {matchEnded && (() => {
                                 const golFatti = Object.values(match.golFatti || {}).reduce((sum, gol) => sum + parseInt(gol || 0), 0);
                                 const golSubiti = Object.values(match.golSubiti || {}).reduce((sum, gol) => sum + parseInt(gol || 0), 0);
-                                const siamoInCasa = isTeamPlayingHome(match);
-                                const golCasa = siamoInCasa ? golFatti : golSubiti;
-                                const golTrasferta = siamoInCasa ? golSubiti : golFatti;
-                                const abbiamovinto = golCasa > golTrasferta;
+                                // ✅ FIX: confronto diretto gol fatti/subiti (funziona sia in casa che in trasferta)
+                                const abbiamovinto = golFatti > golSubiti;
                                 
                                 if (abbiamovinto) {
                                   return (
@@ -17918,6 +17916,15 @@ const SoccerTeamTracker = () => {
                                   });
                                 }} className="px-4 py-2 md:px-6 md:py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-sm">
                                   ⏩ 2° TEMPO
+                                </button>
+                              )}
+                              {halfTime === 2 && (
+                                <button onClick={() => {
+                                  showConfirm('🏁 TERMINA PARTITA\n\nLa partita verrà segnata come conclusa.\nPotrai ancora modificare gol/statistiche, ma il timer si fermerà.\n\nConfermi?', () => {
+                                    endMatch();
+                                  });
+                                }} className="px-4 py-2 md:px-6 md:py-3 bg-red-700 text-white rounded-lg hover:bg-red-800 font-bold text-sm">
+                                  🏁 FINE PARTITA
                                 </button>
                               )}
                               <button onClick={() => {
