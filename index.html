@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.4.5'; // Rosa: data di nascita mostrata in formato gg/mm/yyyy (visualizzazione, non modifica)
+      const APP_VERSION = '2.5.0'; // Nuova sezione Test Atletici (8 test, calcoli automatici, import presenze, export PDF)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2195,8 +2195,218 @@ const calcolaPunteggiValutazione = (valutazione) => {
   });
   
   const punteggioComplessivo = countTotale > 0 ? Math.round((sommaTotale / (countTotale * 4)) * 100) : null;
-  
+
   return { punteggiCategoria, punteggioComplessivo };
+};
+
+// ========== TEST ATLETICI: definizioni, tabelle di riferimento e funzioni di calcolo ==========
+
+// Tabella ufficiale Beep Test / Test di Léger (livello -> navette nel livello -> distanza cumulativa in metri)
+const BEEP_TEST_TABELLA = [
+  { livello: 1, navette: 7, distanzaCumulativa: 140 },
+  { livello: 2, navette: 8, distanzaCumulativa: 300 },
+  { livello: 3, navette: 8, distanzaCumulativa: 460 },
+  { livello: 4, navette: 9, distanzaCumulativa: 640 },
+  { livello: 5, navette: 9, distanzaCumulativa: 820 },
+  { livello: 6, navette: 10, distanzaCumulativa: 1020 },
+  { livello: 7, navette: 10, distanzaCumulativa: 1220 },
+  { livello: 8, navette: 11, distanzaCumulativa: 1440 },
+  { livello: 9, navette: 11, distanzaCumulativa: 1660 },
+  { livello: 10, navette: 11, distanzaCumulativa: 1880 },
+  { livello: 11, navette: 12, distanzaCumulativa: 2120 },
+  { livello: 12, navette: 12, distanzaCumulativa: 2360 },
+  { livello: 13, navette: 13, distanzaCumulativa: 2620 },
+  { livello: 14, navette: 13, distanzaCumulativa: 2880 },
+  { livello: 15, navette: 13, distanzaCumulativa: 3140 },
+  { livello: 16, navette: 14, distanzaCumulativa: 3420 },
+  { livello: 17, navette: 14, distanzaCumulativa: 3700 },
+  { livello: 18, navette: 15, distanzaCumulativa: 4000 },
+  { livello: 19, navette: 15, distanzaCumulativa: 4300 },
+  { livello: 20, navette: 16, distanzaCumulativa: 4620 },
+  { livello: 21, navette: 16, distanzaCumulativa: 4940 }
+];
+
+// Tabella ufficiale Yo-Yo Intermittent Recovery Test - Livello 1 (YYIR1)
+// (livello -> navette nel livello -> distanza cumulativa in metri; ogni navetta = 40m, 20m andata + 20m ritorno)
+const YOYO_IR1_TABELLA = [
+  { livello: 5, navette: 1, distanzaCumulativa: 40 },
+  { livello: 9, navette: 1, distanzaCumulativa: 80 },
+  { livello: 11, navette: 2, distanzaCumulativa: 160 },
+  { livello: 12, navette: 3, distanzaCumulativa: 280 },
+  { livello: 13, navette: 4, distanzaCumulativa: 440 },
+  { livello: 14, navette: 8, distanzaCumulativa: 760 },
+  { livello: 15, navette: 8, distanzaCumulativa: 1080 },
+  { livello: 16, navette: 8, distanzaCumulativa: 1400 },
+  { livello: 17, navette: 8, distanzaCumulativa: 1720 },
+  { livello: 18, navette: 8, distanzaCumulativa: 2040 },
+  { livello: 19, navette: 8, distanzaCumulativa: 2360 },
+  { livello: 20, navette: 8, distanzaCumulativa: 2680 },
+  { livello: 21, navette: 8, distanzaCumulativa: 3000 },
+  { livello: 22, navette: 8, distanzaCumulativa: 3320 },
+  { livello: 23, navette: 8, distanzaCumulativa: 3640 }
+];
+
+// Calcola la distanza totale (m) percorsa dato livello raggiunto + navette completate in quel livello, usando una tabella livello/navette/cumulativa
+const calcolaDistanzaDaTabella = (tabella, livelloRaggiunto, navetteCompletateNelLivello) => {
+  const lv = parseInt(livelloRaggiunto);
+  const nav = parseInt(navetteCompletateNelLivello) || 0;
+  if (!lv || isNaN(lv)) return null;
+  // Trova la riga del livello raggiunto e quella del livello precedente presente in tabella
+  const idx = tabella.findIndex(r => r.livello === lv);
+  if (idx === -1) return null;
+  const distanzaFineLivelloPrecedente = idx > 0 ? tabella[idx - 1].distanzaCumulativa : 0;
+  const navetteValide = Math.max(0, Math.min(nav, tabella[idx].navette));
+  return distanzaFineLivelloPrecedente + (navetteValide * 40);
+};
+
+// ---- Formule di calcolo per ciascun test ----
+
+const calcolaCooperVO2max = (distanzaMetri) => {
+  const d = parseFloat(distanzaMetri);
+  if (!d || isNaN(d)) return null;
+  return Math.round(((d - 504.9) / 44.73) * 10) / 10;
+};
+
+const calcolaYoyoRisultato = (livello, tratto) => {
+  const distanza = calcolaDistanzaDaTabella(YOYO_IR1_TABELLA, livello, tratto);
+  if (distanza === null) return { distanza: null, vo2max: null };
+  const vo2max = Math.round((distanza * 0.0084 + 36.4) * 10) / 10;
+  return { distanza, vo2max };
+};
+
+const calcolaBeepRisultato = (livello, tratto) => {
+  const distanza = calcolaDistanzaDaTabella(BEEP_TEST_TABELLA, livello, tratto);
+  if (distanza === null) return { distanza: null, vo2max: null };
+  const lv = parseInt(livello);
+  const idx = BEEP_TEST_TABELLA.findIndex(r => r.livello === lv);
+  const navetteTotaliLivello = idx !== -1 ? BEEP_TEST_TABELLA[idx].navette : 1;
+  const navetteFatte = Math.max(0, Math.min(parseInt(tratto) || 0, navetteTotaliLivello));
+  const punteggioContinuo = lv + (navetteFatte / navetteTotaliLivello);
+  const vo2max = Math.round((3.46 * punteggioContinuo + 12.2) * 10) / 10;
+  return { distanza, vo2max };
+};
+
+const calcolaRSARisultato = (tempi) => {
+  // tempi: array di 6 numeri (secondi)
+  const validi = (tempi || []).map(t => parseFloat(t)).filter(t => !isNaN(t) && t > 0);
+  if (validi.length === 0) return { tempoMigliore: null, tempoMedio: null, percentualeDecremento: null };
+  const tempoMigliore = Math.min(...validi);
+  const somma = validi.reduce((a, b) => a + b, 0);
+  const tempoMedio = Math.round((somma / validi.length) * 100) / 100;
+  const percentualeDecremento = Math.round(((somma - (tempoMigliore * validi.length)) / (tempoMigliore * validi.length)) * 1000) / 10;
+  return { tempoMigliore: Math.round(tempoMigliore * 100) / 100, tempoMedio, percentualeDecremento };
+};
+
+const calcolaSprintRisultato = (t10, t20, t30) => {
+  const T10 = parseFloat(t10), T20 = parseFloat(t20), T30 = parseFloat(t30);
+  const risultato = { velocita0_10: null, velocita10_20: null, velocita20_30: null };
+  if (!isNaN(T10) && T10 > 0) risultato.velocita0_10 = Math.round((10 / T10) * 3.6 * 100) / 100;
+  if (!isNaN(T10) && !isNaN(T20) && T20 > T10) risultato.velocita10_20 = Math.round((10 / (T20 - T10)) * 3.6 * 100) / 100;
+  if (!isNaN(T20) && !isNaN(T30) && T30 > T20) risultato.velocita20_30 = Math.round((10 / (T30 - T20)) * 3.6 * 100) / 100;
+  return risultato;
+};
+
+const calcolaGaconRisultato = (stepRaggiunto, velocitaIniziale = 10) => {
+  const step = parseInt(stepRaggiunto);
+  if (!step || isNaN(step) || step < 1) return { vam: null, vo2max: null };
+  const vam = Math.round((velocitaIniziale + 0.5 * (step - 1)) * 10) / 10;
+  const vo2max = Math.round((vam * 3.5) * 10) / 10;
+  return { vam, vo2max };
+};
+
+// Elenco dei test atletici disponibili con schema di inserimento dati e istruzioni complete (protocollo + finalità)
+const TEST_ATLETICI_LISTA = [
+  {
+    id: 'bronco',
+    nome: 'Bronco Test',
+    icona: '🏃',
+    schema: 'tempoSingolo',
+    unitaTempo: 'mm:ss (es. 4:32)',
+    istruzioni: 'PROTOCOLLO: si posizionano 3 coni a 20m, 40m e 60m dal punto di partenza. L\'atleta corre alla massima velocità sostenibile fino al primo cono e torna al via, poi raggiunge il secondo cono e torna, poi il terzo cono e torna: questo percorso (240m) costituisce un giro. Il giro va ripetuto per 5 volte consecutive, senza interruzioni, per un totale di 1200 metri. Si cronometra il tempo totale impiegato per completare i 5 giri. FINALITÀ: valuta la capacità di sostenere ripetuti sforzi ad alta intensità con cambi di direzione (resistenza alla velocità), un parametro chiave della condizione atletica nel calcio.'
+  },
+  {
+    id: 'cooper',
+    nome: 'Test di Cooper',
+    icona: '🏃‍♂️',
+    schema: 'distanza',
+    istruzioni: 'PROTOCOLLO: l\'atleta corre alla massima intensità sostenibile per 12 minuti continuativi su una pista o un terreno pianeggiante misurato. Al termine dei 12 minuti si registra la distanza totale percorsa in metri. FINALITÀ: stima la capacità aerobica (VO2max) e la resistenza aerobica generale, utile per valutare il livello di fondo dell\'atleta e programmare il lavoro aerobico.'
+  },
+  {
+    id: 'yoyo',
+    nome: 'Yo-Yo Intermittent Recovery Test (Livello 1)',
+    icona: '🔁',
+    schema: 'livelloTratto',
+    tabella: 'YOYO_IR1_TABELLA',
+    istruzioni: 'PROTOCOLLO: l\'atleta esegue navette da 20m (andata e ritorno = 40m a navetta) a velocità crescente scandita da un segnale audio, con 10 secondi di recupero attivo a camminata dopo ogni tratto da 20m. Il test termina quando l\'atleta non riesce più a raggiungere la linea in tempo per due volte consecutive, oppure si ritira. Si registra il livello e il numero di navette completate in quel livello. FINALITÀ: misura la capacità di eseguire ripetutamente sforzi intermittenti ad alta intensità con brevi recuperi, riproducendo le richieste fisiologiche tipiche del calcio; stima inoltre indirettamente il VO2max.'
+  },
+  {
+    id: 'beep',
+    nome: 'Beep Test / Test di Léger (Shuttle Test)',
+    icona: '📶',
+    schema: 'livelloTratto',
+    tabella: 'BEEP_TEST_TABELLA',
+    istruzioni: 'PROTOCOLLO: navette da 20 metri eseguite avanti e indietro al ritmo di un segnale audio che accelera progressivamente a ogni livello (circa ogni minuto). L\'atleta deve toccare la linea a ogni segnale; il test termina quando non riesce più a stare a ritmo per due volte consecutive. Si registra il livello e il numero di navette completate in quel livello. FINALITÀ: stima il consumo massimo di ossigeno (VO2max) e la capacità aerobica generale; è uno dei test di fitness cardiorespiratorio più diffusi. NOTA: il VO2max qui calcolato è una stima (formula di Ramsbottom, 1988): in letteratura esistono altre formule (es. Léger, Flouris) che possono dare valori leggermente diversi.'
+  },
+  {
+    id: 'rsa',
+    nome: 'RSA - Capanna Sassi (6x20m)',
+    icona: '⚡',
+    schema: 'ripetute6x20',
+    istruzioni: 'PROTOCOLLO: l\'atleta esegue 6 ripetute di sprint massimale su 20 metri, con 20 secondi di recupero passivo tra una ripetuta e la successiva. Si cronometra il tempo di ciascuna delle 6 ripetute. FINALITÀ: valuta la capacità di ripetere sprint massimali con recuperi brevi (Repeated Sprint Ability - RSA), una qualità fondamentale nel calcio per le azioni ripetute ad alta intensità in fase offensiva e difensiva. Vengono calcolati automaticamente il tempo migliore, il tempo medio e la percentuale di decremento (indice di affaticamento): valori di decremento più bassi indicano una migliore capacità di ripetere sforzi massimali senza calo di prestazione.'
+  },
+  {
+    id: 'sprint',
+    nome: 'Sprint 10-20-30m',
+    icona: '💨',
+    schema: 'sprintParziali',
+    istruzioni: 'PROTOCOLLO: partenza da fermo (in piedi), cronometraggio dei tempi parziali a 10m, 20m e 30m, tramite fotocellule oppure cronometro manuale con osservatori posizionati ai rispettivi punti del percorso. FINALITÀ: valuta separatamente la velocità di accelerazione (primo tratto 0-10m), la velocità di transizione (10-20m) e la velocità massima lanciata (20-30m), permettendo di individuare i punti di forza/debolezza nella corsa veloce di ciascun giocatore.'
+  },
+  {
+    id: 'illinois',
+    nome: 'Illinois Agility Test',
+    icona: '🔀',
+    schema: 'tempoSingolo',
+    unitaTempo: 'ss.cc (es. 16.35)',
+    istruzioni: 'PROTOCOLLO: si allestisce un percorso rettangolare di 10m x 5m con 8 coni disposti a formare un tracciato a slalom nella parte centrale. L\'atleta parte in posizione prona (sdraiato a pancia in giù) con le mani all\'altezza delle spalle; al via si alza il più rapidamente possibile e percorre il tracciato alla massima velocità, cronometrando il tempo totale impiegato per completarlo. FINALITÀ: valuta l\'agilità, cioè la capacità di accelerare, decelerare e cambiare rapidamente direzione mantenendo il controllo del corpo, qualità essenziale nelle situazioni di gioco 1 contro 1.'
+  },
+  {
+    id: 'gacon',
+    nome: 'Test di Gacon',
+    icona: '📈',
+    schema: 'stepGacon',
+    istruzioni: 'PROTOCOLLO: l\'atleta corre a navetta su un percorso (tipicamente di circa 125m per adulti/U18) con velocità che aumenta progressivamente a ogni step scandito da un segnale sonoro. Il test termina quando l\'atleta non riesce più a mantenere il ritmo richiesto. Si registra l\'ultimo step completato. FINALITÀ: stima diretta la Velocità Aerobica Massima (VAM), cioè la velocità minima alla quale si raggiunge il massimo consumo di ossigeno: è un parametro fondamentale per individualizzare i carichi di lavoro nell\'allenamento della resistenza aerobica (es. definire le velocità degli allenamenti intermittenti). Velocità iniziale standard utilizzata: 10 km/h; VAM = velocità iniziale + 0,5 km/h x (step completati - 1); VO2max stimato = VAM x 3,5.'
+  }
+];
+
+const getTestAtleticoDef = (testId) => TEST_ATLETICI_LISTA.find(t => t.id === testId);
+
+// Crea la struttura dati vuota per una nuova sessione di test atletico
+const creaTestAtleticoVuoto = (testId, data) => ({
+  id: `testatl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  testId,
+  data: data || new Date().toISOString().split('T')[0],
+  risultati: {} // chiave: numero maglia giocatore -> dati grezzi inseriti per quel test
+});
+
+// Calcola i risultati (valori derivati/automatici) per un singolo giocatore in base allo schema del test
+const calcolaRisultatoGiocatoreTest = (testId, datiGrezzi) => {
+  if (!datiGrezzi) return {};
+  switch (testId) {
+    case 'cooper':
+      return { vo2max: calcolaCooperVO2max(datiGrezzi.distanza) };
+    case 'yoyo':
+      return calcolaYoyoRisultato(datiGrezzi.livello, datiGrezzi.tratto);
+    case 'beep':
+      return calcolaBeepRisultato(datiGrezzi.livello, datiGrezzi.tratto);
+    case 'rsa':
+      return calcolaRSARisultato(datiGrezzi.tempi);
+    case 'sprint':
+      return calcolaSprintRisultato(datiGrezzi.t10, datiGrezzi.t20, datiGrezzi.t30);
+    case 'gacon':
+      return calcolaGaconRisultato(datiGrezzi.step, 10);
+    default:
+      return {};
+  }
 };
 
 const saveToIndexedDB = async (key, data) => {
@@ -2410,7 +2620,16 @@ const SoccerTeamTracker = () => {
 
   // ========== FILTRO STATISTICHE: Campionato / Coppa ==========
   const [statsFiltroTipo, setStatsFiltroTipo] = useState('tutte'); // 'tutte', 'campionato', 'coppa'
-  
+
+  // ========== TEST ATLETICI ==========
+  const [testAtletici, setTestAtletici] = useState([]); // array di sessioni { id, testId, data, risultati: { [numero]: datiGrezzi } }
+  const [showNuovoTestAtleticoModal, setShowNuovoTestAtleticoModal] = useState(false);
+  const [nuovoTestAtleticoTipo, setNuovoTestAtleticoTipo] = useState('');
+  const [nuovoTestAtleticoData, setNuovoTestAtleticoData] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedTrainingForTestAtletico, setSelectedTrainingForTestAtletico] = useState('');
+  const [viewingTestAtleticoId, setViewingTestAtleticoId] = useState(null); // sessione aperta per inserimento/visualizzazione tempi
+  const [showTestAtleticoIstruzioni, setShowTestAtleticoIstruzioni] = useState(null); // testId di cui mostrare le istruzioni
+
   // Calendario
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -2542,6 +2761,7 @@ const SoccerTeamTracker = () => {
           setSquadreGirone(savedData.squadreGirone || []);
           setRisultatiCampionato(savedData.risultatiCampionato || []);
           setValutazioni(savedData.valutazioni || []);
+          setTestAtletici(savedData.testAtletici || []);
           setLastSaved(savedData.lastSaved ? new Date(savedData.lastSaved) : null);
         }
       } catch (error) {
@@ -2673,17 +2893,18 @@ const SoccerTeamTracker = () => {
         squadreGirone,
         risultatiCampionato,
         valutazioni,
+        testAtletici,
         lastSaved: new Date().toISOString()
       };
-      
+
       const success = await saveToIndexedDB('squadraRealDOR', dataToSave);
       if (success) {
         setLastSaved(new Date());
       }
     };
-    
+
     saveData();
-  }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, valutazioni, isLoading]);
+  }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, valutazioni, testAtletici, isLoading]);
 
   // ========== GESTIONE STATO CONNESSIONE (ONLINE/OFFLINE) ==========
   useEffect(() => {
@@ -2765,7 +2986,7 @@ const SoccerTeamTracker = () => {
     }, 8 * 60 * 1000); // 8 minuti (ottimizzato per tablet)
     
     return () => clearInterval(autoSaveInterval);
-  }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato, valutazioni]);
+  }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato, valutazioni, testAtletici]);
 
   // ========== POLLING AUTO-RELOAD PER USER (OGNI MINUTO) ==========
   useEffect(() => {
@@ -3801,6 +4022,253 @@ const SoccerTeamTracker = () => {
     if (!window.confirm(`⚠️ Eliminare definitivamente la valutazione di ${val?.cognomeNome || 'questo giocatore'}?\n\nQuesta azione NON può essere annullata!`)) return;
     setValutazioni(valutazioni.filter(v => v.id !== id));
     showToast('🗑️ Valutazione eliminata', 'success');
+  };
+
+  // ========== TEST ATLETICI: funzioni CRUD ==========
+
+  const apriNuovoTestAtleticoModal = () => {
+    setNuovoTestAtleticoTipo('');
+    setNuovoTestAtleticoData(new Date().toISOString().split('T')[0]);
+    setSelectedTrainingForTestAtletico('');
+    setShowNuovoTestAtleticoModal(true);
+  };
+
+  const chiudiNuovoTestAtleticoModal = () => {
+    setShowNuovoTestAtleticoModal(false);
+    setNuovoTestAtleticoTipo('');
+    setSelectedTrainingForTestAtletico('');
+  };
+
+  // Crea una nuova sessione di test atletico, opzionalmente pre-popolando i giocatori dai presenti a un allenamento
+  const creaNuovaSessioneTestAtletico = () => {
+    if (!nuovoTestAtleticoTipo) {
+      alert('⚠️ Seleziona il tipo di test');
+      return;
+    }
+    if (!nuovoTestAtleticoData) {
+      alert('⚠️ Seleziona la data del test');
+      return;
+    }
+
+    const nuovaSessione = creaTestAtleticoVuoto(nuovoTestAtleticoTipo, nuovoTestAtleticoData);
+
+    // Se è stato selezionato un allenamento, pre-popola i giocatori presenti con una riga vuota
+    if (selectedTrainingForTestAtletico) {
+      const trainingId = parseInt(selectedTrainingForTestAtletico);
+      const training = trainings.find(t => t.id === trainingId);
+      if (training && training.presenze) {
+        const numeriPresenti = Object.entries(training.presenze)
+          .filter(([_, presente]) => presente === true)
+          .map(([numero, _]) => parseInt(numero));
+        numeriPresenti.forEach(numero => {
+          const player = players.find(p => p.numero === numero);
+          if (player && player.nome && !player.fuoriRosa) {
+            nuovaSessione.risultati[numero] = {};
+          }
+        });
+      }
+    } else {
+      // Nessun allenamento selezionato: pre-popola con tutti i giocatori attivi (non fuori rosa)
+      players.forEach(player => {
+        if (player.nome && !player.fuoriRosa) {
+          nuovaSessione.risultati[player.numero] = {};
+        }
+      });
+    }
+
+    setTestAtletici([...testAtletici, nuovaSessione]);
+    chiudiNuovoTestAtleticoModal();
+    setViewingTestAtleticoId(nuovaSessione.id);
+    showToast(`✅ Sessione "${getTestAtleticoDef(nuovoTestAtleticoTipo)?.nome}" creata!`, 'success');
+  };
+
+  // Aggiunge/rimuove un giocatore dalla sessione aperta (per aggiungere qualcuno arrivato dopo, o rimuovere chi non ha svolto il test)
+  const toggleGiocatoreInSessioneTest = (sessioneId, numero) => {
+    setTestAtletici(testAtletici.map(s => {
+      if (s.id !== sessioneId) return s;
+      const risultati = { ...s.risultati };
+      if (risultati.hasOwnProperty(numero)) {
+        delete risultati[numero];
+      } else {
+        risultati[numero] = {};
+      }
+      return { ...s, risultati };
+    }));
+  };
+
+  // Aggiorna un singolo campo dei dati grezzi di un giocatore all'interno di una sessione di test
+  const aggiornaDatoTestAtletico = (sessioneId, numero, campo, valore) => {
+    setTestAtletici(testAtletici.map(s => {
+      if (s.id !== sessioneId) return s;
+      const risultati = { ...s.risultati };
+      const datiGiocatore = { ...(risultati[numero] || {}) };
+      datiGiocatore[campo] = valore;
+      risultati[numero] = datiGiocatore;
+      return { ...s, risultati };
+    }));
+  };
+
+  // Aggiorna una ripetuta (array) per test tipo RSA (6x20m)
+  const aggiornaRipetutaTestAtletico = (sessioneId, numero, indiceRipetuta, valore) => {
+    setTestAtletici(testAtletici.map(s => {
+      if (s.id !== sessioneId) return s;
+      const risultati = { ...s.risultati };
+      const datiGiocatore = { ...(risultati[numero] || {}) };
+      const tempi = Array.isArray(datiGiocatore.tempi) ? [...datiGiocatore.tempi] : ['', '', '', '', '', ''];
+      tempi[indiceRipetuta] = valore;
+      datiGiocatore.tempi = tempi;
+      risultati[numero] = datiGiocatore;
+      return { ...s, risultati };
+    }));
+  };
+
+  const eliminaSessioneTestAtletico = (id) => {
+    const sessione = testAtletici.find(s => s.id === id);
+    const def = sessione ? getTestAtleticoDef(sessione.testId) : null;
+    if (!window.confirm(`⚠️ Eliminare definitivamente la sessione "${def?.nome || 'test'}" del ${sessione ? new Date(sessione.data).toLocaleDateString('it-IT') : ''}?\n\nQuesta azione NON può essere annullata!`)) return;
+    setTestAtletici(testAtletici.filter(s => s.id !== id));
+    if (viewingTestAtleticoId === id) setViewingTestAtleticoId(null);
+    showToast('🗑️ Sessione test eliminata', 'success');
+  };
+
+  // ========== TEST ATLETICI: export PDF (modulo vuoto da stampare / risultati compilati) ==========
+
+  // Intestazioni colonne tabella in base allo schema del test
+  const getColonneSchemaTest = (schema, compilato) => {
+    switch (schema) {
+      case 'tempoSingolo':
+        return compilato ? ['N°', 'Giocatore', 'Tempo'] : ['N°', 'Giocatore', 'Tempo rilevato'];
+      case 'distanza':
+        return compilato ? ['N°', 'Giocatore', 'Distanza (m)', 'VO2max stimato'] : ['N°', 'Giocatore', 'Distanza (m)'];
+      case 'livelloTratto':
+        return compilato
+          ? ['N°', 'Giocatore', 'Livello', 'Tratto', 'Distanza (m)', 'VO2max stimato']
+          : ['N°', 'Giocatore', 'Livello', 'Tratto'];
+      case 'ripetute6x20':
+        return compilato
+          ? ['N°', 'Giocatore', 'Rip.1', 'Rip.2', 'Rip.3', 'Rip.4', 'Rip.5', 'Rip.6', 'Migliore', 'Media', '% Decr.']
+          : ['N°', 'Giocatore', 'Rip.1', 'Rip.2', 'Rip.3', 'Rip.4', 'Rip.5', 'Rip.6'];
+      case 'sprintParziali':
+        return compilato
+          ? ['N°', 'Giocatore', 'T 10m', 'T 20m', 'T 30m', 'km/h 0-10', 'km/h 10-20', 'km/h 20-30']
+          : ['N°', 'Giocatore', 'T 10m', 'T 20m', 'T 30m'];
+      case 'stepGacon':
+        return compilato
+          ? ['N°', 'Giocatore', 'Step raggiunto', 'VAM (km/h)', 'VO2max stimato']
+          : ['N°', 'Giocatore', 'Step raggiunto'];
+      default:
+        return ['N°', 'Giocatore'];
+    }
+  };
+
+  // Esporta un modulo VUOTO da stampare per la rilevazione manuale sul campo
+  const exportTestAtleticoPDFVuoto = (testId) => {
+    const def = getTestAtleticoDef(testId);
+    if (!def) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text(def.nome, 105, 15, { align: 'center' });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${appTitle || ''}`, 105, 22, { align: 'center' });
+    doc.text(`Data test: ____________________`, 15, 32);
+
+    // Istruzioni sintetiche
+    doc.setFontSize(8);
+    const istruzioniLines = doc.splitTextToSize(def.istruzioni, 180);
+    doc.text(istruzioniLines, 15, 39);
+    const yTabella = 39 + istruzioniLines.length * 3.6 + 6;
+
+    const giocatoriAttivi = players.filter(p => p.nome && !p.fuoriRosa).sort((a, b) => a.numero - b.numero);
+    const head = getColonneSchemaTest(def.schema, false);
+    const body = giocatoriAttivi.map(p => {
+      const riga = [p.numero, p.nome];
+      const nCampiVuoti = head.length - 2;
+      for (let i = 0; i < nCampiVuoti; i++) riga.push('');
+      return riga;
+    });
+
+    doc.autoTable({
+      startY: yTabella,
+      head: [head],
+      body,
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246], fontSize: 9, fontStyle: 'bold', halign: 'center' },
+      bodyStyles: { fontSize: 9, minCellHeight: 8 },
+      columnStyles: { 0: { halign: 'center', cellWidth: 12 }, 1: { halign: 'left', cellWidth: 45 } }
+    });
+
+    doc.save(`ModuloVuoto_${def.id}_${new Date().toISOString().split('T')[0]}.pdf`);
+    showToast('📄 Modulo PDF vuoto generato!', 'success');
+  };
+
+  // Esporta i risultati COMPILATI di una sessione di test già svolta
+  const exportTestAtleticoPDFCompilato = (sessioneId) => {
+    const sessione = testAtletici.find(s => s.id === sessioneId);
+    if (!sessione) return;
+    const def = getTestAtleticoDef(sessione.testId);
+    if (!def) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text(def.nome, 105, 15, { align: 'center' });
+
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${appTitle || ''}`, 105, 22, { align: 'center' });
+    doc.text(`Data test: ${new Date(sessione.data).toLocaleDateString('it-IT')}`, 15, 30);
+
+    const head = getColonneSchemaTest(def.schema, true);
+    const numeriGiocatori = Object.keys(sessione.risultati).map(n => parseInt(n)).sort((a, b) => a - b);
+
+    const body = numeriGiocatori.map(numero => {
+      const player = players.find(p => p.numero === numero);
+      const nomeGiocatore = player?.nome || `Giocatore #${numero}`;
+      const dati = sessione.risultati[numero] || {};
+      const calcolo = calcolaRisultatoGiocatoreTest(def.id, dati);
+
+      switch (def.schema) {
+        case 'tempoSingolo':
+          return [numero, nomeGiocatore, dati.tempo || '-'];
+        case 'distanza':
+          return [numero, nomeGiocatore, dati.distanza || '-', calcolo.vo2max != null ? calcolo.vo2max : '-'];
+        case 'livelloTratto':
+          return [numero, nomeGiocatore, dati.livello || '-', dati.tratto || '-', calcolo.distanza != null ? calcolo.distanza : '-', calcolo.vo2max != null ? calcolo.vo2max : '-'];
+        case 'ripetute6x20': {
+          const tempi = Array.isArray(dati.tempi) ? dati.tempi : ['', '', '', '', '', ''];
+          const rsa = calcolaRSARisultato(tempi);
+          return [numero, nomeGiocatore, ...tempi.map(t => t || '-'), rsa.tempoMigliore != null ? rsa.tempoMigliore : '-', rsa.tempoMedio != null ? rsa.tempoMedio : '-', rsa.percentualeDecremento != null ? rsa.percentualeDecremento + '%' : '-'];
+        }
+        case 'sprintParziali':
+          return [numero, nomeGiocatore, dati.t10 || '-', dati.t20 || '-', dati.t30 || '-',
+            calcolo.velocita0_10 != null ? calcolo.velocita0_10 : '-',
+            calcolo.velocita10_20 != null ? calcolo.velocita10_20 : '-',
+            calcolo.velocita20_30 != null ? calcolo.velocita20_30 : '-'];
+        case 'stepGacon':
+          return [numero, nomeGiocatore, dati.step || '-', calcolo.vam != null ? calcolo.vam : '-', calcolo.vo2max != null ? calcolo.vo2max : '-'];
+        default:
+          return [numero, nomeGiocatore];
+      }
+    });
+
+    doc.autoTable({
+      startY: 36,
+      head: [head],
+      body,
+      theme: 'grid',
+      headStyles: { fillColor: [16, 122, 66], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+      bodyStyles: { fontSize: 8, halign: 'center' },
+      columnStyles: { 1: { halign: 'left' } }
+    });
+
+    doc.save(`RisultatiTest_${def.id}_${sessione.data}.pdf`);
+    showToast('📄 Report risultati PDF generato!', 'success');
   };
 
   // 📷 Upload foto per scheda valutazione (stesso schema usato per la rosa: compressione + Firebase Storage)
@@ -5449,6 +5917,7 @@ const SoccerTeamTracker = () => {
         squadreGirone,        // ✅ AGGIUNTO: Squadre del girone
         risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
         valutazioni,          // ✅ AGGIUNTO: Valutazioni nuovi giocatori
+        testAtletici,         // ✅ AGGIUNTO: Test Atletici
         appTitle,             // ✅ AGGIUNTO: Titolo app
         teamName,             // ✅ AGGIUNTO: Nome squadra
         teamLogo,             // ✅ AGGIUNTO: Logo squadra (URL Storage o base64)
@@ -5467,6 +5936,7 @@ const SoccerTeamTracker = () => {
         squadreGirone: squadreGirone.length,
         risultatiCampionato: risultatiCampionato.length,
         valutazioni: valutazioni.length,
+        testAtletici: testAtletici.length,
         fuoriRosa: playersWithFuoriRosa.filter(p => p.fuoriRosa).length,
         appTitle: appTitle,
         teamName: teamName || '(vuoto)',  // ✅ Log per debug
@@ -5598,6 +6068,7 @@ const SoccerTeamTracker = () => {
       if (data.squadreGirone) setSquadreGirone(data.squadreGirone);              // ✅ AGGIUNTO
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
       if (data.valutazioni) setValutazioni(data.valutazioni);                    // ✅ AGGIUNTO: Valutazioni giocatori
+      if (data.testAtletici) setTestAtletici(data.testAtletici);                 // ✅ AGGIUNTO: Test Atletici
       if (data.appTitle) setAppTitle(data.appTitle);                             // ✅ AGGIUNTO: Titolo app
       // Carica teamName anche se vuoto (usa hasOwnProperty per verificare esistenza)
       if (data.hasOwnProperty('teamName')) setTeamName(data.teamName || '');     // ✅ AGGIUNTO: Nome squadra
@@ -5624,6 +6095,7 @@ const SoccerTeamTracker = () => {
         squadreGirone: data.squadreGirone || [],              // ✅ AGGIUNTO
         risultatiCampionato: data.risultatiCampionato || [],  // ✅ AGGIUNTO
         valutazioni: data.valutazioni || [],                  // ✅ AGGIUNTO: Valutazioni giocatori
+        testAtletici: data.testAtletici || [],                // ✅ AGGIUNTO: Test Atletici
         appTitle: data.appTitle || appTitle,                  // ✅ AGGIUNTO: Titolo app
         teamName: data.teamName || '',                        // ✅ AGGIUNTO: Nome squadra
         teamLogo: data.teamLogo || teamLogo                   // ✅ AGGIUNTO: Logo squadra (URL o base64)
@@ -5947,7 +6419,12 @@ const SoccerTeamTracker = () => {
         if (data.valutazioni) {
           setValutazioni(data.valutazioni);
         }
-        
+
+        // ✅ Ripristina Test Atletici (con controllo retrocompatibilità)
+        if (data.testAtletici) {
+          setTestAtletici(data.testAtletici);
+        }
+
         // Ripristina impostazioni
         if (data.appTitle) setAppTitle(data.appTitle);
         if (data.teamName) setTeamName(data.teamName);
@@ -6017,13 +6494,15 @@ const SoccerTeamTracker = () => {
       setConvocati(new Set());
       setSquadreGirone([]);
       setRisultatiCampionato([]);
-      
+      setTestAtletici([]);
+
       // Salvo i dati resettati
       await saveToIndexedDB('trainings', []);
       await saveToIndexedDB('matches', []);
       await saveToIndexedDB('squadreGirone', []);
       await saveToIndexedDB('risultatiCampionato', []);
-      
+      await saveToIndexedDB('testAtletici', []);
+
       alert('✅ Stagione resettata con successo!\n\nLa rosa giocatori è stata mantenuta.');
     } catch (error) {
       console.error('Errore durante il reset:', error);
@@ -6078,7 +6557,8 @@ const SoccerTeamTracker = () => {
       setSquadreGirone([]);
       setRisultatiCampionato([]);
       setValutazioni([]);
-      
+      setTestAtletici([]);
+
       // Cancello dal database
       const db = await initDB();
       const transaction = db.transaction([STORE_NAME], 'readwrite');
@@ -6187,16 +6667,18 @@ const SoccerTeamTracker = () => {
                 squadreGirone,            // ✅ AGGIUNTO
                 risultatiCampionato,      // ✅ AGGIUNTO
                 valutazioni,              // ✅ AGGIUNTO
-                lastSaved: localLastSaved 
+                testAtletici,             // ✅ AGGIUNTO
+                lastSaved: localLastSaved
               },
-              cloud: { 
-                players: cloudData.players, 
-                trainings: cloudData.trainings, 
+              cloud: {
+                players: cloudData.players,
+                trainings: cloudData.trainings,
                 matches: cloudData.matches,
                 squadreGirone: cloudData.squadreGirone || [],              // ✅ AGGIUNTO
                 risultatiCampionato: cloudData.risultatiCampionato || [],  // ✅ AGGIUNTO
                 valutazioni: cloudData.valutazioni || [],                 // ✅ AGGIUNTO
-                lastSynced: cloudLastSynced 
+                testAtletici: cloudData.testAtletici || [],               // ✅ AGGIUNTO
+                lastSynced: cloudLastSynced
               }
             });
             setShowConflictModal(true);
@@ -6256,7 +6738,11 @@ const SoccerTeamTracker = () => {
         console.log('   ✅ Carico Valutazioni:', cloudData.valutazioni.length);
         setValutazioni(cloudData.valutazioni);
       }
-      
+      if (cloudData.testAtletici) {
+        console.log('   ✅ Carico Test Atletici:', cloudData.testAtletici.length);
+        setTestAtletici(cloudData.testAtletici);
+      }
+
       setLastSynced(new Date(cloudData.lastSynced));
       setSyncStatus('success');
       
@@ -6283,6 +6769,7 @@ const SoccerTeamTracker = () => {
         squadreGirone: cloudData.squadreGirone || [],
         risultatiCampionato: cloudData.risultatiCampionato || [],
         valutazioni: cloudData.valutazioni || [],
+        testAtletici: cloudData.testAtletici || [],
         lastSaved: new Date().toISOString()
       };
       await saveToIndexedDB('squadraRealDOR', dataToSave);
@@ -9120,6 +9607,7 @@ const SoccerTeamTracker = () => {
         squadreGirone,
         risultatiCampionato,
         valutazioni,
+        testAtletici,
         infoPartita,
         moduloTattico,
         formationPositions,
@@ -9381,6 +9869,7 @@ const SoccerTeamTracker = () => {
         setSquadreGirone(backup.squadreGirone || []);
         setRisultatiCampionato(backup.risultatiCampionato || []);
         setValutazioni(backup.valutazioni || []);
+        setTestAtletici(backup.testAtletici || []);
         setTeamName(backup.teamName || '');
         setTeamLogo(backup.teamLogo || '');
         setAppTitle(backup.appTitle || 'Gestionale Calcio');
@@ -9398,6 +9887,7 @@ const SoccerTeamTracker = () => {
             squadreGirone: backup.squadreGirone || [],
             risultatiCampionato: backup.risultatiCampionato || [],
             valutazioni: backup.valutazioni || [],
+            testAtletici: backup.testAtletici || [],
             teamName: backup.teamName || '',
             teamLogo: backup.teamLogo || '',
             appTitle: backup.appTitle || 'Gestionale Calcio',
@@ -9466,6 +9956,7 @@ const SoccerTeamTracker = () => {
       squadreGirone,
       risultatiCampionato,
       valutazioni,
+      testAtletici,
       stats: {
         totalPlayers: players.filter(p => p.nome).length,
         totalTrainings: trainings.length,
@@ -11205,9 +11696,10 @@ const SoccerTeamTracker = () => {
         <div className="bg-white rounded-lg shadow-xl p-3 md:p-6 mb-6 animate-fade-in card-modern">
           <div className="flex gap-2 mb-4 md:mb-6 border-b overflow-x-auto tab-container">
             {[
-              'dashboard', 'classifica', 'top', 'stats', 
+              'dashboard', 'classifica', 'top', 'stats',
               'trainings',
               ...(userRole === 'admin' ? ['divisione'] : []),
+              ...(userRole === 'admin' ? ['testAtletici'] : []),
               ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
               'calendar', 'injuries', 'roster', 'valutazioni',
               ...(userRole === 'admin' ? ['report', 'backup', 'admin', 'reset'] : [])
@@ -11255,6 +11747,12 @@ const SoccerTeamTracker = () => {
                   <>
                     <span className="tab-text-portrait hidden sm:inline">⚖️ Divisione Squadre</span>
                     <span className="tab-icon-only sm:hidden">⚖️</span>
+                  </>
+                )}
+                {tab === 'testAtletici' && (
+                  <>
+                    <span className="tab-text-portrait hidden sm:inline">🏃 Test Atletici</span>
+                    <span className="tab-icon-only sm:hidden">🏃</span>
                   </>
                 )}
                 {tab === 'convocazioni' && (
@@ -16820,6 +17318,283 @@ const SoccerTeamTracker = () => {
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ========== SEZIONE TEST ATLETICI ========== */}
+          {activeTab === 'testAtletici' && (
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <h2 className="text-2xl font-bold text-gray-800">🏃 Test Atletici</h2>
+                {userRole === 'admin' && (
+                  <button
+                    onClick={apriNuovoTestAtleticoModal}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors"
+                  >
+                    ➕ Nuova Sessione Test
+                  </button>
+                )}
+              </div>
+
+              {/* Elenco test disponibili: istruzioni + modulo vuoto da stampare */}
+              <div className="mb-6 bg-white border rounded-lg p-4 shadow-sm">
+                <h3 className="font-bold text-gray-700 mb-3">📋 Test disponibili</h3>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {TEST_ATLETICI_LISTA.map(def => (
+                    <div key={def.id} className="border rounded-lg p-3 bg-gray-50">
+                      <div className="font-semibold text-gray-800 mb-2">{def.icona} {def.nome}</div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => setShowTestAtleticoIstruzioni(showTestAtleticoIstruzioni === def.id ? null : def.id)}
+                          className="text-xs bg-gray-200 hover:bg-gray-300 px-2 py-1 rounded"
+                        >
+                          ℹ️ {showTestAtleticoIstruzioni === def.id ? 'Nascondi' : 'Istruzioni'}
+                        </button>
+                        <button
+                          onClick={() => exportTestAtleticoPDFVuoto(def.id)}
+                          className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-2 py-1 rounded"
+                        >
+                          📄 Modulo Vuoto PDF
+                        </button>
+                      </div>
+                      {showTestAtleticoIstruzioni === def.id && (
+                        <p className="text-xs text-gray-600 mt-2 leading-relaxed">{def.istruzioni}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Storico sessioni di test svolte */}
+              <div className="bg-white border rounded-lg p-4 shadow-sm">
+                <h3 className="font-bold text-gray-700 mb-3">🗂️ Storico Sessioni</h3>
+                {testAtletici.length === 0 ? (
+                  <p className="text-gray-500 text-sm">Nessuna sessione registrata. Crea la prima sessione con il pulsante "Nuova Sessione Test" in alto.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {testAtletici.slice().sort((a, b) => new Date(b.data) - new Date(a.data)).map(s => {
+                      const def = getTestAtleticoDef(s.testId);
+                      const nGiocatori = Object.keys(s.risultati).length;
+                      return (
+                        <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 border rounded-lg p-3">
+                          <div>
+                            <span className="font-semibold">{def?.icona} {def?.nome}</span>
+                            <span className="text-sm text-gray-500 ml-2">{new Date(s.data).toLocaleDateString('it-IT')} · {nGiocatori} giocatori</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => setViewingTestAtleticoId(s.id)}
+                              className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1 rounded font-semibold"
+                            >
+                              ✏️ Apri / Inserisci Tempi
+                            </button>
+                            <button
+                              onClick={() => exportTestAtleticoPDFCompilato(s.id)}
+                              className="text-sm bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1 rounded font-semibold"
+                            >
+                              📄 Esporta Risultati PDF
+                            </button>
+                            {userRole === 'admin' && (
+                              <button
+                                onClick={() => eliminaSessioneTestAtletico(s.id)}
+                                className="text-sm bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded font-semibold"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal: creazione nuova sessione */}
+              {showNuovoTestAtleticoModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                    <h3 className="text-xl font-bold mb-4">➕ Nuova Sessione Test Atletico</h3>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Data del test</label>
+                      <input
+                        type="date"
+                        value={nuovoTestAtleticoData}
+                        onChange={(e) => setNuovoTestAtleticoData(e.target.value)}
+                        className="w-full p-2 border-2 border-gray-300 rounded-lg"
+                      />
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Tipo di test</label>
+                      <select
+                        value={nuovoTestAtleticoTipo}
+                        onChange={(e) => setNuovoTestAtleticoTipo(e.target.value)}
+                        className="w-full p-2 border-2 border-gray-300 rounded-lg"
+                      >
+                        <option value="">-- Seleziona un test --</option>
+                        {TEST_ATLETICI_LISTA.map(def => (
+                          <option key={def.id} value={def.id}>{def.icona} {def.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="mb-6">
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Carica presenze da allenamento (opzionale)</label>
+                      <select
+                        value={selectedTrainingForTestAtletico}
+                        onChange={(e) => setSelectedTrainingForTestAtletico(e.target.value)}
+                        className="w-full p-2 border-2 border-gray-300 rounded-lg"
+                      >
+                        <option value="">-- Nessuno: includi tutti i giocatori attivi --</option>
+                        {trainings
+                          .filter(t => t.presenze && Object.values(t.presenze).some(p => p === true))
+                          .sort((a, b) => new Date(b.data) - new Date(a.data))
+                          .map(t => (
+                            <option key={t.id} value={t.id}>{new Date(t.data).toLocaleDateString('it-IT')}</option>
+                          ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">Se selezioni un allenamento verranno inclusi solo i giocatori risultati presenti quel giorno.</p>
+                    </div>
+
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={chiudiNuovoTestAtleticoModal} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold">Annulla</button>
+                      <button onClick={creaNuovaSessioneTestAtletico} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Crea Sessione</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Modal: inserimento/visualizzazione tempi della sessione aperta */}
+              {viewingTestAtleticoId && (() => {
+                const sessione = testAtletici.find(s => s.id === viewingTestAtleticoId);
+                if (!sessione) return null;
+                const def = getTestAtleticoDef(sessione.testId);
+                const numeriInSessione = Object.keys(sessione.risultati).map(n => parseInt(n)).sort((a, b) => a - b);
+                const giocatoriDisponibili = players
+                  .filter(p => p.nome && !p.fuoriRosa && !sessione.risultati.hasOwnProperty(p.numero))
+                  .sort((a, b) => a.numero - b.numero);
+
+                return (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+                    <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full p-6 my-8">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <h3 className="text-xl font-bold">{def.icona} {def.nome} — {new Date(sessione.data).toLocaleDateString('it-IT')}</h3>
+                        <button onClick={() => setViewingTestAtleticoId(null)} className="text-gray-500 hover:text-gray-800 text-2xl leading-none">×</button>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-4">{def.istruzioni}</p>
+
+                      {giocatoriDisponibili.length > 0 && userRole === 'admin' && (
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
+                          <span className="text-sm text-gray-600">Aggiungi giocatore alla sessione:</span>
+                          <select
+                            onChange={(e) => { if (e.target.value) { toggleGiocatoreInSessioneTest(sessione.id, parseInt(e.target.value)); e.target.value = ''; } }}
+                            className="p-2 border rounded-lg text-sm"
+                            defaultValue=""
+                          >
+                            <option value="">-- seleziona --</option>
+                            {giocatoriDisponibili.map(p => (
+                              <option key={p.numero} value={p.numero}>{p.numero} - {p.nome}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="p-2 border text-left">N°</th>
+                              <th className="p-2 border text-left">Giocatore</th>
+                              {def.schema === 'tempoSingolo' && <th className="p-2 border">Tempo ({def.unitaTempo})</th>}
+                              {def.schema === 'distanza' && (<><th className="p-2 border">Distanza (m)</th><th className="p-2 border">VO2max stimato</th></>)}
+                              {def.schema === 'livelloTratto' && (<><th className="p-2 border">Livello</th><th className="p-2 border">Tratto</th><th className="p-2 border">Distanza (m)</th><th className="p-2 border">VO2max stimato</th></>)}
+                              {def.schema === 'ripetute6x20' && (<>{[1, 2, 3, 4, 5, 6].map(i => <th key={i} className="p-2 border">Rip.{i}</th>)}<th className="p-2 border">Migliore</th><th className="p-2 border">Media</th><th className="p-2 border">% Decr.</th></>)}
+                              {def.schema === 'sprintParziali' && (<><th className="p-2 border">10m</th><th className="p-2 border">20m</th><th className="p-2 border">30m</th><th className="p-2 border">km/h 0-10</th><th className="p-2 border">km/h 10-20</th><th className="p-2 border">km/h 20-30</th></>)}
+                              {def.schema === 'stepGacon' && (<><th className="p-2 border">Step</th><th className="p-2 border">VAM km/h</th><th className="p-2 border">VO2max stimato</th></>)}
+                              {userRole === 'admin' && <th className="p-2 border"></th>}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {numeriInSessione.length === 0 ? (
+                              <tr><td colSpan="10" className="p-4 text-center text-gray-500">Nessun giocatore in questa sessione.</td></tr>
+                            ) : numeriInSessione.map(numero => {
+                              const player = players.find(p => p.numero === numero);
+                              const dati = sessione.risultati[numero] || {};
+                              const calcolo = calcolaRisultatoGiocatoreTest(def.id, dati);
+                              return (
+                                <tr key={numero}>
+                                  <td className="p-2 border">{numero}</td>
+                                  <td className="p-2 border">{player?.nome || `#${numero}`}</td>
+                                  {def.schema === 'tempoSingolo' && (
+                                    <td className="p-2 border">
+                                      <input type="text" value={dati.tempo || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'tempo', e.target.value)} disabled={userRole !== 'admin'} className="w-24 p-1 border rounded" placeholder={def.unitaTempo} />
+                                    </td>
+                                  )}
+                                  {def.schema === 'distanza' && (
+                                    <>
+                                      <td className="p-2 border"><input type="number" value={dati.distanza || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'distanza', e.target.value)} disabled={userRole !== 'admin'} className="w-24 p-1 border rounded" /></td>
+                                      <td className="p-2 border text-center font-semibold text-blue-700">{calcolo.vo2max ?? '-'}</td>
+                                    </>
+                                  )}
+                                  {def.schema === 'livelloTratto' && (
+                                    <>
+                                      <td className="p-2 border"><input type="number" value={dati.livello || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'livello', e.target.value)} disabled={userRole !== 'admin'} className="w-16 p-1 border rounded" /></td>
+                                      <td className="p-2 border"><input type="number" value={dati.tratto || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'tratto', e.target.value)} disabled={userRole !== 'admin'} className="w-16 p-1 border rounded" /></td>
+                                      <td className="p-2 border text-center">{calcolo.distanza ?? '-'}</td>
+                                      <td className="p-2 border text-center font-semibold text-blue-700">{calcolo.vo2max ?? '-'}</td>
+                                    </>
+                                  )}
+                                  {def.schema === 'ripetute6x20' && (
+                                    <>
+                                      {[0, 1, 2, 3, 4, 5].map(i => (
+                                        <td key={i} className="p-2 border">
+                                          <input type="number" step="0.01" value={(dati.tempi && dati.tempi[i]) || ''} onChange={(e) => aggiornaRipetutaTestAtletico(sessione.id, numero, i, e.target.value)} disabled={userRole !== 'admin'} className="w-16 p-1 border rounded" />
+                                        </td>
+                                      ))}
+                                      <td className="p-2 border text-center">{calcolo.tempoMigliore ?? '-'}</td>
+                                      <td className="p-2 border text-center">{calcolo.tempoMedio ?? '-'}</td>
+                                      <td className="p-2 border text-center font-semibold text-orange-700">{calcolo.percentualeDecremento != null ? calcolo.percentualeDecremento + '%' : '-'}</td>
+                                    </>
+                                  )}
+                                  {def.schema === 'sprintParziali' && (
+                                    <>
+                                      <td className="p-2 border"><input type="number" step="0.01" value={dati.t10 || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 't10', e.target.value)} disabled={userRole !== 'admin'} className="w-16 p-1 border rounded" /></td>
+                                      <td className="p-2 border"><input type="number" step="0.01" value={dati.t20 || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 't20', e.target.value)} disabled={userRole !== 'admin'} className="w-16 p-1 border rounded" /></td>
+                                      <td className="p-2 border"><input type="number" step="0.01" value={dati.t30 || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 't30', e.target.value)} disabled={userRole !== 'admin'} className="w-16 p-1 border rounded" /></td>
+                                      <td className="p-2 border text-center">{calcolo.velocita0_10 ?? '-'}</td>
+                                      <td className="p-2 border text-center">{calcolo.velocita10_20 ?? '-'}</td>
+                                      <td className="p-2 border text-center font-semibold text-blue-700">{calcolo.velocita20_30 ?? '-'}</td>
+                                    </>
+                                  )}
+                                  {def.schema === 'stepGacon' && (
+                                    <>
+                                      <td className="p-2 border"><input type="number" value={dati.step || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'step', e.target.value)} disabled={userRole !== 'admin'} className="w-16 p-1 border rounded" /></td>
+                                      <td className="p-2 border text-center">{calcolo.vam ?? '-'}</td>
+                                      <td className="p-2 border text-center font-semibold text-blue-700">{calcolo.vo2max ?? '-'}</td>
+                                    </>
+                                  )}
+                                  {userRole === 'admin' && (
+                                    <td className="p-2 border text-center">
+                                      <button onClick={() => toggleGiocatoreInSessioneTest(sessione.id, numero)} title="Rimuovi dalla sessione" className="text-red-500 hover:text-red-700 font-bold">✕</button>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2 justify-end">
+                        <button onClick={() => exportTestAtleticoPDFCompilato(sessione.id)} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">📄 Esporta Risultati PDF</button>
+                        <button onClick={() => setViewingTestAtleticoId(null)} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold">Chiudi</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
