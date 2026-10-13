@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.5.0'; // Nuova sezione Test Atletici (8 test, calcoli automatici, import presenze, export PDF)
+      const APP_VERSION = '2.6.1'; // Test Atletici: cronometro integrato (gruppo/singolo, sprint, RSA, Cooper contagiri + giro a tutti, beep Yo-Yo/Beep/Gacon)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2374,7 +2374,7 @@ const TEST_ATLETICI_LISTA = [
     nome: 'Test di Gacon',
     icona: '📈',
     schema: 'stepGacon',
-    istruzioni: 'PROTOCOLLO: l\'atleta corre a navetta su un percorso (tipicamente di circa 125m per adulti/U18) con velocità che aumenta progressivamente a ogni step scandito da un segnale sonoro. Il test termina quando l\'atleta non riesce più a mantenere il ritmo richiesto. Si registra l\'ultimo step completato. FINALITÀ: stima diretta la Velocità Aerobica Massima (VAM), cioè la velocità minima alla quale si raggiunge il massimo consumo di ossigeno: è un parametro fondamentale per individualizzare i carichi di lavoro nell\'allenamento della resistenza aerobica (es. definire le velocità degli allenamenti intermittenti). Velocità iniziale standard utilizzata: 10 km/h; VAM = velocità iniziale + 0,5 km/h x (step completati - 1); VO2max stimato = VAM x 3,5.'
+    istruzioni: 'PROTOCOLLO: l\'atleta corre a navetta su un percorso con coni posizionati in linea retta: ogni step dura 45 secondi di corsa seguiti da 15 secondi di recupero; il primo step è di 125m (10 km/h) e la distanza da coprire in 45 secondi aumenta di 6,25m a ogni step successivo (+0,5 km/h). Il cronometro integrato scandisce il ritmo con i beep. Il test termina quando l\'atleta non riesce più a mantenere il ritmo richiesto. Si registra l\'ultimo step completato. FINALITÀ: stima diretta la Velocità Aerobica Massima (VAM), cioè la velocità minima alla quale si raggiunge il massimo consumo di ossigeno: è un parametro fondamentale per individualizzare i carichi di lavoro nell\'allenamento della resistenza aerobica (es. definire le velocità degli allenamenti intermittenti). Velocità iniziale standard utilizzata: 10 km/h; VAM = velocità iniziale + 0,5 km/h x (step completati - 1); VO2max stimato = VAM x 3,5.'
   }
 ];
 
@@ -2408,6 +2408,629 @@ const calcolaRisultatoGiocatoreTest = (testId, datiGrezzi) => {
       return {};
   }
 };
+
+// ===== CRONO PURE START =====
+// ========== CRONOMETRO TEST ATLETICI: configurazione e funzioni pure ==========
+const CRONO_CONFIG = {
+  bronco:   { tipo: 'tempo', decimali: 1 },
+  illinois: { tipo: 'tempo', decimali: 2 },
+  sprint:   { tipo: 'sprint' },
+  rsa:      { tipo: 'rsa', recuperoMs: 20000, ripetute: 6 },
+  cooper:   { tipo: 'cooper', durataMs: 12 * 60 * 1000, giroDefault: 400 },
+  yoyo:     { tipo: 'beep', protocollo: 'yoyo' },
+  beep:     { tipo: 'beep', protocollo: 'beep' },
+  gacon:    { tipo: 'beep', protocollo: 'gacon' }
+};
+
+// Velocità (km/h) per livello del Yo-Yo IR1 (Bangsbo)
+const YOYO_IR1_VELOCITA = { 5: 10, 9: 12, 11: 13, 12: 13.5, 13: 14, 14: 14.5, 15: 15, 16: 15.5, 17: 16, 18: 16.5, 19: 17, 20: 17.5, 21: 18, 22: 18.5, 23: 19 };
+
+const BEEP_LEAD_IN_MS = 5000;   // conto alla rovescia prima del via
+const GACON_STEP_MAX = 26;
+
+// Formatta millisecondi: "16.35" oppure "4:32.1" (decimali = 1 oppure 2)
+const formatTempoMs = (ms, decimali = 2) => {
+  const m = Math.max(0, ms);
+  const perSec = decimali === 1 ? 10 : 100;
+  const unita = Math.floor(m / (1000 / perSec));
+  const sec = Math.floor(unita / perSec);
+  const frac = String(unita % perSec).padStart(decimali === 1 ? 1 : 2, '0');
+  const min = Math.floor(sec / 60);
+  const s = sec % 60;
+  return min > 0 ? `${min}:${String(s).padStart(2, '0')}.${frac}` : `${s}.${frac}`;
+};
+
+// Secondi con 2 decimali come testo ("3.52")
+const secTxt = (ms) => (Math.floor(Math.max(0, ms) / 10) / 100).toFixed(2);
+
+// Converte "4:32.1" / "16.35" / "16,35" in secondi (NaN se non valido)
+const parseTempoSec = (txt) => {
+  if (txt === null || txt === undefined || txt === '') return NaN;
+  const s = String(txt).trim().replace(',', '.');
+  if (s.includes(':')) {
+    const [m, r] = s.split(':');
+    return parseInt(m) * 60 + parseFloat(r);
+  }
+  return parseFloat(s);
+};
+
+// Costruisce segmenti (navette/step) e istanti dei beep (ms dall'avvio) per Beep Test, Yo-Yo IR1, Gacon
+const costruisciTimelineBeep = (protocollo) => {
+  const segs = [];
+  const beeps = [];
+  let t = BEEP_LEAD_IN_MS;
+  [3, 2, 1].forEach(i => beeps.push({ t: BEEP_LEAD_IN_MS - i * 1000, tipo: 'tick' }));
+  beeps.push({ t, tipo: 'go' });
+
+  if (protocollo === 'beep') {
+    BEEP_TEST_TABELLA.forEach(r => {
+      const vel = 8.5 + 0.5 * (r.livello - 1);
+      const dur = Math.round((20 / (vel / 3.6)) * 1000);
+      for (let n = 1; n <= r.navette; n++) {
+        const start = t, end = t + dur;
+        segs.push({ livello: r.livello, n, nTot: r.navette, start, end, recEnd: end, vel });
+        beeps.push({ t: end, tipo: n === r.navette ? 'livello' : 'fine' });
+        t = end;
+      }
+    });
+  } else if (protocollo === 'yoyo') {
+    YOYO_IR1_TABELLA.forEach((r, ri) => {
+      const vel = YOYO_IR1_VELOCITA[r.livello];
+      const dur = Math.round((40 / (vel / 3.6)) * 1000);
+      for (let n = 1; n <= r.navette; n++) {
+        const start = t, end = t + dur, recEnd = end + 10000;
+        segs.push({ livello: r.livello, n, nTot: r.navette, start, end, recEnd, vel });
+        beeps.push({ t: start + Math.round(dur / 2), tipo: 'tick' });
+        beeps.push({ t: end, tipo: 'fine' });
+        const ultima = ri === YOYO_IR1_TABELLA.length - 1 && n === r.navette;
+        if (!ultima) beeps.push({ t: recEnd, tipo: 'go' });
+        t = recEnd;
+      }
+    });
+  } else {
+    for (let step = 1; step <= GACON_STEP_MAX; step++) {
+      const vel = 10 + 0.5 * (step - 1);
+      const dist = 125 + 6.25 * (step - 1);
+      const start = t, end = t + 45000, recEnd = end + 15000;
+      segs.push({ livello: step, n: 1, nTot: 1, start, end, recEnd, vel, dist });
+      beeps.push({ t: start + 15000, tipo: 'tick' });
+      beeps.push({ t: start + 30000, tipo: 'tick' });
+      beeps.push({ t: end, tipo: 'fine' });
+      [3, 2, 1].forEach(i => beeps.push({ t: recEnd - i * 1000, tipo: 'tick' }));
+      if (step < GACON_STEP_MAX) beeps.push({ t: recEnd, tipo: 'go' });
+      t = recEnd;
+    }
+  }
+  beeps.sort((a, b) => a.t - b.t);
+  return { segs, beeps, durataTotaleMs: t };
+};
+
+// Stato del test audio all'istante eMs (ms dall'avvio)
+const statoBeep = (segs, eMs) => {
+  if (eMs < BEEP_LEAD_IN_MS) return { fase: 'countdown', mancaMs: BEEP_LEAD_IN_MS - eMs, completate: 0, seg: segs[0], prossimo: segs[0] };
+  let completate = 0;
+  let idx = -1;
+  for (let i = 0; i < segs.length; i++) {
+    if (segs[i].end <= eMs) completate++;
+    if (idx === -1 && segs[i].recEnd > eMs) idx = i;
+  }
+  if (idx === -1) return { fase: 'fine', completate, seg: segs[segs.length - 1], prossimo: null, mancaMs: 0 };
+  const seg = segs[idx];
+  if (eMs < seg.end) return { fase: 'corsa', completate, seg, prossimo: seg, mancaMs: seg.end - eMs };
+  return { fase: 'recupero', completate, seg, prossimo: segs[idx + 1] || null, mancaMs: seg.recEnd - eMs };
+};
+
+// Dati da salvare quando un giocatore si ritira dopo aver completato `completate` navette/step
+const snapshotBeep = (protocollo, segs, completate) => {
+  if (protocollo === 'gacon') return { step: String(Math.max(0, completate)) };
+  if (completate <= 0) return { livello: '0', tratto: '0' };
+  const last = segs[completate - 1];
+  return { livello: String(last.livello), tratto: String(last.n) };
+};
+// ===== CRONO PURE END =====
+
+// ===== CRONO COMPONENT START =====
+// Beep generato con WebAudio
+const suonaBeepTA = (ctx, master, when, tipo) => {
+  const nota = (w, freq, dur) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, w);
+    g.gain.exponentialRampToValueAtTime(0.9, w + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, w + dur);
+    o.connect(g);
+    g.connect(master);
+    o.start(w);
+    o.stop(w + dur + 0.05);
+  };
+  if (tipo === 'go') nota(when, 1400, 0.5);
+  else if (tipo === 'livello') { nota(when, 1000, 0.12); nota(when + 0.2, 1000, 0.12); }
+  else if (tipo === 'fine') nota(when, 1000, 0.2);
+  else nota(when, 700, 0.08);
+};
+
+// Cronometro a schermo intero per le sessioni di Test Atletici.
+// Scrive i risultati direttamente nella sessione tramite onUpdate(numero, fn(datiPrecedenti) => nuoviDati).
+const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) => {
+  const cfg = CRONO_CONFIG[def.id] || { tipo: 'tempo', decimali: 2 };
+  const tipo = cfg.tipo;
+  const storageKey = `cronoTA_${sessione.id}`;
+
+  const [st, setSt] = useState(() => {
+    const base = { sel: {}, starts: {}, nc: {}, rep: 0, repAttiva: false, recoveryUntil: null, giriHist: {}, giroMetri: cfg.giroDefault || 400, timerStart: null, audioStart: null, mute: false, retired: {} };
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return { ...base, ...JSON.parse(raw) };
+    } catch (e) {}
+    return base;
+  });
+  const [now, setNow] = useState(Date.now());
+  const [audioOn, setAudioOn] = useState(false);
+  const audioRef = React.useRef(null);
+
+  // Salva lo stato (se si ricarica la pagina i cronometri in corso non si perdono)
+  useEffect(() => {
+    try { localStorage.setItem(storageKey, JSON.stringify(st)); } catch (e) {}
+  }, [st]);
+
+  // Tick di aggiornamento visuale (il tempo è sempre calcolato da Date.now(), non contando i tick)
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 50);
+    return () => clearInterval(id);
+  }, []);
+
+  // Schermo sempre acceso
+  useEffect(() => {
+    let lock = null;
+    (async () => { try { if (navigator.wakeLock) lock = await navigator.wakeLock.request('screen'); } catch (e) {} })();
+    return () => { try { if (lock) lock.release(); } catch (e) {} };
+  }, []);
+
+  // Chiude l'audio allo smontaggio
+  useEffect(() => () => { try { if (audioRef.current) audioRef.current.ctx.close(); } catch (e) {} }, []);
+
+  // Muto
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.master.gain.value = st.mute ? 0 : 1;
+  }, [st.mute, audioOn]);
+
+  const assicuraAudio = () => {
+    if (!audioRef.current) {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return null;
+      const ctx = new Ctx();
+      const master = ctx.createGain();
+      master.gain.value = st.mute ? 0 : 1;
+      master.connect(ctx.destination);
+      audioRef.current = { ctx, master };
+      setAudioOn(true);
+    }
+    if (audioRef.current.ctx.state === 'suspended') audioRef.current.ctx.resume();
+    return audioRef.current;
+  };
+  // Programma i beep futuri; startEpoch = istante (Date.now) a cui corrisponde t=0
+  const programmaBeep = (beeps, startEpoch) => {
+    const a = assicuraAudio();
+    if (!a) return;
+    const e = Date.now() - startEpoch;
+    beeps.forEach(b => { if (b.t > e) suonaBeepTA(a.ctx, a.master, a.ctx.currentTime + (b.t - e) / 1000, b.tipo); });
+  };
+  const fermaAudio = () => {
+    try { if (audioRef.current) audioRef.current.ctx.close(); } catch (e) {}
+    audioRef.current = null;
+    setAudioOn(false);
+  };
+
+  const timeline = useMemo(() => (tipo === 'beep' ? costruisciTimelineBeep(cfg.protocollo) : null), [def.id]);
+
+  const isSel = (n) => st.sel[n] !== false;
+  const righe = Object.keys(sessione.risultati)
+    .map(k => parseInt(k))
+    .map(n => ({ numero: n, nome: players.find(p => p.numero === n)?.nome || `#${n}` }))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const dati = (n) => sessione.risultati[n] || {};
+
+  const valoreFinale = (n) => {
+    const d = dati(n);
+    if (tipo === 'tempo') return d.tempo ? parseTempoSec(d.tempo) : NaN;
+    if (tipo === 'sprint') return d.t30 !== undefined && d.t30 !== '' ? parseFloat(d.t30) : NaN;
+    if (tipo === 'rsa') { const v = d.tempi && d.tempi[st.rep]; return v ? parseFloat(v) : NaN; }
+    return NaN;
+  };
+  const concluso = (n) => !isNaN(valoreFinale(n));
+  const ncChiave = (n) => `${tipo === 'rsa' ? st.rep : 0}:${n}`;
+  const isNc = (n) => !!st.nc[ncChiave(n)] || (tipo !== 'rsa' && !!dati(n).nc && !concluso(n));
+  const inCorsa = (n) => !!st.starts[n] && !concluso(n) && !isNc(n);
+
+  const rank = {};
+  righe
+    .map(r => ({ n: r.numero, v: valoreFinale(r.numero) }))
+    .filter(x => !isNaN(x.v))
+    .sort((a, b) => a.v - b.v)
+    .forEach((x, i) => { rank[x.n] = i + 1; });
+
+  const senzaStart = (p, n) => { const s = { ...p.starts }; delete s[n]; return s; };
+
+  // ---------- Azioni: tempo / sprint / rsa ----------
+  const avvia = (n) => setSt(p => ({ ...p, starts: { ...p.starts, [n]: Date.now() }, repAttiva: tipo === 'rsa' ? true : p.repAttiva }));
+  const avviaGenerale = () => {
+    const t = Date.now();
+    setSt(p => {
+      const starts = { ...p.starts };
+      righe.forEach(r => { if (isSel(r.numero) && !concluso(r.numero) && !isNc(r.numero) && !starts[r.numero]) starts[r.numero] = t; });
+      return { ...p, starts, repAttiva: tipo === 'rsa' && Object.keys(starts).length > 0 ? true : p.repAttiva };
+    });
+  };
+  const ferma = (n) => {
+    if (!st.starts[n]) return;
+    const ms = Date.now() - st.starts[n];
+    if (tipo === 'tempo') onUpdate(n, d => ({ ...d, tempo: formatTempoMs(ms, cfg.decimali), nc: false }));
+    else if (tipo === 'sprint') onUpdate(n, d => ({ ...d, t30: secTxt(ms), nc: false }));
+    else if (tipo === 'rsa') {
+      const rep = st.rep;
+      onUpdate(n, d => { const t = Array.isArray(d.tempi) ? [...d.tempi] : ['', '', '', '', '', '']; t[rep] = secTxt(ms); return { ...d, tempi: t }; });
+    }
+    setSt(p => ({ ...p, starts: senzaStart(p, n) }));
+  };
+  const passaggio = (n, chiave) => {
+    if (!st.starts[n]) return;
+    const ms = Date.now() - st.starts[n];
+    onUpdate(n, d => ({ ...d, [chiave]: secTxt(ms) }));
+  };
+  const annulla = (n) => {
+    if (tipo === 'tempo') onUpdate(n, d => { const { tempo, nc, ...r } = d; return r; });
+    else if (tipo === 'sprint') onUpdate(n, d => { const { t10, t20, t30, nc, ...r } = d; return r; });
+    else if (tipo === 'rsa') {
+      const rep = st.rep;
+      onUpdate(n, d => { const t = Array.isArray(d.tempi) ? [...d.tempi] : ['', '', '', '', '', '']; t[rep] = ''; return { ...d, tempi: t }; });
+    }
+    setSt(p => ({ ...p, starts: senzaStart(p, n), nc: { ...p.nc, [ncChiave(n)]: false } }));
+  };
+  const segnaNc = (n) => {
+    if (tipo === 'tempo') onUpdate(n, d => ({ ...d, tempo: '', nc: true }));
+    else if (tipo === 'sprint') onUpdate(n, d => ({ ...d, t10: '', t20: '', t30: '', nc: true }));
+    setSt(p => ({ ...p, starts: senzaStart(p, n), nc: { ...p.nc, [ncChiave(n)]: true } }));
+  };
+  const azzeraPartenza = () => {
+    if (!window.confirm('Azzerare la partenza?\n\nI cronometri in corso vengono cancellati. I tempi già fermati e salvati NON vengono toccati.')) return;
+    setSt(p => ({ ...p, starts: {} }));
+  };
+
+  // ---------- RSA: chiusura ripetuta e recupero ----------
+  const chiudiRipetuta = () => {
+    const rep = st.rep;
+    setSt(p => {
+      const nc = { ...p.nc };
+      righe.forEach(r => { if (p.starts[r.numero]) nc[`${rep}:${r.numero}`] = true; });
+      return { ...p, nc, starts: {}, repAttiva: false, rep: rep + 1, recoveryUntil: rep + 1 < cfg.ripetute ? Date.now() + cfg.recuperoMs : null };
+    });
+    if (rep + 1 < cfg.ripetute && audioRef.current) {
+      programmaBeep([{ t: 17000, tipo: 'tick' }, { t: 18000, tipo: 'tick' }, { t: 19000, tipo: 'tick' }, { t: 20000, tipo: 'go' }], Date.now());
+    }
+  };
+  useEffect(() => {
+    if (tipo !== 'rsa' || !st.repAttiva) return;
+    if (righe.filter(r => st.starts[r.numero]).length === 0) chiudiRipetuta();
+  }, [st.starts, st.repAttiva]);
+  const recuperoAttivo = tipo === 'rsa' && st.recoveryUntil && now < st.recoveryUntil;
+  const rsaFinita = tipo === 'rsa' && st.rep >= cfg.ripetute;
+
+  // ---------- Cooper ----------
+  const giriTot = (n) => (st.giriHist[n] || []).reduce((a, b) => a + b, 0);
+  const aggiungiGiro = (n, v) => {
+    const hist = [...(st.giriHist[n] || []), v];
+    const tot = hist.reduce((a, b) => a + b, 0);
+    setSt(p => ({ ...p, giriHist: { ...p.giriHist, [n]: hist } }));
+    onUpdate(n, d => ({ ...d, giri: tot, distanza: String(Math.round(tot * st.giroMetri)) }));
+  };
+  const annullaGiro = (n) => {
+    const hist = (st.giriHist[n] || []).slice(0, -1);
+    const tot = hist.reduce((a, b) => a + b, 0);
+    setSt(p => ({ ...p, giriHist: { ...p.giriHist, [n]: hist } }));
+    onUpdate(n, d => ({ ...d, giri: tot, distanza: tot > 0 ? String(Math.round(tot * st.giroMetri)) : '' }));
+  };
+  // +1 giro (o annulla l'ultimo) a tutti i giocatori spuntati: per quando il gruppo corre ancora compatto
+  const giroATutti = (v) => {
+    const sel = righe.filter(r => isSel(r.numero));
+    const nuovo = { ...st.giriHist };
+    sel.forEach(r => { nuovo[r.numero] = [...(st.giriHist[r.numero] || []), v]; });
+    setSt(p => ({ ...p, giriHist: nuovo }));
+    sel.forEach(r => {
+      const tot = nuovo[r.numero].reduce((x, y) => x + y, 0);
+      onUpdate(r.numero, d => ({ ...d, giri: tot, distanza: String(Math.round(tot * st.giroMetri)) }));
+    });
+  };
+  const annullaGiroATutti = () => {
+    const sel = righe.filter(r => isSel(r.numero) && (st.giriHist[r.numero] || []).length > 0);
+    if (sel.length === 0) return;
+    if (!window.confirm(`Annullare l'ultimo giro registrato a ${sel.length} giocatori selezionati?`)) return;
+    const nuovo = { ...st.giriHist };
+    sel.forEach(r => { nuovo[r.numero] = st.giriHist[r.numero].slice(0, -1); });
+    setSt(p => ({ ...p, giriHist: nuovo }));
+    sel.forEach(r => {
+      const tot = nuovo[r.numero].reduce((x, y) => x + y, 0);
+      onUpdate(r.numero, d => ({ ...d, giri: tot, distanza: tot > 0 ? String(Math.round(tot * st.giroMetri)) : '' }));
+    });
+  };
+  const avviaTimerCooper = () => {
+    const t = Date.now();
+    const d = cfg.durataMs;
+    programmaBeep([{ t: d - 3000, tipo: 'tick' }, { t: d - 2000, tipo: 'tick' }, { t: d - 1000, tipo: 'tick' }, { t: d, tipo: 'go' }], t);
+    setSt(p => ({ ...p, timerStart: t }));
+  };
+  const timerRimasto = st.timerStart ? cfg.durataMs - (now - st.timerStart) : cfg.durataMs;
+
+  // ---------- Test con beep (Yo-Yo / Beep / Gacon) ----------
+  const doneBeep = (n) => {
+    const d = dati(n);
+    if (cfg.protocollo === 'gacon') return d.step !== undefined && d.step !== '';
+    return d.livello !== undefined && d.livello !== '';
+  };
+  const statoCorr = tipo === 'beep' && st.audioStart ? statoBeep(timeline.segs, now - st.audioStart) : null;
+  const avviaBeep = () => {
+    const t = Date.now();
+    programmaBeep(timeline.beeps, t);
+    setSt(p => ({ ...p, audioStart: t }));
+  };
+  const riattivaAudio = () => programmaBeep(timeline.beeps, st.audioStart);
+  const ritira = (n) => {
+    if (!st.audioStart) return;
+    const s = statoBeep(timeline.segs, Date.now() - st.audioStart);
+    if (s.fase === 'countdown') return;
+    const snap = snapshotBeep(cfg.protocollo, timeline.segs, s.completate);
+    onUpdate(n, d => ({ ...d, ...snap }));
+  };
+  const annullaBeep = (n) => {
+    onUpdate(n, d => { const { livello, tratto, step, ...r } = d; return r; });
+  };
+  const fermaTutto = () => {
+    if (!window.confirm('Terminare il test?\n\nTutti i giocatori selezionati ancora in gara riceveranno il livello/step attuale.')) return;
+    const s = statoBeep(timeline.segs, Date.now() - st.audioStart);
+    const snap = snapshotBeep(cfg.protocollo, timeline.segs, s.completate);
+    righe.forEach(r => { if (isSel(r.numero) && !doneBeep(r.numero)) onUpdate(r.numero, d => ({ ...d, ...snap })); });
+    fermaAudio();
+    setSt(p => ({ ...p, audioStart: null }));
+  };
+
+  const chiudi = () => {
+    if (tipo === 'beep' && st.audioStart && !window.confirm('Il test audio è in corso: chiudendo il cronometro i beep si interrompono. Chiudere comunque?')) return;
+    onClose();
+  };
+
+  const btn = 'min-h-[48px] px-4 rounded-lg font-bold text-base';
+  const selezionati = righe.filter(r => isSel(r.numero));
+  const nPartenza = selezionati.filter(r => !concluso(r.numero) && !isNc(r.numero) && !st.starts[r.numero]).length;
+
+  // ---------- Barra di controllo ----------
+  let controlli = null;
+  if (tipo === 'tempo' || tipo === 'sprint' || tipo === 'rsa') {
+    controlli = (
+      <div className="bg-white border rounded-lg p-3 mb-3">
+        {tipo === 'rsa' && (
+          <div className="mb-2 flex flex-wrap items-center gap-3">
+            <span className="text-xl font-bold">{rsaFinita ? '✅ Test completato' : `Ripetuta ${st.rep + 1} / ${cfg.ripetute}`}</span>
+            {recuperoAttivo && (
+              <span className="text-2xl font-mono font-bold text-orange-600">⏳ Recupero {(Math.max(0, st.recoveryUntil - now) / 1000).toFixed(1)}s</span>
+            )}
+            {!recuperoAttivo && st.recoveryUntil && !rsaFinita && !st.repAttiva && (
+              <span className="text-lg font-bold text-green-700">✔ Pronti: START ripetuta {st.rep + 1}</span>
+            )}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => ({ ...p, sel: {} }))}>Seleziona tutti</button>
+          <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => { const sel = {}; righe.forEach(r => { sel[r.numero] = false; }); return { ...p, sel }; })}>Nessuno</button>
+          <button
+            className={`${btn} ${recuperoAttivo || rsaFinita || nPartenza === 0 ? 'bg-gray-300 text-gray-500' : 'bg-green-600 text-white'}`}
+            disabled={recuperoAttivo || rsaFinita || nPartenza === 0}
+            onClick={avviaGenerale}
+          >
+            ▶ START GENERALE ({nPartenza})
+          </button>
+          {tipo === 'rsa' && st.repAttiva && (
+            <button className={`${btn} bg-orange-500 text-white`} onClick={() => { if (window.confirm('Chiudere la ripetuta? I giocatori non fermati risulteranno NC per questa ripetuta.')) chiudiRipetuta(); }}>Chiudi ripetuta</button>
+          )}
+          {tipo === 'rsa' && recuperoAttivo && (
+            <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => ({ ...p, recoveryUntil: null }))}>Salta recupero</button>
+          )}
+          <button className={`${btn} bg-red-100 text-red-800`} onClick={azzeraPartenza}>Azzera partenza</button>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">Spunta chi corre in questa batteria, poi START GENERALE. Oppure usa ▶ Start accanto a un singolo nome.</p>
+      </div>
+    );
+  } else if (tipo === 'cooper') {
+    const finito = st.timerStart && timerRimasto <= 0;
+    const rim = Math.max(0, timerRimasto);
+    controlli = (
+      <div className="bg-white border rounded-lg p-3 mb-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={`text-4xl font-mono font-bold ${finito ? 'text-red-600' : 'text-gray-800'}`}>
+            {String(Math.floor(rim / 60000)).padStart(2, '0')}:{String(Math.floor((rim % 60000) / 1000)).padStart(2, '0')}
+          </span>
+          {!st.timerStart && <button className={`${btn} bg-green-600 text-white`} onClick={avviaTimerCooper}>▶ AVVIA 12 minuti</button>}
+          {st.timerStart && !finito && <span className="font-bold text-green-700">In corso…</span>}
+          {finito && <span className="font-bold text-red-600">⏱ TEMPO SCADUTO: aggiungi ora l'eventuale ½ giro</span>}
+          {st.timerStart && (
+            <button className={`${btn} bg-red-100 text-red-800`} onClick={() => { if (window.confirm('Azzerare il timer? I giri contati non vengono toccati.')) { fermaAudio(); setSt(p => ({ ...p, timerStart: null })); } }}>Azzera timer</button>
+          )}
+        </div>
+        <div className="mt-3 p-2 bg-green-50 border border-green-300 rounded-lg">
+          <div className="flex flex-wrap gap-2">
+            <button className={`${btn} bg-green-600 text-white text-lg`} onClick={() => giroATutti(1)}>+1 giro a TUTTI ({righe.filter(r => isSel(r.numero)).length})</button>
+            <button className={`${btn} bg-gray-200`} onClick={annullaGiroATutti}>↩ Annulla giro a tutti</button>
+            <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => ({ ...p, sel: {} }))}>Seleziona tutti</button>
+            <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => { const sel = {}; righe.forEach(r => { sel[r.numero] = false; }); return { ...p, sel }; })}>Nessuno</button>
+          </div>
+          <p className="text-xs text-gray-600 mt-1">Finché il gruppo è compatto premi «+1 giro a TUTTI». Quando qualcuno si stacca, togli la spunta al suo nome e prosegui con i tasti singoli.</p>
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-sm">
+          <label className="font-semibold">Lunghezza giro (m):</label>
+          <input
+            type="number"
+            value={st.giroMetri}
+            disabled={!!st.timerStart || Object.values(st.giriHist).some(h => h.length > 0)}
+            onChange={(e) => setSt(p => ({ ...p, giroMetri: parseFloat(e.target.value) || 0 }))}
+            className="w-24 p-2 border rounded"
+          />
+          <span className="text-gray-500">(modificabile solo prima dell'avvio)</span>
+        </div>
+      </div>
+    );
+  } else if (tipo === 'beep') {
+    const s = statoCorr;
+    let testo = 'Premi AVVIA: 5 secondi di conto alla rovescia, poi parte il test con i beep.';
+    let sub = '';
+    if (s) {
+      if (s.fase === 'countdown') testo = `Partenza tra ${Math.ceil(s.mancaMs / 1000)}…`;
+      else if (s.fase === 'fine') testo = 'Test concluso (tabella finita)';
+      else if (cfg.protocollo === 'gacon') {
+        testo = `Step ${s.seg.livello} · ${s.seg.vel} km/h`;
+        sub = s.fase === 'recupero' ? `RECUPERO ${(s.mancaMs / 1000).toFixed(0)}s${s.prossimo ? ` → prossimo cono a ${s.prossimo.dist} m` : ''}` : `Cono a ${s.seg.dist} m · ${(s.mancaMs / 1000).toFixed(0)}s alla fine dello step`;
+      } else {
+        testo = `Livello ${s.seg.livello} · navetta ${s.seg.n}/${s.seg.nTot} · ${s.seg.vel} km/h`;
+        sub = s.fase === 'recupero' ? `RECUPERO ${(s.mancaMs / 1000).toFixed(0)}s` : `Navette completate: ${s.completate}`;
+      }
+    }
+    controlli = (
+      <div className="bg-white border rounded-lg p-3 mb-3">
+        <div className="text-2xl font-bold">{testo}</div>
+        {sub && <div className="text-lg text-gray-600">{sub}</div>}
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => ({ ...p, sel: {} }))}>Seleziona tutti</button>
+          <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => { const sel = {}; righe.forEach(r => { sel[r.numero] = false; }); return { ...p, sel }; })}>Nessuno</button>
+          {!st.audioStart && <button className={`${btn} bg-green-600 text-white`} onClick={avviaBeep}>▶ AVVIA TEST (beep)</button>}
+          {st.audioStart && <button className={`${btn} bg-red-600 text-white`} onClick={fermaTutto}>⏹ FINE TEST</button>}
+          {st.audioStart && !audioOn && <button className={`${btn} bg-blue-600 text-white`} onClick={riattivaAudio}>🔊 Riattiva audio</button>}
+          <button className={`${btn} bg-gray-200`} onClick={() => setSt(p => ({ ...p, mute: !p.mute }))}>{st.mute ? '🔇 Audio spento' : '🔊 Audio acceso'}</button>
+        </div>
+        <p className="text-xs text-gray-500 mt-2">Alza il volume del tablet. Quando un giocatore si ferma tocca «Ritirato»: viene registrato l'ultimo livello/step completato. Il valore è sempre correggibile a mano nella tabella.</p>
+      </div>
+    );
+  }
+
+  // ---------- Righe giocatori ----------
+  const renderRiga = (r) => {
+    const n = r.numero;
+    const d = dati(n);
+    const concl = concluso(n);
+    const nc = isNc(n);
+    const corsa = inCorsa(n);
+    const live = st.starts[n] ? now - st.starts[n] : 0;
+    let sfondo = 'bg-white';
+    if (concl || (tipo === 'beep' && doneBeep(n))) sfondo = 'bg-green-50 border-green-400';
+    else if (corsa) sfondo = 'bg-yellow-50 border-yellow-400';
+    else if (nc) sfondo = 'bg-gray-100';
+
+    let centro = null;
+    let azioni = null;
+
+    if (tipo === 'tempo' || tipo === 'sprint' || tipo === 'rsa') {
+      const valTxt = tipo === 'tempo' ? d.tempo : tipo === 'sprint' ? (d.t30 ? `${d.t30}s` : '') : (d.tempi && d.tempi[st.rep] ? `${d.tempi[st.rep]}s` : '');
+      if (concl) {
+        centro = <span className="text-2xl font-mono font-bold text-green-700">{valTxt}</span>;
+        azioni = <button className={`${btn} bg-gray-200`} onClick={() => annulla(n)}>↩ Annulla</button>;
+      } else if (nc) {
+        centro = <span className="text-xl font-bold text-gray-500">NC</span>;
+        azioni = <button className={`${btn} bg-gray-200`} onClick={() => annulla(n)}>↩ Annulla</button>;
+      } else if (corsa) {
+        centro = <span className="text-3xl font-mono font-bold">{formatTempoMs(live, 2)}</span>;
+        azioni = tipo === 'sprint' ? (
+          <>
+            <button className={`${btn} bg-blue-100 text-blue-900`} disabled={!!d.t10} onClick={() => passaggio(n, 't10')}>10m</button>
+            <button className={`${btn} bg-blue-100 text-blue-900`} disabled={!!d.t20} onClick={() => passaggio(n, 't20')}>20m</button>
+            <button className={`${btn} bg-red-600 text-white`} onClick={() => ferma(n)}>30m ⏹</button>
+            <button className={`${btn} bg-gray-200`} onClick={() => segnaNc(n)}>NC</button>
+          </>
+        ) : (
+          <>
+            <button className={`${btn} bg-red-600 text-white`} onClick={() => ferma(n)}>⏹ STOP</button>
+            <button className={`${btn} bg-gray-200`} onClick={() => segnaNc(n)}>NC</button>
+          </>
+        );
+      } else {
+        centro = <span className="text-gray-400 font-mono text-xl">0.00</span>;
+        azioni = (
+          <button
+            className={`${btn} ${recuperoAttivo || rsaFinita ? 'bg-gray-300 text-gray-500' : 'bg-green-600 text-white'}`}
+            disabled={recuperoAttivo || rsaFinita}
+            onClick={() => avvia(n)}
+          >
+            ▶ Start
+          </button>
+        );
+      }
+      if (tipo === 'sprint' && (d.t10 || d.t20)) {
+        centro = <div>{centro}<div className="text-xs text-gray-600">{d.t10 ? `10m: ${d.t10}s ` : ''}{d.t20 ? `20m: ${d.t20}s` : ''}</div></div>;
+      }
+      if (tipo === 'rsa') {
+        const prec = (d.tempi || []).slice(0, Math.min(st.rep, cfg.ripetute)).map((t, i) => `${i + 1}: ${t || '-'}`).join('  ');
+        if (prec) centro = <div>{centro}<div className="text-xs text-gray-600">{prec}</div></div>;
+      }
+    } else if (tipo === 'cooper') {
+      const g = giriTot(n);
+      centro = (
+        <div>
+          <span className="text-2xl font-bold">{g.toString().replace('.', ',')} giri</span>
+          <span className="ml-2 text-gray-600">{d.distanza ? `${d.distanza} m` : ''}</span>
+        </div>
+      );
+      azioni = (
+        <>
+          <button className={`${btn} bg-green-600 text-white`} onClick={() => aggiungiGiro(n, 1)}>+1 giro</button>
+          <button className={`${btn} bg-blue-100 text-blue-900`} onClick={() => aggiungiGiro(n, 0.5)}>+½</button>
+          <button className={`${btn} bg-gray-200`} disabled={(st.giriHist[n] || []).length === 0} onClick={() => annullaGiro(n)}>↩</button>
+        </>
+      );
+    } else if (tipo === 'beep') {
+      if (doneBeep(n)) {
+        const txt = cfg.protocollo === 'gacon' ? `Step ${d.step}` : `Livello ${d.livello}.${d.tratto}`;
+        centro = <span className="text-xl font-bold text-green-700">{txt}</span>;
+        azioni = <button className={`${btn} bg-gray-200`} onClick={() => annullaBeep(n)}>↩ Annulla</button>;
+      } else {
+        centro = <span className="text-gray-400">in gara</span>;
+        azioni = (
+          <button
+            className={`${btn} ${st.audioStart && statoCorr && statoCorr.fase !== 'countdown' ? 'bg-red-600 text-white' : 'bg-gray-300 text-gray-500'}`}
+            disabled={!(st.audioStart && statoCorr && statoCorr.fase !== 'countdown')}
+            onClick={() => ritira(n)}
+          >
+            Ritirato
+          </button>
+        );
+      }
+    }
+
+    return (
+      <div key={n} className={`border-2 rounded-lg p-3 mb-2 flex flex-wrap items-center gap-3 ${sfondo}`}>
+        <label className="flex items-center gap-2 min-w-[180px] flex-1">
+          <input type="checkbox" checked={isSel(n)} onChange={() => setSt(p => ({ ...p, sel: { ...p.sel, [n]: p.sel[n] === false } }))} className="w-6 h-6" />
+          <span className="text-lg font-semibold">{r.nome}</span>
+          {rank[n] && <span className="px-2 py-1 rounded-full bg-blue-600 text-white text-sm font-bold">{rank[n]}°</span>}
+        </label>
+        <div className="min-w-[120px]">{centro}</div>
+        <div className="flex flex-wrap gap-2">{azioni}</div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-gray-100 overflow-y-auto">
+      <div className="sticky top-0 z-10 bg-white border-b shadow px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="font-bold text-lg">⏱️ {def.nome} — {new Date(sessione.data).toLocaleDateString('it-IT')}</div>
+        <button onClick={chiudi} className="min-h-[44px] px-4 rounded-lg bg-gray-800 text-white font-bold">✕ Chiudi</button>
+      </div>
+      <div className="max-w-3xl mx-auto p-3">
+        {controlli}
+        {righe.length === 0 ? (
+          <p className="text-center text-gray-500 p-6">Nessun giocatore nella sessione. Aggiungili dalla tabella della sessione.</p>
+        ) : righe.map(renderRiga)}
+      </div>
+    </div>
+  );
+};
+// ===== CRONO COMPONENT END =====
 
 const saveToIndexedDB = async (key, data) => {
   try {
@@ -2628,7 +3251,8 @@ const SoccerTeamTracker = () => {
   const [nuovoTestAtleticoData, setNuovoTestAtleticoData] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTrainingForTestAtletico, setSelectedTrainingForTestAtletico] = useState('');
   const [viewingTestAtleticoId, setViewingTestAtleticoId] = useState(null); // sessione aperta per inserimento/visualizzazione tempi
-  const [showTestAtleticoIstruzioni, setShowTestAtleticoIstruzioni] = useState(null); // testId di cui mostrare le istruzioni
+  const [showTestAtleticoIstruzioni, setShowTestAtleticoIstruzioni] = useState(null);
+  const [cronoSessioneId, setCronoSessioneId] = useState(null); // sessione aperta nel cronometro // testId di cui mostrare le istruzioni
 
   // Calendario
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -4122,6 +4746,14 @@ const SoccerTeamTracker = () => {
     }));
   };
 
+  // Aggiornamento funzionale dei dati di un giocatore (usato dal cronometro: sicuro con tocchi ravvicinati)
+  const aggiornaDatiTestAtleticoFn = (sessioneId, numero, fn) => {
+    setTestAtletici(prev => prev.map(s => {
+      if (s.id !== sessioneId) return s;
+      return { ...s, risultati: { ...s.risultati, [numero]: fn(s.risultati[numero] || {}) } };
+    }));
+  };
+
   const eliminaSessioneTestAtletico = (id) => {
     const sessione = testAtletici.find(s => s.id === id);
     const def = sessione ? getTestAtleticoDef(sessione.testId) : null;
@@ -4235,7 +4867,7 @@ const SoccerTeamTracker = () => {
 
       switch (def.schema) {
         case 'tempoSingolo':
-          return [numero, nomeGiocatore, dati.tempo || '-'];
+          return [numero, nomeGiocatore, dati.tempo || (dati.nc ? 'NC' : '-')];
         case 'distanza':
           return [numero, nomeGiocatore, dati.distanza || '-', calcolo.vo2max != null ? calcolo.vo2max : '-'];
         case 'livelloTratto':
@@ -17388,6 +18020,14 @@ const SoccerTeamTracker = () => {
                             >
                               ✏️ Apri / Inserisci Tempi
                             </button>
+                            {userRole === 'admin' && (
+                              <button
+                                onClick={() => setCronoSessioneId(s.id)}
+                                className="text-sm bg-yellow-100 hover:bg-yellow-200 text-yellow-900 px-3 py-1 rounded font-semibold"
+                              >
+                                ⏱️ Cronometra
+                              </button>
+                            )}
                             <button
                               onClick={() => exportTestAtleticoPDFCompilato(s.id)}
                               className="text-sm bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1 rounded font-semibold"
@@ -17409,6 +18049,23 @@ const SoccerTeamTracker = () => {
                   </div>
                 )}
               </div>
+
+              {/* Cronometro a schermo intero */}
+              {cronoSessioneId && (() => {
+                const sessioneCrono = testAtletici.find(s => s.id === cronoSessioneId);
+                if (!sessioneCrono) return null;
+                const defCrono = getTestAtleticoDef(sessioneCrono.testId);
+                return (
+                  <CronometroTestAtletico
+                    key={sessioneCrono.id}
+                    sessione={sessioneCrono}
+                    def={defCrono}
+                    players={players}
+                    onUpdate={(numero, fn) => aggiornaDatiTestAtleticoFn(sessioneCrono.id, numero, fn)}
+                    onClose={() => setCronoSessioneId(null)}
+                  />
+                );
+              })()}
 
               {/* Modal: creazione nuova sessione */}
               {showNuovoTestAtleticoModal && (
@@ -17526,7 +18183,7 @@ const SoccerTeamTracker = () => {
                               return (
                                 <tr key={numero}>
                                   <td className="p-2 border">{numero}</td>
-                                  <td className="p-2 border">{player?.nome || `#${numero}`}</td>
+                                  <td className="p-2 border">{player?.nome || `#${numero}`}{dati.nc && <span className="ml-1 text-xs font-bold text-red-600">NC</span>}</td>
                                   {def.schema === 'tempoSingolo' && (
                                     <td className="p-2 border">
                                       <input type="text" value={dati.tempo || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'tempo', e.target.value)} disabled={userRole !== 'admin'} className="w-24 p-1 border rounded" placeholder={def.unitaTempo} />
@@ -17534,7 +18191,7 @@ const SoccerTeamTracker = () => {
                                   )}
                                   {def.schema === 'distanza' && (
                                     <>
-                                      <td className="p-2 border"><input type="number" value={dati.distanza || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'distanza', e.target.value)} disabled={userRole !== 'admin'} className="w-24 p-1 border rounded" /></td>
+                                      <td className="p-2 border"><input type="number" value={dati.distanza || ''} onChange={(e) => aggiornaDatoTestAtletico(sessione.id, numero, 'distanza', e.target.value)} disabled={userRole !== 'admin'} className="w-24 p-1 border rounded" />{dati.giri ? <span className="ml-1 text-xs text-gray-500">({String(dati.giri).replace('.', ',')} giri)</span> : null}</td>
                                       <td className="p-2 border text-center font-semibold text-blue-700">{calcolo.vo2max ?? '-'}</td>
                                     </>
                                   )}
@@ -17588,6 +18245,9 @@ const SoccerTeamTracker = () => {
                       </div>
 
                       <div className="mt-4 flex flex-wrap gap-2 justify-end">
+                        {userRole === 'admin' && (
+                          <button onClick={() => { setViewingTestAtleticoId(null); setCronoSessioneId(sessione.id); }} className="px-4 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white font-semibold">⏱️ Cronometra</button>
+                        )}
                         <button onClick={() => exportTestAtleticoPDFCompilato(sessione.id)} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">📄 Esporta Risultati PDF</button>
                         <button onClick={() => setViewingTestAtleticoId(null)} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold">Chiudi</button>
                       </div>
