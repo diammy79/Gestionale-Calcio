@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.6.1'; // Test Atletici: cronometro integrato (gruppo/singolo, sprint, RSA, Cooper contagiri + giro a tutti, beep Yo-Yo/Beep/Gacon)
+      const APP_VERSION = '2.8.0'; // Preparazione: piano sedute (90' con 45' atletici + tecnico/tattico)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -3032,6 +3032,325 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
 };
 // ===== CRONO COMPONENT END =====
 
+// ===== CICLI PURE START =====
+// ========== PREPARAZIONE ATLETICA: cicli, gruppi per VAM / velocità, prescrizione ripetute ==========
+const CICLO_PRESET = {
+  estiva: { label: 'Preparazione estiva', settimane: 4, sedute: 5 },
+  invernale: { label: 'Richiamo invernale', settimane: 2, sedute: 3 }
+};
+const TEST_FONTE_VAM = ['gacon', 'beep', 'cooper'];
+
+// VAM (km/h) ricavata dai dati grezzi di un test. null se non calcolabile.
+const vamDaDati = (testId, dati) => {
+  if (!dati) return null;
+  if (testId === 'gacon') {
+    const r = calcolaGaconRisultato(dati.step, 10);
+    return r.vam;
+  }
+  if (testId === 'beep') {
+    const L = parseInt(dati.livello);
+    const n = parseInt(dati.tratto) || 0;
+    if (!L || isNaN(L)) return null;
+    const Leff = n > 0 ? L : L - 1;      // ultimo livello raggiunto (almeno una navetta completata)
+    if (Leff < 1) return null;
+    return 8.5 + 0.5 * (Leff - 1);
+  }
+  if (testId === 'cooper') {
+    const d = parseFloat(dati.distanza);
+    if (!d || isNaN(d)) return null;
+    return Math.round((d / 720) * 3.6 * 10) / 10;   // velocità media sui 12 minuti
+  }
+  return null;
+};
+
+// Velocità media (km/h) sul tratto 0-X metri a partire dai tempi del test sprint
+const velocitaSprint = (dati, tratto) => {
+  if (!dati) return null;
+  const t = parseFloat(dati['t' + tratto]);
+  if (!t || isNaN(t) || t <= 0) return null;
+  return Math.round((tratto / t) * 3.6 * 100) / 100;
+};
+
+// Divide in gruppi di 2-5 giocatori con valori vicini (ordinati dal più alto al più basso)
+const dividiInGruppi = (elenco, target) => {
+  const ord = [...elenco].sort((a, b) => b.valore - a.valore);
+  const N = ord.length;
+  if (N === 0) return [];
+  let g = Math.max(1, Math.round(N / (target || 4)));
+  while (g > 1 && Math.floor(N / g) < 2) g--;
+  while (Math.ceil(N / g) > 5) g++;
+  const base = Math.floor(N / g);
+  const rem = N % g;
+  const out = [];
+  let i = 0;
+  for (let k = 0; k < g; k++) {
+    const size = base + (k < rem ? 1 : 0);
+    out.push(ord.slice(i, i + size).map(x => x.numero));
+    i += size;
+  }
+  return out;
+};
+
+// Data + 3 mesi (formato yyyy-mm-dd)
+const piuTreMesi = (iso) => {
+  if (!iso) return '';
+  const [y, m, g] = iso.split('-').map(Number);
+  const ultimo = new Date(Date.UTC(y, m + 3, 0)).getUTCDate();   // ultimo giorno del mese di arrivo
+  return new Date(Date.UTC(y, m + 2, Math.min(g, ultimo))).toISOString().split('T')[0];
+};
+
+const creaCicloVuoto = (tipo, nome, dataInizio) => ({
+  id: `ciclo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  tipo,
+  nome: nome || CICLO_PRESET[tipo].label,
+  dataInizio: dataInizio || new Date().toISOString().split('T')[0],
+  settimane: CICLO_PRESET[tipo].settimane,
+  seduteSettimana: CICLO_PRESET[tipo].sedute,
+  testVamId: '',
+  correzioneVam: '0',
+  testSprintId: '',
+  trattoSprint: 30,
+  gruppiVam: [],
+  gruppiSprint: [],
+  prescrizione: { tCorsa: '15', tRecupero: '15', perc: '100', ripetute: '10', serie: '2', recuperoSerie: '180', note: '' },
+  piano: null
+});
+
+// Dati elaborati di un ciclo: righe giocatore (VAM, sprint) e gruppi con medie e distanza coni
+const calcolaDatiCiclo = (ciclo, players, testAtletici, injuries = []) => {
+  // Infortuni correnti: 'active' (infortunato) e 'recovering' (in recupero) escludono dal lavoro di gruppo
+  const statoInfortunio = {};
+  (injuries || []).forEach(inj => {
+    if (inj.status === 'active') statoInfortunio[inj.playerNum] = 'active';
+    else if (inj.status === 'recovering' && statoInfortunio[inj.playerNum] !== 'active') statoInfortunio[inj.playerNum] = 'recovering';
+  });
+  const motivoEsclusione = (p) => {
+    if (p.fuoriRosa) return 'fuori rosa';
+    if (getRuoloOrder(p.ruolo) === 1) return 'portiere';
+    if (statoInfortunio[p.numero] === 'active') return 'infortunato';
+    if (statoInfortunio[p.numero] === 'recovering') return 'in recupero';
+    return null;
+  };
+  const conNome = players.filter(p => p.nome);
+  const eleggibili = conNome
+    .filter(p => !motivoEsclusione(p))
+    .sort((a, b) => a.nome.localeCompare(b.nome));
+  const esclusiInfortunati = conNome
+    .filter(p => ['infortunato', 'in recupero'].includes(motivoEsclusione(p)))
+    .sort((a, b) => a.nome.localeCompare(b.nome))
+    .map(p => ({ numero: p.numero, nome: p.nome, motivo: motivoEsclusione(p) }));
+  const sV = testAtletici.find(s => s.id === ciclo.testVamId);
+  const sS = testAtletici.find(s => s.id === ciclo.testSprintId);
+  const corr = parseFloat(ciclo.correzioneVam) || 0;
+  const righe = eleggibili.map(p => {
+    const vRaw = sV ? vamDaDati(sV.testId, sV.risultati[p.numero]) : null;
+    const vam = vRaw !== null && vRaw !== undefined ? Math.round((vRaw - corr) * 10) / 10 : null;
+    const sprint = sS ? velocitaSprint(sS.risultati[p.numero], ciclo.trattoSprint || 30) : null;
+    return { numero: p.numero, nome: p.nome, vam, sprint };
+  });
+  const mappa = {};
+  righe.forEach(r => { mappa[r.numero] = r; });
+
+  const costruisci = (gruppi, chiave) => (gruppi || []).map((numeri, i) => {
+    const membri = numeri.map(n => mappa[n]).filter(Boolean)
+      .sort((a, b) => (b[chiave] === null ? -1 : b[chiave]) - (a[chiave] === null ? -1 : a[chiave]));
+    const vals = membri.map(m => m[chiave]).filter(v => v !== null && v !== undefined);
+    const media = vals.length ? Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100 : null;
+    const spread = vals.length > 1 ? Math.round((Math.max(...vals) - Math.min(...vals)) * 100) / 100 : 0;
+    return { indice: i, nome: `Gruppo ${i + 1}`, membri, media, spread };
+  });
+
+  const pr = ciclo.prescrizione || {};
+  const perc = parseFloat(pr.perc) || 0;
+  const tCorsa = parseFloat(pr.tCorsa) || 0;
+  const gruppiVam = costruisci(ciclo.gruppiVam, 'vam').map(g => {
+    const vTarget = g.media !== null ? Math.round(g.media * perc) / 100 : null;
+    const distanza = vTarget !== null ? Math.round((vTarget / 3.6) * tCorsa * 10) / 10 : null;
+    return { ...g, vTarget, distanza };
+  });
+  const gruppiSprint = costruisci(ciclo.gruppiSprint, 'sprint');
+
+  const inVam = new Set((ciclo.gruppiVam || []).flat());
+  const inSprint = new Set((ciclo.gruppiSprint || []).flat());
+  return {
+    righe, gruppiVam, gruppiSprint, esclusiInfortunati,
+    nonAssegnatiVam: righe.filter(r => !inVam.has(r.numero)),
+    nonAssegnatiSprint: righe.filter(r => !inSprint.has(r.numero))
+  };
+};
+
+// ========== PIANO SEDUTE: allenamento da 90' con circa 45' di parte atletica ==========
+const PIANO_DURATA_TOTALE = 90;
+const PIANO_MIN_ATLETICI = 45;
+const PIANO_TIPI = {
+  vam: 'Ripetute VAM',
+  sprint: 'Velocità / RSA',
+  forza: 'Forza e potenza',
+  pallone: 'Atletico con la palla',
+  test: 'Test di verifica'
+};
+const PIANO_FASI = { ricond: 'Ricondizionamento', intens: 'Intensificazione', scarico: 'Scarico e test' };
+const PIANO_INTENSITA = { alta: 'Alta', media: 'Media', bassa: 'Bassa' };
+const PIANO_TECNICO_SUGGERITO = {
+  alta: 'Tecnico-tattico a carico ridotto: possesso palla, uscita dal basso, situazioni posizionali',
+  media: 'Tecnico-tattico: fase offensiva e difensiva, partita a tema',
+  bassa: 'Tecnico-tattico a piena intensità: partita a tema, situazioni di gara'
+};
+
+// Prescrizioni per settimana [corsa s, recupero s, % VAM, ripetute, serie, recupero tra serie s]
+const PIANO_VAM_A = { estiva: [[15,15,100,8,2,180],[15,15,100,10,2,180],[15,15,105,8,2,180],[15,15,100,6,2,180]], invernale: [[15,15,100,8,2,180],[15,15,105,8,2,180]] };
+const PIANO_VAM_B = { estiva: [[30,30,95,6,2,180],[30,30,95,8,2,180],[30,30,100,6,2,180],[30,30,95,5,2,180]] };
+// Sprint [ripetute, distanza m, recupero s, serie, recupero tra serie s]
+const PIANO_SPRINT = { estiva: [[5,20,25,2,180],[6,20,25,2,180],[5,30,25,2,180],[6,20,25,1,0]], invernale: [[5,20,25,2,180],[5,30,25,2,180]] };
+
+const nuovoIdPiano = () => Math.random().toString(36).substr(2, 9);
+
+const minutiVam = (pr) => {
+  if (!pr) return 0;
+  const rip = parseFloat(pr.ripetute) || 0, serie = parseFloat(pr.serie) || 0;
+  const sec = serie * rip * ((parseFloat(pr.tCorsa) || 0) + (parseFloat(pr.tRecupero) || 0)) + Math.max(0, serie - 1) * (parseFloat(pr.recuperoSerie) || 0);
+  return Math.ceil(sec / 60);
+};
+const minutiSprint = (sp) => {
+  if (!sp) return 0;
+  const rip = parseFloat(sp.ripetute) || 0, serie = parseFloat(sp.serie) || 0, dist = parseFloat(sp.distanza) || 0;
+  const sec = serie * rip * ((parseFloat(sp.recupero) || 0) + Math.round(dist / 6)) + Math.max(0, serie - 1) * (parseFloat(sp.recuperoSerie) || 0);
+  return Math.ceil(sec / 60);
+};
+const testoPrescrizioneVam = (pr) => pr ? `${pr.serie} serie x ${pr.ripetute} ripetute ${pr.tCorsa}"/${pr.tRecupero}" al ${pr.perc}% VAM, recupero tra serie ${pr.recuperoSerie}"` : '';
+const testoPrescrizioneSprint = (sp) => sp ? `${sp.serie} serie x ${sp.ripetute} sprint da ${sp.distanza} m, recupero ${sp.recupero}" tra gli sprint, ${sp.recuperoSerie}" tra le serie` : '';
+
+// Distanza del cono (m) per una velocità media di gruppo e una prescrizione
+const distanzaConiPr = (vamMedia, pr) => {
+  if (vamMedia === null || vamMedia === undefined || !pr) return null;
+  const v = Math.round(vamMedia * (parseFloat(pr.perc) || 0)) / 100;
+  return Math.round((v / 3.6) * (parseFloat(pr.tCorsa) || 0) * 10) / 10;
+};
+
+// Aggiorna i minuti dei blocchi calcolati automaticamente dalla prescrizione
+const ricalcolaBlocchiAuto = (s) => ({
+  ...s,
+  blocchi: (s.blocchi || []).map(b => {
+    if (b.auto === 'vam') return { ...b, minuti: minutiVam(s.pr), descrizione: testoPrescrizioneVam(s.pr) };
+    if (b.auto === 'sprint') return { ...b, minuti: minutiSprint(s.sp), descrizione: testoPrescrizioneSprint(s.sp) };
+    return b;
+  })
+});
+
+// Minuti atletici e tecnico/tattici di una seduta + stato rispetto ai 45'
+const bilancioSeduta = (s) => {
+  const atl = Math.round((s.blocchi || []).reduce((a, b) => a + (parseFloat(b.minuti) || 0), 0));
+  const tec = PIANO_DURATA_TOTALE - atl;
+  let stato = 'ok';
+  if (atl > PIANO_MIN_ATLETICI + 5) stato = 'alto';
+  else if (atl < PIANO_MIN_ATLETICI - 10) stato = 'basso';
+  return { atl, tec, stato };
+};
+
+// Controlli sulla settimana: sedute intense massimo 3 e mai in giorni consecutivi
+const controllaSettimanaPiano = (sedute) => {
+  const alte = sedute.filter(s => s.intensita === 'alta' && s.data).sort((a, b) => a.data.localeCompare(b.data));
+  const avvisi = [];
+  if (alte.length > 3) avvisi.push(`${alte.length} sedute ad alta intensità: meglio non più di 3 a settimana`);
+  for (let i = 1; i < alte.length; i++) {
+    const d = (new Date(alte[i].data) - new Date(alte[i - 1].data)) / 86400000;
+    if (d <= 1) avvisi.push(`Sedute ${alte[i - 1].num} e ${alte[i].num}: due sedute intense in giorni consecutivi`);
+  }
+  return avvisi;
+};
+
+// Primo lunedì dalla data indicata (se è lunedì, quel giorno) + offset giorni, formato yyyy-mm-dd
+const dataPianoSeduta = (dataInizio, settimana, giornoSett) => {
+  if (!dataInizio) return '';
+  const [y, m, g] = dataInizio.split('-').map(Number);
+  const base = new Date(Date.UTC(y, m - 1, g));
+  const dow = base.getUTCDay();              // 0 = domenica
+  const finoLunedi = (8 - (dow === 0 ? 7 : dow)) % 7;
+  const d = new Date(base.getTime() + (finoLunedi + (settimana - 1) * 7 + (giornoSett - 1)) * 86400000);
+  return d.toISOString().split('T')[0];
+};
+
+// Genera il piano base (modificabile) del ciclo
+const generaPianoCiclo = (ciclo) => {
+  const estiva = ciclo.tipo === 'estiva';
+  const giorni = estiva ? [1, 2, 3, 4, 5] : [1, 3, 5];
+  const fasiSett = estiva ? ['ricond', 'ricond', 'intens', 'scarico'] : ['ricond', 'intens'];
+  const sedute = [];
+  const blk = (nome, minuti, descrizione, auto) => ({ id: nuovoIdPiano(), nome, minuti, descrizione: descrizione || '', auto: auto || null });
+  const arrotonda5 = (x) => Math.max(5, Math.round(x / 5) * 5);
+
+  for (let w = 1; w <= ciclo.settimane; w++) {
+    const fase = fasiSett[w - 1] || 'intens';
+    const scarico = fase === 'scarico';
+    const tipiGiorno = estiva ? ['vam', 'forza', 'sprint', 'pallone', 'vam2'] : ['vam', 'forza', 'sprint'];
+    tipiGiorno.slice(0, ciclo.seduteSettimana).forEach((tipoBase, i) => {
+      const num = (w - 1) * ciclo.seduteSettimana + i + 1;
+      let tipo = tipoBase === 'vam2' ? 'vam' : tipoBase;
+      let intensita = ['vam', 'sprint'].includes(tipo) ? 'alta' : 'media';
+      let pr = null, sp = null, blocchi = [], titolo = PIANO_TIPI[tipo];
+
+      if (tipoBase === 'vam2' && scarico) {
+        tipo = 'test'; titolo = 'Test di verifica (VAM)'; intensita = 'media';
+        blocchi = [blk('Riscaldamento progressivo', 15), blk('Test di riferimento (Gacon, Beep o Cooper)', 20, 'Ripetere lo stesso test usato per formare i gruppi'), blk('Defaticamento e mobilità', 10)];
+      } else if (tipo === 'vam') {
+        const tab = tipoBase === 'vam2' ? PIANO_VAM_B.estiva : PIANO_VAM_A[ciclo.tipo];
+        const r = tab[w - 1] || tab[tab.length - 1];
+        pr = { tCorsa: String(r[0]), tRecupero: String(r[1]), perc: String(r[2]), ripetute: String(r[3]), serie: String(r[4]), recuperoSerie: String(r[5]), note: '' };
+        const mv = minutiVam(pr);
+        blocchi = [
+          blk('Riscaldamento e attivazione', 10),
+          blk('Ripetute VAM', mv, testoPrescrizioneVam(pr), 'vam'),
+          blk('Core e prevenzione (nordic, adduttori)', arrotonda5(PIANO_MIN_ATLETICI - 15 - mv)),
+          blk('Defaticamento e mobilità', 5)
+        ];
+        titolo = tipoBase === 'vam2' ? 'Ripetute VAM 30"/30"' : 'Ripetute VAM 15"/15"';
+      } else if (tipo === 'sprint') {
+        const tab = PIANO_SPRINT[ciclo.tipo];
+        const r = tab[w - 1] || tab[tab.length - 1];
+        sp = { ripetute: String(r[0]), distanza: String(r[1]), recupero: String(r[2]), serie: String(r[3]), recuperoSerie: String(r[4]) };
+        const ms = minutiSprint(sp);
+        blocchi = [
+          blk('Riscaldamento e andature', 12),
+          blk('Sprint ripetuti (RSA)', ms, testoPrescrizioneSprint(sp), 'sprint'),
+          blk('Pliometria e cambi di direzione', arrotonda5(PIANO_MIN_ATLETICI - 17 - ms)),
+          blk('Defaticamento e mobilità', 5)
+        ];
+        titolo = 'Velocità / RSA';
+      } else if (tipo === 'forza') {
+        const potenza = fase === 'intens';
+        blocchi = [
+          blk('Riscaldamento e attivazione', 10),
+          blk(potenza ? 'Forza massima e potenza (squat, stacchi, salti)' : scarico ? 'Forza a carichi sub-massimali (mantenimento)' : 'Forza generale (squat, affondi, stacchi)', scarico ? 15 : 20),
+          blk('Nordic hamstring e prevenzione', 10),
+          blk('Core', 5)
+        ];
+        if (scarico) blocchi.push(blk('Mobilità e recupero', 5));
+        titolo = potenza ? 'Forza massima e potenza' : 'Forza e potenza';
+      } else {
+        const sc = scarico;
+        blocchi = [
+          blk('Riscaldamento con la palla', 10),
+          blk(sc ? 'Partitelle a tema 3 x 3\' (3v3-5v5)' : 'Partitelle a tema 4 x 4\' (3v3-5v5)', sc ? 15 : 25, sc ? 'Recupero 2\' tra le serie' : 'Recupero 3\' tra le serie, intensità 90-95% FC max'),
+          blk('Mobilità e recupero', sc ? 20 : 10)
+        ];
+        titolo = 'Atletico con la palla (partitelle)';
+      }
+
+      sedute.push({
+        id: `sed_${nuovoIdPiano()}`,
+        num, settimana: w, fase, tipo, intensita, titolo,
+        data: dataPianoSeduta(ciclo.dataInizio, w, giorni[i]),
+        pr, sp, blocchi,
+        temaTecnico: PIANO_TECNICO_SUGGERITO[intensita === 'alta' ? 'alta' : 'media'],
+        note: '',
+        trainingId: ''
+      });
+    });
+  }
+  return sedute;
+};
+// ===== CICLI PURE END =====
+
 const saveToIndexedDB = async (key, data) => {
   try {
     const db = await initDB();
@@ -3252,7 +3571,15 @@ const SoccerTeamTracker = () => {
   const [selectedTrainingForTestAtletico, setSelectedTrainingForTestAtletico] = useState('');
   const [viewingTestAtleticoId, setViewingTestAtleticoId] = useState(null); // sessione aperta per inserimento/visualizzazione tempi
   const [showTestAtleticoIstruzioni, setShowTestAtleticoIstruzioni] = useState(null);
-  const [cronoSessioneId, setCronoSessioneId] = useState(null); // sessione aperta nel cronometro // testId di cui mostrare le istruzioni
+  const [cronoSessioneId, setCronoSessioneId] = useState(null); // sessione aperta nel cronometro
+
+  // ========== PREPARAZIONE ATLETICA (cicli) ==========
+  const [cicliPreparazione, setCicliPreparazione] = useState([]);
+  const [cicloAperto, setCicloAperto] = useState(null);
+  const [sedutaAperta, setSedutaAperta] = useState(null);
+  const [showNuovoCicloModal, setShowNuovoCicloModal] = useState(false);
+  const [nuovoCicloForm, setNuovoCicloForm] = useState({ nome: '', tipo: 'estiva', dataInizio: new Date().toISOString().split('T')[0] });
+  const [targetGruppo, setTargetGruppo] = useState(4); // testId di cui mostrare le istruzioni
 
   // Calendario
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
@@ -3386,6 +3713,7 @@ const SoccerTeamTracker = () => {
           setRisultatiCampionato(savedData.risultatiCampionato || []);
           setValutazioni(savedData.valutazioni || []);
           setTestAtletici(savedData.testAtletici || []);
+          setCicliPreparazione(savedData.cicliPreparazione || []);
           setLastSaved(savedData.lastSaved ? new Date(savedData.lastSaved) : null);
         }
       } catch (error) {
@@ -3518,6 +3846,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato,
         valutazioni,
         testAtletici,
+        cicliPreparazione,
         lastSaved: new Date().toISOString()
       };
 
@@ -3528,7 +3857,7 @@ const SoccerTeamTracker = () => {
     };
 
     saveData();
-  }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, valutazioni, testAtletici, isLoading]);
+  }, [players, trainings, matches, appTitle, teamName, teamLogo, injuries, squadreGirone, risultatiCampionato, valutazioni, testAtletici, cicliPreparazione, isLoading]);
 
   // ========== GESTIONE STATO CONNESSIONE (ONLINE/OFFLINE) ==========
   useEffect(() => {
@@ -3610,7 +3939,7 @@ const SoccerTeamTracker = () => {
     }, 8 * 60 * 1000); // 8 minuti (ottimizzato per tablet)
     
     return () => clearInterval(autoSaveInterval);
-  }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato, valutazioni, testAtletici]);
+  }, [user, userRole, adminLockActive, players, trainings, matches, injuries, squadreGirone, risultatiCampionato, valutazioni, testAtletici, cicliPreparazione]);
 
   // ========== POLLING AUTO-RELOAD PER USER (OGNI MINUTO) ==========
   useEffect(() => {
@@ -4761,6 +5090,304 @@ const SoccerTeamTracker = () => {
     setTestAtletici(testAtletici.filter(s => s.id !== id));
     if (viewingTestAtleticoId === id) setViewingTestAtleticoId(null);
     showToast('🗑️ Sessione test eliminata', 'success');
+  };
+
+
+  // ========== PREPARAZIONE ATLETICA: funzioni ==========
+  const aggiornaCiclo = (id, patch) => setCicliPreparazione(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c));
+  const aggiornaPrescrizioneCiclo = (id, campo, valore) => setCicliPreparazione(prev => prev.map(c => c.id === id ? { ...c, prescrizione: { ...c.prescrizione, [campo]: valore } } : c));
+
+  const creaNuovoCiclo = () => {
+    if (!nuovoCicloForm.dataInizio) { alert('⚠️ Inserisci la data di inizio'); return; }
+    const nuovo = creaCicloVuoto(nuovoCicloForm.tipo, nuovoCicloForm.nome.trim(), nuovoCicloForm.dataInizio);
+    setCicliPreparazione(prev => [...prev, nuovo]);
+    setShowNuovoCicloModal(false);
+    setCicloAperto(nuovo.id);
+    showToast(`✅ Ciclo "${nuovo.nome}" creato!`, 'success');
+  };
+
+  const eliminaCiclo = (id) => {
+    const c = cicliPreparazione.find(x => x.id === id);
+    if (!window.confirm(`⚠️ Eliminare definitivamente il ciclo "${c?.nome || ''}"?\n\nQuesta azione NON può essere annullata!`)) return;
+    setCicliPreparazione(prev => prev.filter(x => x.id !== id));
+    if (cicloAperto === id) setCicloAperto(null);
+    showToast('🗑️ Ciclo eliminato', 'success');
+  };
+
+  // Crea il ciclo di richiamo a 3 mesi dall'inizio del ciclo indicato (copia impostazioni e prescrizione)
+  const creaCicloRichiamo = (id) => {
+    const c = cicliPreparazione.find(x => x.id === id);
+    if (!c) return;
+    const dataRichiamo = piuTreMesi(c.dataInizio);
+    const nuovo = creaCicloVuoto('invernale', `Richiamo ${new Date(dataRichiamo).toLocaleDateString('it-IT')}`, dataRichiamo);
+    nuovo.correzioneVam = c.correzioneVam;
+    nuovo.trattoSprint = c.trattoSprint;
+    nuovo.prescrizione = { ...c.prescrizione };
+    setCicliPreparazione(prev => [...prev, nuovo]);
+    setCicloAperto(nuovo.id);
+    showToast('✅ Ciclo di richiamo creato: scegli i nuovi test e rigenera i gruppi', 'success');
+  };
+
+  // chiave: 'gruppiVam' | 'gruppiSprint'
+  const generaGruppiCiclo = (id, chiave) => {
+    const c = cicliPreparazione.find(x => x.id === id);
+    if (!c) return;
+    const dd = calcolaDatiCiclo(c, players, testAtletici, injuries);
+    const campo = chiave === 'gruppiVam' ? 'vam' : 'sprint';
+    const elenco = dd.righe.filter(r => r[campo] !== null && r[campo] !== undefined).map(r => ({ numero: r.numero, valore: r[campo] }));
+    if (elenco.length < 2) {
+      alert(chiave === 'gruppiVam'
+        ? '⚠️ Servono almeno 2 giocatori con una VAM calcolata. Scegli prima il test di riferimento.'
+        : '⚠️ Servono almeno 2 giocatori con un tempo sprint sul tratto scelto.');
+      return;
+    }
+    if ((c[chiave] || []).length > 0 && !window.confirm('Rigenerare i gruppi? Le modifiche manuali ai gruppi attuali andranno perse.')) return;
+    aggiornaCiclo(id, { [chiave]: dividiInGruppi(elenco, targetGruppo) });
+    showToast(`✅ Gruppi generati (${elenco.length} giocatori)`, 'success');
+  };
+
+  // idx = -1 per togliere il giocatore da tutti i gruppi
+  const spostaInGruppoCiclo = (id, chiave, numero, idx) => {
+    setCicliPreparazione(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const gruppi = (c[chiave] || []).map(g => g.filter(n => n !== numero));
+      if (idx >= 0 && gruppi[idx]) gruppi[idx] = [...gruppi[idx], numero];
+      return { ...c, [chiave]: gruppi };
+    }));
+  };
+
+  const aggiungiGruppoVuotoCiclo = (id, chiave) => {
+    setCicliPreparazione(prev => prev.map(c => c.id === id ? { ...c, [chiave]: [...(c[chiave] || []), []] } : c));
+  };
+
+  const rimuoviGruppiVuotiCiclo = (id, chiave) => {
+    setCicliPreparazione(prev => prev.map(c => c.id === id ? { ...c, [chiave]: (c[chiave] || []).filter(g => g.length > 0) } : c));
+  };
+
+  // Foglio da campo in PDF: gruppi, VAM, distanza dei coni
+  const exportFoglioGruppiPDF = (id) => {
+    const c = cicliPreparazione.find(x => x.id === id);
+    if (!c) return;
+    const dd = calcolaDatiCiclo(c, players, testAtletici, injuries);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pr = c.prescrizione || {};
+
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text(c.nome, 105, 15, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${appTitle || ''}`, 105, 21, { align: 'center' });
+    doc.text(`${CICLO_PRESET[c.tipo]?.label || ''} - inizio ${new Date(c.dataInizio).toLocaleDateString('it-IT')} - ${c.settimane} settimane x ${c.seduteSettimana} sedute`, 105, 27, { align: 'center' });
+
+    doc.setFont(undefined, 'bold');
+    const testoPrescrizione = `${pr.ripetute} ripetute x (${pr.tCorsa}" corsa / ${pr.tRecupero}" recupero) al ${pr.perc}% della VAM - ${pr.serie} serie - recupero tra le serie ${pr.recuperoSerie}"`;
+    const righeTesto = doc.splitTextToSize(testoPrescrizione, 180);
+    doc.text(righeTesto, 15, 36);
+    let y = 36 + righeTesto.length * 5 + 2;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(9);
+    doc.text('I gruppi corrono a turno.' + (pr.note ? ' ' + pr.note : ''), 15, y);
+    y += 7;
+
+    const titolo = (testo) => {
+      if (y > 255) { doc.addPage(); y = 15; }
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(11);
+      doc.text(testo, 15, y);
+      y += 3;
+    };
+
+    if (dd.gruppiVam.length === 0) {
+      doc.text('Nessun gruppo VAM definito.', 15, y);
+      y += 8;
+    }
+    dd.gruppiVam.forEach(g => {
+      titolo(`${g.nome} (turno ${g.indice + 1}) - VAM media ${g.media !== null ? g.media : '-'} km/h - target ${g.vTarget !== null ? g.vTarget : '-'} km/h - CONO A ${g.distanza !== null ? g.distanza : '-'} m`);
+      doc.autoTable({
+        startY: y,
+        head: [['N°', 'Giocatore', 'VAM km/h', 'Sprint km/h', 'Note']],
+        body: g.membri.map(m => [m.numero, m.nome, m.vam !== null ? m.vam : '-', m.sprint !== null ? m.sprint : '-', '']),
+        theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246], fontSize: 9 },
+        bodyStyles: { fontSize: 9, minCellHeight: 7 },
+        margin: { left: 15, right: 15 }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    });
+    if (dd.nonAssegnatiVam.length > 0) {
+      titolo('Non assegnati ai gruppi VAM');
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      const lista = doc.splitTextToSize(dd.nonAssegnatiVam.map(r => r.nome).join(', '), 180);
+      doc.text(lista, 15, y + 2);
+      y += lista.length * 4 + 6;
+    }
+
+    if (dd.esclusiInfortunati.length > 0) {
+      titolo('Esclusi per infortunio');
+      doc.setFont(undefined, 'normal');
+      doc.setFontSize(9);
+      const listaEsclusi = doc.splitTextToSize(dd.esclusiInfortunati.map(e => `${e.nome} (${e.motivo})`).join(', '), 180);
+      doc.text(listaEsclusi, 15, y + 2);
+      y += listaEsclusi.length * 4 + 6;
+    }
+
+    if (dd.gruppiSprint.length > 0) {
+      doc.addPage();
+      y = 15;
+      titolo(`GRUPPI DI VELOCITA (sprint 0-${c.trattoSprint || 30} m)`);
+      y += 3;
+      dd.gruppiSprint.forEach(g => {
+        titolo(`${g.nome} - velocita media ${g.media !== null ? g.media : '-'} km/h`);
+        doc.autoTable({
+          startY: y,
+          head: [['N°', 'Giocatore', 'Sprint km/h', 'Note']],
+          body: g.membri.map(m => [m.numero, m.nome, m.sprint !== null ? m.sprint : '-', '']),
+          theme: 'grid',
+          headStyles: { fillColor: [16, 122, 66], fontSize: 9 },
+          bodyStyles: { fontSize: 9, minCellHeight: 7 },
+          margin: { left: 15, right: 15 }
+        });
+        y = doc.lastAutoTable.finalY + 8;
+      });
+    }
+
+    doc.save(`FoglioGruppi_${c.nome.replace(/\s+/g, '_')}.pdf`);
+    showToast('📄 Foglio gruppi PDF generato!', 'success');
+  };
+
+  // ========== PIANO SEDUTE (dentro al ciclo) ==========
+  const generaPianoCicloApp = (id) => {
+    const c = cicliPreparazione.find(x => x.id === id);
+    if (!c) return;
+    if (c.piano && c.piano.sedute && c.piano.sedute.length > 0 &&
+        !window.confirm('⚠️ Rigenerare il piano? Le modifiche alle sedute attuali andranno perse (gli allenamenti già creati restano).')) return;
+    const sedute = generaPianoCiclo(c);
+    setCicliPreparazione(prev => prev.map(x => x.id === id ? { ...x, piano: { sedute } } : x));
+    setSedutaAperta(sedute[0] ? sedute[0].id : null);
+    showToast(`✅ Piano generato: ${sedute.length} sedute`, 'success');
+  };
+
+  // fn riceve la seduta e restituisce quella aggiornata
+  const aggiornaSedutaPiano = (cicloId, sedutaId, fn) => setCicliPreparazione(prev => prev.map(c => {
+    if (c.id !== cicloId || !c.piano) return c;
+    return { ...c, piano: { ...c.piano, sedute: c.piano.sedute.map(s => s.id === sedutaId ? ricalcolaBlocchiAuto(fn(s)) : s) } };
+  }));
+
+  const creaAllenamentoDaSeduta = (cicloId, sedutaId) => {
+    const c = cicliPreparazione.find(x => x.id === cicloId);
+    const s = c && c.piano ? c.piano.sedute.find(x => x.id === sedutaId) : null;
+    if (!s) return;
+    if (!s.data) { alert('⚠️ Imposta prima la data della seduta'); return; }
+    const esistente = s.trainingId ? trainings.find(t => t.id === s.trainingId) : null;
+    if (esistente && !window.confirm('Esiste già un allenamento collegato a questa seduta.\n\nSostituire i suoi esercizi con quelli del piano?')) return;
+    const bil = bilancioSeduta(s);
+    const esercizi = [
+      ...s.blocchi.map(b => ({ id: Date.now() + Math.floor(Math.random() * 100000), nome: `Atletico: ${b.nome}`, durata: parseInt(b.minuti) || 0, descrizione: b.descrizione || '', valutazione: '' })),
+      { id: Date.now() + Math.floor(Math.random() * 100000), nome: 'Parte tecnico/tattica', durata: Math.max(0, bil.tec), descrizione: s.temaTecnico || '', valutazione: '' }
+    ];
+    if (esistente) {
+      setTrainings(trainings.map(t => t.id === esistente.id ? { ...t, data: s.data, esercizi } : t));
+      showToast('✅ Allenamento aggiornato', 'success');
+      return;
+    }
+    const infortuniPrecompilati = {};
+    injuries.forEach(inj => { if (inj.status === 'active') infortuniPrecompilati[inj.playerNum] = true; });
+    const presenze = {};
+    players.forEach(p => { presenze[p.numero] = !infortuniPrecompilati[p.numero]; });
+    const nuovoId = Date.now();
+    setTrainings([...trainings, { id: nuovoId, data: s.data, presenze, infortuni: infortuniPrecompilati, esercizi, foto: [], cicloId, sedutaId }]);
+    aggiornaSedutaPiano(cicloId, sedutaId, x => ({ ...x, trainingId: nuovoId }));
+    showToast('✅ Allenamento creato nel tab Allenamenti', 'success');
+  };
+
+  const exportPianoSedutePDF = (id) => {
+    const c = cicliPreparazione.find(x => x.id === id);
+    if (!c || !c.piano || !c.piano.sedute.length) return;
+    const dd = calcolaDatiCiclo(c, players, testAtletici, injuries);
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const dataIt = (d) => d ? new Date(d).toLocaleDateString('it-IT') : '-';
+    doc.setFontSize(16);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Piano sedute: ${c.nome}`, 105, 15, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'normal');
+    doc.text(`${appTitle || ''} - allenamento ${PIANO_DURATA_TOTALE}' con circa ${PIANO_MIN_ATLETICI}' di parte atletica`, 105, 21, { align: 'center' });
+    let y = 28;
+    for (let w = 1; w <= c.settimane; w++) {
+      const sedSett = c.piano.sedute.filter(s => s.settimana === w);
+      if (sedSett.length === 0) continue;
+      if (y > 235) { doc.addPage(); y = 15; }
+      doc.setFont(undefined, 'bold');
+      doc.setFontSize(12);
+      doc.text(`Settimana ${w} - ${PIANO_FASI[sedSett[0].fase] || ''}`, 15, y);
+      y += 3;
+      doc.autoTable({
+        startY: y,
+        head: [['Seduta', 'Data', 'Atletico', 'Int.', "Atl.", "Tec.", 'Parte tecnico/tattica']],
+        body: sedSett.map(s => { const b = bilancioSeduta(s); return [s.num, dataIt(s.data), s.titolo, PIANO_INTENSITA[s.intensita] || '', `${b.atl}'`, `${b.tec}'`, s.temaTecnico || '']; }),
+        theme: 'grid',
+        headStyles: { fillColor: [59, 130, 246], fontSize: 9 },
+        bodyStyles: { fontSize: 8 },
+        columnStyles: { 6: { cellWidth: 55 } },
+        margin: { left: 15, right: 15 }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    }
+    // Una pagina per seduta con blocchi e (per le VAM) distanza dei coni dei gruppi
+    c.piano.sedute.forEach(s => {
+      doc.addPage();
+      const b = bilancioSeduta(s);
+      doc.setFontSize(14);
+      doc.setFont(undefined, 'bold');
+      doc.text(`Seduta ${s.num} - ${s.titolo}`, 15, 15);
+      doc.setFontSize(10);
+      doc.setFont(undefined, 'normal');
+      doc.text(`${dataIt(s.data)} - settimana ${s.settimana} (${PIANO_FASI[s.fase] || ''}) - intensità ${PIANO_INTENSITA[s.intensita] || ''} - atletico ${b.atl}' + tecnico/tattico ${b.tec}'`, 15, 21);
+      doc.autoTable({
+        startY: 26,
+        head: [['Blocco atletico', 'Minuti', 'Dettagli']],
+        body: [...s.blocchi.map(x => [x.nome, `${x.minuti}'`, x.descrizione || '']), ['Parte tecnico/tattica', `${b.tec}'`, s.temaTecnico || '']],
+        theme: 'grid',
+        headStyles: { fillColor: [16, 122, 66], fontSize: 9 },
+        bodyStyles: { fontSize: 9 },
+        margin: { left: 15, right: 15 }
+      });
+      let yy = doc.lastAutoTable.finalY + 8;
+      if (s.note) { doc.setFontSize(9); const nl = doc.splitTextToSize(`Note: ${s.note}`, 180); doc.text(nl, 15, yy); yy += nl.length * 4 + 4; }
+      if (s.pr && dd.gruppiVam.length > 0) {
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(11);
+        doc.text(`Gruppi VAM (a turno) - ${testoPrescrizioneVam(s.pr)}`, 15, yy);
+        doc.autoTable({
+          startY: yy + 3,
+          head: [['Gruppo', 'Giocatori', 'VAM media', 'Cono a (m)']],
+          body: dd.gruppiVam.map(g => [g.nome, g.membri.map(m => m.nome).join(', '), g.media !== null ? g.media : '-', distanzaConiPr(g.media, s.pr) !== null ? distanzaConiPr(g.media, s.pr) : '-']),
+          theme: 'grid',
+          headStyles: { fillColor: [59, 130, 246], fontSize: 9 },
+          bodyStyles: { fontSize: 9 },
+          margin: { left: 15, right: 15 }
+        });
+      } else if (s.sp && dd.gruppiSprint.length > 0) {
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(11);
+        doc.text(`Gruppi di velocità - ${testoPrescrizioneSprint(s.sp)}`, 15, yy);
+        doc.autoTable({
+          startY: yy + 3,
+          head: [['Gruppo', 'Giocatori', 'Velocità media (km/h)']],
+          body: dd.gruppiSprint.map(g => [g.nome, g.membri.map(m => m.nome).join(', '), g.media !== null ? g.media : '-']),
+          theme: 'grid',
+          headStyles: { fillColor: [16, 122, 66], fontSize: 9 },
+          bodyStyles: { fontSize: 9 },
+          margin: { left: 15, right: 15 }
+        });
+      }
+    });
+    doc.save(`PianoSedute_${c.nome.replace(/\s+/g, '_')}.pdf`);
+    showToast('📄 Piano sedute PDF generato!', 'success');
   };
 
   // ========== TEST ATLETICI: export PDF (modulo vuoto da stampare / risultati compilati) ==========
@@ -6550,6 +7177,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato,  // ✅ AGGIUNTO: Risultati campionato
         valutazioni,          // ✅ AGGIUNTO: Valutazioni nuovi giocatori
         testAtletici,         // ✅ AGGIUNTO: Test Atletici
+        cicliPreparazione,    // ✅ AGGIUNTO: Cicli di preparazione
         appTitle,             // ✅ AGGIUNTO: Titolo app
         teamName,             // ✅ AGGIUNTO: Nome squadra
         teamLogo,             // ✅ AGGIUNTO: Logo squadra (URL Storage o base64)
@@ -6569,6 +7197,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato: risultatiCampionato.length,
         valutazioni: valutazioni.length,
         testAtletici: testAtletici.length,
+        cicliPreparazione: cicliPreparazione.length,
         fuoriRosa: playersWithFuoriRosa.filter(p => p.fuoriRosa).length,
         appTitle: appTitle,
         teamName: teamName || '(vuoto)',  // ✅ Log per debug
@@ -6701,6 +7330,7 @@ const SoccerTeamTracker = () => {
       if (data.risultatiCampionato) setRisultatiCampionato(data.risultatiCampionato);  // ✅ AGGIUNTO
       if (data.valutazioni) setValutazioni(data.valutazioni);                    // ✅ AGGIUNTO: Valutazioni giocatori
       if (data.testAtletici) setTestAtletici(data.testAtletici);                 // ✅ AGGIUNTO: Test Atletici
+      if (data.cicliPreparazione) setCicliPreparazione(data.cicliPreparazione);  // ✅ AGGIUNTO: Cicli di preparazione
       if (data.appTitle) setAppTitle(data.appTitle);                             // ✅ AGGIUNTO: Titolo app
       // Carica teamName anche se vuoto (usa hasOwnProperty per verificare esistenza)
       if (data.hasOwnProperty('teamName')) setTeamName(data.teamName || '');     // ✅ AGGIUNTO: Nome squadra
@@ -6728,6 +7358,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato: data.risultatiCampionato || [],  // ✅ AGGIUNTO
         valutazioni: data.valutazioni || [],                  // ✅ AGGIUNTO: Valutazioni giocatori
         testAtletici: data.testAtletici || [],                // ✅ AGGIUNTO: Test Atletici
+        cicliPreparazione: data.cicliPreparazione || [],      // ✅ AGGIUNTO: Cicli di preparazione
         appTitle: data.appTitle || appTitle,                  // ✅ AGGIUNTO: Titolo app
         teamName: data.teamName || '',                        // ✅ AGGIUNTO: Nome squadra
         teamLogo: data.teamLogo || teamLogo                   // ✅ AGGIUNTO: Logo squadra (URL o base64)
@@ -7056,6 +7687,9 @@ const SoccerTeamTracker = () => {
         if (data.testAtletici) {
           setTestAtletici(data.testAtletici);
         }
+        if (data.cicliPreparazione) {
+          setCicliPreparazione(data.cicliPreparazione);
+        }
 
         // Ripristina impostazioni
         if (data.appTitle) setAppTitle(data.appTitle);
@@ -7127,6 +7761,7 @@ const SoccerTeamTracker = () => {
       setSquadreGirone([]);
       setRisultatiCampionato([]);
       setTestAtletici([]);
+      setCicliPreparazione([]);
 
       // Salvo i dati resettati
       await saveToIndexedDB('trainings', []);
@@ -7134,6 +7769,7 @@ const SoccerTeamTracker = () => {
       await saveToIndexedDB('squadreGirone', []);
       await saveToIndexedDB('risultatiCampionato', []);
       await saveToIndexedDB('testAtletici', []);
+      await saveToIndexedDB('cicliPreparazione', []);
 
       alert('✅ Stagione resettata con successo!\n\nLa rosa giocatori è stata mantenuta.');
     } catch (error) {
@@ -7190,6 +7826,7 @@ const SoccerTeamTracker = () => {
       setRisultatiCampionato([]);
       setValutazioni([]);
       setTestAtletici([]);
+      setCicliPreparazione([]);
 
       // Cancello dal database
       const db = await initDB();
@@ -7300,6 +7937,7 @@ const SoccerTeamTracker = () => {
                 risultatiCampionato,      // ✅ AGGIUNTO
                 valutazioni,              // ✅ AGGIUNTO
                 testAtletici,             // ✅ AGGIUNTO
+                cicliPreparazione,        // ✅ AGGIUNTO
                 lastSaved: localLastSaved
               },
               cloud: {
@@ -7310,6 +7948,7 @@ const SoccerTeamTracker = () => {
                 risultatiCampionato: cloudData.risultatiCampionato || [],  // ✅ AGGIUNTO
                 valutazioni: cloudData.valutazioni || [],                 // ✅ AGGIUNTO
                 testAtletici: cloudData.testAtletici || [],               // ✅ AGGIUNTO
+                cicliPreparazione: cloudData.cicliPreparazione || [],     // ✅ AGGIUNTO
                 lastSynced: cloudLastSynced
               }
             });
@@ -7374,6 +8013,10 @@ const SoccerTeamTracker = () => {
         console.log('   ✅ Carico Test Atletici:', cloudData.testAtletici.length);
         setTestAtletici(cloudData.testAtletici);
       }
+      if (cloudData.cicliPreparazione) {
+        console.log('   ✅ Carico Cicli Preparazione:', cloudData.cicliPreparazione.length);
+        setCicliPreparazione(cloudData.cicliPreparazione);
+      }
 
       setLastSynced(new Date(cloudData.lastSynced));
       setSyncStatus('success');
@@ -7402,6 +8045,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato: cloudData.risultatiCampionato || [],
         valutazioni: cloudData.valutazioni || [],
         testAtletici: cloudData.testAtletici || [],
+        cicliPreparazione: cloudData.cicliPreparazione || [],
         lastSaved: new Date().toISOString()
       };
       await saveToIndexedDB('squadraRealDOR', dataToSave);
@@ -10240,6 +10884,7 @@ const SoccerTeamTracker = () => {
         risultatiCampionato,
         valutazioni,
         testAtletici,
+        cicliPreparazione,
         infoPartita,
         moduloTattico,
         formationPositions,
@@ -10502,6 +11147,7 @@ const SoccerTeamTracker = () => {
         setRisultatiCampionato(backup.risultatiCampionato || []);
         setValutazioni(backup.valutazioni || []);
         setTestAtletici(backup.testAtletici || []);
+        setCicliPreparazione(backup.cicliPreparazione || []);
         setTeamName(backup.teamName || '');
         setTeamLogo(backup.teamLogo || '');
         setAppTitle(backup.appTitle || 'Gestionale Calcio');
@@ -10520,6 +11166,7 @@ const SoccerTeamTracker = () => {
             risultatiCampionato: backup.risultatiCampionato || [],
             valutazioni: backup.valutazioni || [],
             testAtletici: backup.testAtletici || [],
+            cicliPreparazione: backup.cicliPreparazione || [],
             teamName: backup.teamName || '',
             teamLogo: backup.teamLogo || '',
             appTitle: backup.appTitle || 'Gestionale Calcio',
@@ -10589,6 +11236,7 @@ const SoccerTeamTracker = () => {
       risultatiCampionato,
       valutazioni,
       testAtletici,
+      cicliPreparazione,
       stats: {
         totalPlayers: players.filter(p => p.nome).length,
         totalTrainings: trainings.length,
@@ -12331,7 +12979,7 @@ const SoccerTeamTracker = () => {
               'dashboard', 'classifica', 'top', 'stats',
               'trainings',
               ...(userRole === 'admin' ? ['divisione'] : []),
-              ...(userRole === 'admin' ? ['testAtletici'] : []),
+              ...(userRole === 'admin' ? ['testAtletici', 'preparazione'] : []),
               ...(userRole === 'admin' ? ['matches', 'convocazioni', 'tattica'] : []),
               'calendar', 'injuries', 'roster', 'valutazioni',
               ...(userRole === 'admin' ? ['report', 'backup', 'admin', 'reset'] : [])
@@ -12385,6 +13033,12 @@ const SoccerTeamTracker = () => {
                   <>
                     <span className="tab-text-portrait hidden sm:inline">🏃 Test Atletici</span>
                     <span className="tab-icon-only sm:hidden">🏃</span>
+                  </>
+                )}
+                {tab === 'preparazione' && (
+                  <>
+                    <span className="tab-text-portrait hidden sm:inline">🔥 Preparazione</span>
+                    <span className="tab-icon-only sm:hidden">🔥</span>
                   </>
                 )}
                 {tab === 'convocazioni' && (
@@ -18257,6 +18911,437 @@ const SoccerTeamTracker = () => {
               })()}
             </div>
           )}
+
+          {/* ========== SEZIONE PREPARAZIONE ATLETICA ========== */}
+          {activeTab === 'preparazione' && (() => {
+            const ciclo = cicliPreparazione.find(c => c.id === cicloAperto);
+            const dd = ciclo ? calcolaDatiCiclo(ciclo, players, testAtletici, injuries) : null;
+            const isAdmin = userRole === 'admin';
+            const ordinaPerData = (arr) => arr.slice().sort((a, b) => new Date(b.data) - new Date(a.data));
+            const sessioniVam = ordinaPerData(testAtletici.filter(s => TEST_FONTE_VAM.includes(s.testId)));
+            const sessioniSprint = ordinaPerData(testAtletici.filter(s => s.testId === 'sprint'));
+            const etichetta = (s) => `${getTestAtleticoDef(s.testId)?.nome || s.testId} - ${new Date(s.data).toLocaleDateString('it-IT')} (${Object.keys(s.risultati).length} giocatori)`;
+            const gruppoDi = (gruppi, numero) => (gruppi || []).findIndex(g => g.includes(numero));
+            const pr = ciclo ? ciclo.prescrizione : null;
+
+            const selGruppo = (chiave, numero) => (
+              <select
+                value={gruppoDi(ciclo[chiave], numero)}
+                disabled={!isAdmin}
+                onChange={(e) => spostaInGruppoCiclo(ciclo.id, chiave, numero, parseInt(e.target.value))}
+                className="p-1 border rounded text-sm"
+              >
+                <option value={-1}>-</option>
+                {(ciclo[chiave] || []).map((_, i) => <option key={i} value={i}>Gruppo {i + 1}</option>)}
+              </select>
+            );
+
+            const cardGruppo = (g, chiaveValore, unita, conCono) => {
+              const fuoriLimiti = g.membri.length < 2 || g.membri.length > 5;
+              return (
+                <div key={g.indice} className="border-2 rounded-lg p-3 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span className="font-bold text-lg">{g.nome} <span className="text-sm font-normal text-gray-500">(turno {g.indice + 1})</span></span>
+                    <span className="text-sm text-gray-600">
+                      media <strong>{g.media !== null ? g.media : '-'}</strong> {unita} · scarto {g.spread}
+                    </span>
+                  </div>
+                  {fuoriLimiti && (
+                    <div className="text-xs font-semibold text-orange-700 mb-1">
+                      ⚠️ {g.membri.length} giocatori: il gruppo dovrebbe averne da 2 a 5
+                    </div>
+                  )}
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {g.membri.length === 0 && <span className="text-sm text-gray-400">vuoto</span>}
+                    {g.membri.map(m => (
+                      <span key={m.numero} className="px-2 py-1 rounded-full bg-gray-100 text-sm">
+                        {m.nome} <strong>{m[chiaveValore] !== null ? m[chiaveValore] : '-'}</strong>
+                      </span>
+                    ))}
+                  </div>
+                  {conCono && (
+                    <div className="p-2 rounded bg-green-50 border border-green-300 text-sm">
+                      Velocità target <strong>{g.vTarget !== null ? g.vTarget : '-'} km/h</strong> ({pr.perc}% della media) →
+                      <span className="ml-1 text-lg font-bold text-green-800">cono a {g.distanza !== null ? g.distanza : '-'} m</span>
+                      <span className="text-gray-600"> in {pr.tCorsa}"</span>
+                    </div>
+                  )}
+                </div>
+              );
+            };
+
+            const barraGruppi = (chiave) => (
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <label className="text-sm font-semibold">Giocatori per gruppo (tipico):</label>
+                <select value={targetGruppo} onChange={(e) => setTargetGruppo(parseInt(e.target.value))} className="p-2 border rounded">
+                  {[2, 3, 4, 5].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+                <button onClick={() => generaGruppiCiclo(ciclo.id, chiave)} disabled={!isAdmin} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">⚙️ Genera gruppi</button>
+                <button onClick={() => aggiungiGruppoVuotoCiclo(ciclo.id, chiave)} disabled={!isAdmin} className="px-3 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold">+ Gruppo vuoto</button>
+                <button onClick={() => rimuoviGruppiVuotiCiclo(ciclo.id, chiave)} disabled={!isAdmin} className="px-3 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold">Rimuovi vuoti</button>
+              </div>
+            );
+
+            const campoPr = (etichettaCampo, campo, passo) => (
+              <label className="text-sm">
+                <span className="block font-semibold text-gray-700 mb-1">{etichettaCampo}</span>
+                <input type="number" step={passo || 1} value={pr[campo]} disabled={!isAdmin} onChange={(e) => aggiornaPrescrizioneCiclo(ciclo.id, campo, e.target.value)} className="w-full p-2 border-2 border-gray-300 rounded-lg" />
+              </label>
+            );
+
+            return (
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <h2 className="text-2xl font-bold text-gray-800">🔥 Preparazione atletica{ciclo ? `: ${ciclo.nome}` : ''}</h2>
+                  {!ciclo && isAdmin && (
+                    <button onClick={() => setShowNuovoCicloModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold">➕ Nuovo ciclo</button>
+                  )}
+                  {ciclo && (
+                    <button onClick={() => setCicloAperto(null)} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg font-semibold">← Tutti i cicli</button>
+                  )}
+                </div>
+
+                {!ciclo && (
+                  <div>
+                    <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900">
+                      Un ciclo raccoglie una preparazione (estiva: 4 settimane × 5 sedute; richiamo invernale: 2 settimane × 3 sedute).
+                      Scegli i test di riferimento, genera i gruppi da 2 a 5 giocatori per VAM e per velocità e ottieni la distanza dei coni per le ripetute.
+                      I richiami si fanno ogni 3 mesi. Sono esclusi portieri, fuori rosa, infortunati e giocatori in recupero.
+                    </div>
+                    {cicliPreparazione.length === 0 ? (
+                      <p className="text-gray-500 text-sm">Nessun ciclo. Crea il primo con «Nuovo ciclo».</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {cicliPreparazione.slice().sort((a, b) => new Date(b.dataInizio) - new Date(a.dataInizio)).map(c => (
+                          <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 border rounded-lg p-3 bg-white">
+                            <div>
+                              <span className="font-semibold">{c.nome}</span>
+                              <span className="text-sm text-gray-500 ml-2">
+                                {CICLO_PRESET[c.tipo]?.label} · dal {new Date(c.dataInizio).toLocaleDateString('it-IT')} · {c.settimane} sett. × {c.seduteSettimana} sedute
+                              </span>
+                              <div className="text-xs text-gray-500">Gruppi VAM: {(c.gruppiVam || []).length} · Gruppi velocità: {(c.gruppiSprint || []).length} · Prossimo richiamo: {new Date(piuTreMesi(c.dataInizio)).toLocaleDateString('it-IT')}</div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => setCicloAperto(c.id)} className="text-sm bg-blue-100 hover:bg-blue-200 text-blue-800 px-3 py-1 rounded font-semibold">Apri</button>
+                              {isAdmin && <button onClick={() => eliminaCiclo(c.id)} className="text-sm bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded font-semibold">🗑️</button>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {ciclo && (
+                  <div className="space-y-5">
+                    {/* 1. Fonte dei dati */}
+                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                      <h3 className="font-bold text-gray-700 mb-3">1️⃣ Test di riferimento</h3>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <label className="text-sm">
+                          <span className="block font-semibold mb-1">Test per la VAM (Gacon, Beep o Cooper)</span>
+                          <select value={ciclo.testVamId} disabled={!isAdmin} onChange={(e) => aggiornaCiclo(ciclo.id, { testVamId: e.target.value })} className="w-full p-2 border-2 border-gray-300 rounded-lg">
+                            <option value="">-- seleziona una sessione --</option>
+                            {sessioniVam.map(s => <option key={s.id} value={s.id}>{etichetta(s)}</option>)}
+                          </select>
+                        </label>
+                        <label className="text-sm">
+                          <span className="block font-semibold mb-1">Correzione VAM (km/h da sottrarre)</span>
+                          <input type="number" step="0.1" value={ciclo.correzioneVam} disabled={!isAdmin} onChange={(e) => aggiornaCiclo(ciclo.id, { correzioneVam: e.target.value })} className="w-full p-2 border-2 border-gray-300 rounded-lg" />
+                          <span className="text-xs text-gray-500">Il Gacon tende a sovrastimare di circa 0,5-1 km/h; 0 = nessuna correzione.</span>
+                        </label>
+                        <label className="text-sm">
+                          <span className="block font-semibold mb-1">Test sprint per i gruppi di velocità</span>
+                          <select value={ciclo.testSprintId} disabled={!isAdmin} onChange={(e) => aggiornaCiclo(ciclo.id, { testSprintId: e.target.value })} className="w-full p-2 border-2 border-gray-300 rounded-lg">
+                            <option value="">-- seleziona una sessione --</option>
+                            {sessioniSprint.map(s => <option key={s.id} value={s.id}>{etichetta(s)}</option>)}
+                          </select>
+                        </label>
+                        <label className="text-sm">
+                          <span className="block font-semibold mb-1">Tratto per la velocità</span>
+                          <select value={ciclo.trattoSprint} disabled={!isAdmin} onChange={(e) => aggiornaCiclo(ciclo.id, { trattoSprint: parseInt(e.target.value) })} className="w-full p-2 border-2 border-gray-300 rounded-lg">
+                            <option value={10}>0-10 m</option>
+                            <option value={20}>0-20 m</option>
+                            <option value={30}>0-30 m</option>
+                          </select>
+                        </label>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">
+                        Beep: VAM = velocità dell'ultimo livello raggiunto. Cooper: velocità media sui 12' (approssimazione). Gacon: VAM del test.
+                        Le sessioni si creano e si compilano in «Test Atletici».
+                      </p>
+                    </div>
+
+                    {/* 2. Giocatori e assegnazione */}
+                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                      <h3 className="font-bold text-gray-700 mb-3">2️⃣ Giocatori (esclusi portieri, fuori rosa, infortunati)</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm border-collapse">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="p-2 border text-left">Giocatore</th>
+                              <th className="p-2 border">VAM km/h</th>
+                              <th className="p-2 border">Sprint km/h</th>
+                              <th className="p-2 border">Gruppo VAM</th>
+                              <th className="p-2 border">Gruppo velocità</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dd.righe.map(r => (
+                              <tr key={r.numero}>
+                                <td className="p-2 border">{r.nome}</td>
+                                <td className="p-2 border text-center font-semibold">{r.vam !== null ? r.vam : <span className="text-gray-400">-</span>}</td>
+                                <td className="p-2 border text-center">{r.sprint !== null ? r.sprint : <span className="text-gray-400">-</span>}</td>
+                                <td className="p-2 border text-center">{selGruppo('gruppiVam', r.numero)}</td>
+                                <td className="p-2 border text-center">{selGruppo('gruppiSprint', r.numero)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {dd.esclusiInfortunati.length > 0 && (
+                      <div className="p-3 rounded-lg border-2 border-orange-300 bg-orange-50 text-sm text-orange-900">
+                        🤕 <strong>Esclusi dai gruppi:</strong>{' '}
+                        {dd.esclusiInfortunati.map(e => `${e.nome} (${e.motivo})`).join(', ')}
+                        . Rientrano da soli appena l'infortunio risulta «recuperato».
+                      </div>
+                    )}
+
+                    {/* 3. Prescrizione */}
+                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                      <h3 className="font-bold text-gray-700 mb-3">3️⃣ Ripetute (decidi tu i carichi)</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                        {campoPr('Corsa (secondi)', 'tCorsa')}
+                        {campoPr('Recupero (secondi)', 'tRecupero')}
+                        {campoPr('% della VAM', 'perc')}
+                        {campoPr('Ripetute per serie', 'ripetute')}
+                        {campoPr('Serie', 'serie')}
+                        {campoPr('Recupero tra serie (s)', 'recuperoSerie')}
+                      </div>
+                      <label className="block text-sm mt-3">
+                        <span className="block font-semibold mb-1">Note per il foglio da campo</span>
+                        <input type="text" value={pr.note} disabled={!isAdmin} onChange={(e) => aggiornaPrescrizioneCiclo(ciclo.id, 'note', e.target.value)} className="w-full p-2 border-2 border-gray-300 rounded-lg" placeholder="es. recupero attivo trotando" />
+                      </label>
+                      <p className="text-xs text-gray-500 mt-2">Distanza del cono = (VAM media del gruppo × % ) ÷ 3,6 × secondi di corsa.</p>
+                    </div>
+
+                    {/* 4. Gruppi VAM */}
+                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                      <h3 className="font-bold text-gray-700 mb-3">4️⃣ Gruppi per VAM (a turno)</h3>
+                      {barraGruppi('gruppiVam')}
+                      {dd.gruppiVam.length === 0 ? (
+                        <p className="text-sm text-gray-500">Nessun gruppo. Scegli il test e premi «Genera gruppi».</p>
+                      ) : (
+                        <div className="grid md:grid-cols-2 gap-3">{dd.gruppiVam.map(g => cardGruppo(g, 'vam', 'km/h', true))}</div>
+                      )}
+                      {dd.nonAssegnatiVam.length > 0 && dd.gruppiVam.length > 0 && (
+                        <p className="text-xs text-gray-600 mt-2">Non assegnati: {dd.nonAssegnatiVam.map(r => r.nome).join(', ')}</p>
+                      )}
+                    </div>
+
+                    {/* 5. Gruppi velocità */}
+                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                      <h3 className="font-bold text-gray-700 mb-3">5️⃣ Gruppi di velocità (sprint)</h3>
+                      {barraGruppi('gruppiSprint')}
+                      {dd.gruppiSprint.length === 0 ? (
+                        <p className="text-sm text-gray-500">Nessun gruppo. Scegli la sessione sprint e premi «Genera gruppi».</p>
+                      ) : (
+                        <div className="grid md:grid-cols-2 gap-3">{dd.gruppiSprint.map(g => cardGruppo(g, 'sprint', 'km/h', false))}</div>
+                      )}
+                    </div>
+
+                    {/* 6. Piano sedute */}
+                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                      <h3 className="font-bold text-gray-700 mb-3">6️⃣ Piano sedute (allenamento da {PIANO_DURATA_TOTALE}')</h3>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Ogni seduta dura {PIANO_DURATA_TOTALE}' con circa {PIANO_MIN_ATLETICI}' di parte atletica: il resto è tecnico/tattico e si aggiorna da solo.
+                        Struttura: massimo 3 sedute intense a settimana, mai in giorni consecutivi; ricondizionamento, intensificazione, scarico con test di verifica.
+                        Il piano è una proposta di partenza basata sulla letteratura: puoi modificare ogni valore.
+                      </p>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {isAdmin && <button onClick={() => generaPianoCicloApp(ciclo.id)} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">⚙️ {ciclo.piano && ciclo.piano.sedute && ciclo.piano.sedute.length > 0 ? 'Rigenera piano' : 'Genera piano'}</button>}
+                        {ciclo.piano && ciclo.piano.sedute && ciclo.piano.sedute.length > 0 && (
+                          <button onClick={() => exportPianoSedutePDF(ciclo.id)} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">📄 Piano sedute PDF</button>
+                        )}
+                      </div>
+
+                      {(!ciclo.piano || !ciclo.piano.sedute || ciclo.piano.sedute.length === 0) ? (
+                        <p className="text-sm text-gray-500">Nessun piano. Premi «Genera piano»: le date partono dal primo lunedì dalla data di inizio del ciclo.</p>
+                      ) : (
+                        <div className="space-y-4">
+                          {Array.from({ length: ciclo.settimane }, (_, i) => i + 1).map(w => {
+                            const sedSett = ciclo.piano.sedute.filter(s => s.settimana === w);
+                            if (sedSett.length === 0) return null;
+                            const avvisi = controllaSettimanaPiano(sedSett);
+                            return (
+                              <div key={w} className="border rounded-lg p-3 bg-gray-50">
+                                <div className="font-bold mb-2">Settimana {w} <span className="text-sm font-normal text-gray-600">· {PIANO_FASI[sedSett[0].fase] || ''}</span></div>
+                                {avvisi.map((a, i) => <div key={i} className="text-xs font-semibold text-orange-700 mb-1">⚠️ {a}</div>)}
+                                <div className="space-y-2">
+                                  {sedSett.map(s => {
+                                    const b = bilancioSeduta(s);
+                                    const aperta = sedutaAperta === s.id;
+                                    const colInt = s.intensita === 'alta' ? 'bg-red-100 text-red-800' : s.intensita === 'media' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800';
+                                    const colBil = b.stato === 'ok' ? 'text-green-700' : 'text-orange-700';
+                                    const aggS = (fn) => aggiornaSedutaPiano(ciclo.id, s.id, fn);
+                                    const campoGen = (lab, obj, campo, passo) => (
+                                      <label className="text-xs" key={campo}>
+                                        <span className="block font-semibold text-gray-700 mb-1">{lab}</span>
+                                        <input type="number" step={passo || 1} value={s[obj][campo]} disabled={!isAdmin} onChange={(e) => aggS(x => ({ ...x, [obj]: { ...x[obj], [campo]: e.target.value } }))} className="w-full p-1 border-2 border-gray-300 rounded" />
+                                      </label>
+                                    );
+                                    return (
+                                      <div key={s.id} className="border rounded-lg bg-white">
+                                        <button onClick={() => setSedutaAperta(aperta ? null : s.id)} className="w-full text-left p-2 flex flex-wrap items-center gap-2">
+                                          <span className="font-semibold">{aperta ? '▼' : '▶'} Seduta {s.num}</span>
+                                          <span className="text-sm text-gray-600">{s.data ? new Date(s.data).toLocaleDateString('it-IT', { weekday: 'short', day: '2-digit', month: '2-digit' }) : 'senza data'}</span>
+                                          <span className="text-sm">{s.titolo}</span>
+                                          <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${colInt}`}>{PIANO_INTENSITA[s.intensita]}</span>
+                                          <span className={`text-xs font-semibold ml-auto ${colBil}`}>atletico {b.atl}' · tecnico/tattico {b.tec}'</span>
+                                          {s.trainingId ? <span className="text-xs text-blue-700 font-semibold">📅 allenamento creato</span> : null}
+                                        </button>
+                                        <div className="flex h-2 mx-2 mb-2 rounded overflow-hidden bg-gray-200">
+                                          <div className="bg-orange-500" style={{ width: `${Math.min(100, b.atl / PIANO_DURATA_TOTALE * 100)}%` }} />
+                                          <div className="bg-blue-400" style={{ width: `${Math.max(0, b.tec / PIANO_DURATA_TOTALE * 100)}%` }} />
+                                        </div>
+                                        {aperta && (
+                                          <div className="p-3 border-t space-y-3">
+                                            <div className="grid md:grid-cols-3 gap-3">
+                                              <label className="text-xs"><span className="block font-semibold text-gray-700 mb-1">Titolo</span>
+                                                <input type="text" value={s.titolo} disabled={!isAdmin} onChange={(e) => aggS(x => ({ ...x, titolo: e.target.value }))} className="w-full p-1 border-2 border-gray-300 rounded" /></label>
+                                              <label className="text-xs"><span className="block font-semibold text-gray-700 mb-1">Data</span>
+                                                <input type="date" value={s.data} disabled={!isAdmin} onChange={(e) => aggS(x => ({ ...x, data: e.target.value }))} className="w-full p-1 border-2 border-gray-300 rounded" /></label>
+                                              <label className="text-xs"><span className="block font-semibold text-gray-700 mb-1">Intensità</span>
+                                                <select value={s.intensita} disabled={!isAdmin} onChange={(e) => aggS(x => ({ ...x, intensita: e.target.value }))} className="w-full p-1 border-2 border-gray-300 rounded">
+                                                  {Object.keys(PIANO_INTENSITA).map(k => <option key={k} value={k}>{PIANO_INTENSITA[k]}</option>)}
+                                                </select></label>
+                                            </div>
+
+                                            {s.pr && (
+                                              <div>
+                                                <div className="text-xs font-bold text-gray-700 mb-1">Ripetute VAM di questa seduta</div>
+                                                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                                                  {campoGen('Corsa (s)', 'pr', 'tCorsa')}
+                                                  {campoGen('Recupero (s)', 'pr', 'tRecupero')}
+                                                  {campoGen('% VAM', 'pr', 'perc')}
+                                                  {campoGen('Ripetute', 'pr', 'ripetute')}
+                                                  {campoGen('Serie', 'pr', 'serie')}
+                                                  {campoGen('Rec. serie (s)', 'pr', 'recuperoSerie')}
+                                                </div>
+                                                {dd.gruppiVam.length > 0 && (
+                                                  <div className="mt-2 grid md:grid-cols-2 gap-2">
+                                                    {dd.gruppiVam.map(g => (
+                                                      <div key={g.indice} className="p-2 rounded bg-green-50 border border-green-300 text-sm">
+                                                        <strong>{g.nome}</strong> (turno {g.indice + 1}) · media {g.media !== null ? g.media : '-'} km/h →
+                                                        <span className="font-bold text-green-800"> cono a {distanzaConiPr(g.media, s.pr) !== null ? distanzaConiPr(g.media, s.pr) : '-'} m</span>
+                                                      </div>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                            {s.sp && (
+                                              <div>
+                                                <div className="text-xs font-bold text-gray-700 mb-1">Sprint di questa seduta</div>
+                                                <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                                                  {campoGen('Sprint per serie', 'sp', 'ripetute')}
+                                                  {campoGen('Distanza (m)', 'sp', 'distanza')}
+                                                  {campoGen('Rec. sprint (s)', 'sp', 'recupero')}
+                                                  {campoGen('Serie', 'sp', 'serie')}
+                                                  {campoGen('Rec. serie (s)', 'sp', 'recuperoSerie')}
+                                                </div>
+                                                {dd.gruppiSprint.length > 0 && (
+                                                  <div className="text-xs text-gray-600 mt-1">Gruppi di velocità: {dd.gruppiSprint.map(g => `${g.nome} (${g.membri.map(m => m.nome).join(', ')})`).join(' · ')}</div>
+                                                )}
+                                              </div>
+                                            )}
+
+                                            <div>
+                                              <div className="text-xs font-bold text-gray-700 mb-1">Parte atletica ({b.atl}' su circa {PIANO_MIN_ATLETICI}')</div>
+                                              {b.stato === 'alto' && <div className="text-xs font-semibold text-orange-700 mb-1">⚠️ Parte atletica sopra i {PIANO_MIN_ATLETICI + 5}': resta poco tempo per il tecnico/tattico</div>}
+                                              {b.stato === 'basso' && <div className="text-xs font-semibold text-orange-700 mb-1">⚠️ Parte atletica sotto i {PIANO_MIN_ATLETICI - 10}': puoi aggiungere lavoro</div>}
+                                              <div className="space-y-1">
+                                                {s.blocchi.map(bl => (
+                                                  <div key={bl.id} className="flex flex-wrap items-center gap-1">
+                                                    <input type="text" value={bl.nome} disabled={!isAdmin} onChange={(e) => aggS(x => ({ ...x, blocchi: x.blocchi.map(y => y.id === bl.id ? { ...y, nome: e.target.value } : y) }))} className="flex-1 min-w-[10rem] p-1 border-2 border-gray-300 rounded text-sm" />
+                                                    <input type="number" value={bl.minuti} disabled={!isAdmin || !!bl.auto} title={bl.auto ? 'Calcolato dalla prescrizione' : 'Minuti'} onChange={(e) => aggS(x => ({ ...x, blocchi: x.blocchi.map(y => y.id === bl.id ? { ...y, minuti: e.target.value } : y) }))} className="w-16 p-1 border-2 border-gray-300 rounded text-sm text-center" />
+                                                    <span className="text-xs text-gray-500">min</span>
+                                                    <input type="text" value={bl.descrizione} disabled={!isAdmin || !!bl.auto} placeholder="dettagli" onChange={(e) => aggS(x => ({ ...x, blocchi: x.blocchi.map(y => y.id === bl.id ? { ...y, descrizione: e.target.value } : y) }))} className="flex-[2] min-w-[10rem] p-1 border-2 border-gray-300 rounded text-sm" />
+                                                    {isAdmin && <button onClick={() => aggS(x => ({ ...x, blocchi: x.blocchi.filter(y => y.id !== bl.id) }))} className="text-sm px-2 py-1 rounded bg-red-100 hover:bg-red-200 text-red-800">✕</button>}
+                                                  </div>
+                                                ))}
+                                              </div>
+                                              {isAdmin && <button onClick={() => aggS(x => ({ ...x, blocchi: [...x.blocchi, { id: nuovoIdPiano(), nome: 'Nuovo blocco', minuti: 5, descrizione: '', auto: null }] }))} className="mt-2 text-sm px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 font-semibold">+ Blocco</button>}
+                                            </div>
+
+                                            <label className="block text-xs"><span className="block font-semibold text-gray-700 mb-1">Parte tecnico/tattica ({b.tec}')</span>
+                                              <input type="text" value={s.temaTecnico} disabled={!isAdmin} onChange={(e) => aggS(x => ({ ...x, temaTecnico: e.target.value }))} className="w-full p-1 border-2 border-gray-300 rounded text-sm" /></label>
+                                            <label className="block text-xs"><span className="block font-semibold text-gray-700 mb-1">Note</span>
+                                              <input type="text" value={s.note} disabled={!isAdmin} onChange={(e) => aggS(x => ({ ...x, note: e.target.value }))} className="w-full p-1 border-2 border-gray-300 rounded text-sm" /></label>
+                                            {isAdmin && (
+                                              <button onClick={() => creaAllenamentoDaSeduta(ciclo.id, s.id)} className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold">
+                                                📅 {s.trainingId && trainings.some(t => t.id === s.trainingId) ? 'Aggiorna allenamento' : 'Crea allenamento nel calendario'}
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 7. Foglio e richiamo */}
+                    <div className="bg-white border rounded-lg p-4 shadow-sm">
+                      <h3 className="font-bold text-gray-700 mb-3">7️⃣ Foglio da campo e richiamo</h3>
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        <button onClick={() => exportFoglioGruppiPDF(ciclo.id)} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold">📄 Foglio gruppi PDF</button>
+                        {isAdmin && <button onClick={() => creaCicloRichiamo(ciclo.id)} className="px-4 py-2 rounded-lg bg-yellow-500 hover:bg-yellow-600 text-white font-semibold">🔁 Crea ciclo di richiamo</button>}
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Prossimo richiamo consigliato (3 mesi): <strong>{new Date(piuTreMesi(ciclo.dataInizio)).toLocaleDateString('it-IT')}</strong>.
+                        Il richiamo copia impostazioni e ripetute: dopo il nuovo test scegli la nuova sessione e rigenera i gruppi.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {showNuovoCicloModal && (
+                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+                      <h3 className="text-xl font-bold mb-4">➕ Nuovo ciclo di preparazione</h3>
+                      <label className="block text-sm mb-3">
+                        <span className="block font-semibold mb-1">Tipo</span>
+                        <select value={nuovoCicloForm.tipo} onChange={(e) => setNuovoCicloForm({ ...nuovoCicloForm, tipo: e.target.value })} className="w-full p-2 border-2 border-gray-300 rounded-lg">
+                          <option value="estiva">Preparazione estiva (4 settimane × 5 sedute)</option>
+                          <option value="invernale">Richiamo invernale (2 settimane × 3 sedute)</option>
+                        </select>
+                      </label>
+                      <label className="block text-sm mb-3">
+                        <span className="block font-semibold mb-1">Nome (facoltativo)</span>
+                        <input type="text" value={nuovoCicloForm.nome} onChange={(e) => setNuovoCicloForm({ ...nuovoCicloForm, nome: e.target.value })} className="w-full p-2 border-2 border-gray-300 rounded-lg" placeholder="es. Preparazione estiva 2027" />
+                      </label>
+                      <label className="block text-sm mb-5">
+                        <span className="block font-semibold mb-1">Data di inizio</span>
+                        <input type="date" value={nuovoCicloForm.dataInizio} onChange={(e) => setNuovoCicloForm({ ...nuovoCicloForm, dataInizio: e.target.value })} className="w-full p-2 border-2 border-gray-300 rounded-lg" />
+                      </label>
+                      <div className="flex gap-2 justify-end">
+                        <button onClick={() => setShowNuovoCicloModal(false)} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 font-semibold">Annulla</button>
+                        <button onClick={creaNuovoCiclo} className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold">Crea ciclo</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* ========== SEZIONE CONVOCAZIONI ========== */}
           {activeTab === 'convocazioni' && (
