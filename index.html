@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.8.0'; // Preparazione: piano sedute (90' con 45' atletici + tecnico/tattico)
+      const APP_VERSION = '2.8.1'; // Nuovo test: Sprint 30m doppio (1° e 2° scatto, differenza)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2297,6 +2297,21 @@ const calcolaRSARisultato = (tempi) => {
   return { tempoMigliore: Math.round(tempoMigliore * 100) / 100, tempoMedio, percentualeDecremento };
 };
 
+const calcolaSprint2Risultato = (tempi) => {
+  const t1 = parseFloat(tempi && tempi[0]);
+  const t2 = parseFloat(tempi && tempi[1]);
+  const ok1 = !isNaN(t1) && t1 > 0, ok2 = !isNaN(t2) && t2 > 0;
+  const validi = [ok1 ? t1 : null, ok2 ? t2 : null].filter(x => x !== null);
+  const migliore = validi.length ? Math.min(...validi) : null;
+  return {
+    migliore: migliore !== null ? Math.round(migliore * 100) / 100 : null,
+    velocita: migliore !== null ? Math.round((30 / migliore) * 3.6 * 100) / 100 : null,
+    differenza: ok1 && ok2 ? Math.round((t2 - t1) * 100) / 100 : null,
+    percentuale: ok1 && ok2 ? Math.round(((t2 - t1) / t1) * 1000) / 10 : null
+  };
+};
+const formatDiffSec = (v) => v === null || v === undefined ? '-' : (v > 0 ? '+' : '') + v.toFixed(2);
+
 const calcolaSprintRisultato = (t10, t20, t30) => {
   const T10 = parseFloat(t10), T20 = parseFloat(t20), T30 = parseFloat(t30);
   const risultato = { velocita0_10: null, velocita10_20: null, velocita20_30: null };
@@ -2362,6 +2377,13 @@ const TEST_ATLETICI_LISTA = [
     istruzioni: 'PROTOCOLLO: partenza da fermo (in piedi), cronometraggio dei tempi parziali a 10m, 20m e 30m, tramite fotocellule oppure cronometro manuale con osservatori posizionati ai rispettivi punti del percorso. FINALITÀ: valuta separatamente la velocità di accelerazione (primo tratto 0-10m), la velocità di transizione (10-20m) e la velocità massima lanciata (20-30m), permettendo di individuare i punti di forza/debolezza nella corsa veloce di ciascun giocatore.'
   },
   {
+    id: 'sprint30x2',
+    nome: 'Sprint 30m doppio (1° e 2° scatto)',
+    icona: '🏁',
+    schema: 'sprint2x30',
+    istruzioni: 'PROTOCOLLO: l\'atleta (al massimo 1-2 giocatori alla volta) esegue uno scatto massimale su 30 metri con partenza da fermo, cronometrato a mano o con fotocellule. Dopo un recupero completo (di norma 2-3 minuti, uguale per tutti) ripete lo stesso scatto una seconda volta. Si registrano i due tempi. FINALITÀ: misura la velocità sui 30 metri e la capacità di ripetere la prestazione: viene calcolata la differenza tra il secondo e il primo scatto (valore positivo = secondo scatto più lento) e la variazione percentuale. Differenze piccole indicano buona resistenza alla fatica nello sprint; il tempo migliore e la velocità media sono calcolati sul miglior scatto.'
+  },
+  {
     id: 'illinois',
     nome: 'Illinois Agility Test',
     icona: '🔀',
@@ -2402,6 +2424,8 @@ const calcolaRisultatoGiocatoreTest = (testId, datiGrezzi) => {
       return calcolaRSARisultato(datiGrezzi.tempi);
     case 'sprint':
       return calcolaSprintRisultato(datiGrezzi.t10, datiGrezzi.t20, datiGrezzi.t30);
+    case 'sprint30x2':
+      return calcolaSprint2Risultato(datiGrezzi.tempi);
     case 'gacon':
       return calcolaGaconRisultato(datiGrezzi.step, 10);
     default:
@@ -2415,6 +2439,7 @@ const CRONO_CONFIG = {
   bronco:   { tipo: 'tempo', decimali: 1 },
   illinois: { tipo: 'tempo', decimali: 2 },
   sprint:   { tipo: 'sprint' },
+  sprint30x2: { tipo: 'sprint2', ripetute: 2 },
   rsa:      { tipo: 'rsa', recuperoMs: 20000, ripetute: 6 },
   cooper:   { tipo: 'cooper', durataMs: 12 * 60 * 1000, giroDefault: 400 },
   yoyo:     { tipo: 'beep', protocollo: 'yoyo' },
@@ -2637,12 +2662,20 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
     if (tipo === 'tempo') return d.tempo ? parseTempoSec(d.tempo) : NaN;
     if (tipo === 'sprint') return d.t30 !== undefined && d.t30 !== '' ? parseFloat(d.t30) : NaN;
     if (tipo === 'rsa') { const v = d.tempi && d.tempi[st.rep]; return v ? parseFloat(v) : NaN; }
+    if (tipo === 'sprint2') { const v = (d.tempi || []).map(x => parseFloat(x)).filter(x => !isNaN(x) && x > 0); return v.length ? Math.min(...v) : NaN; }
     return NaN;
   };
   const concluso = (n) => !isNaN(valoreFinale(n));
   const ncChiave = (n) => `${tipo === 'rsa' ? st.rep : 0}:${n}`;
   const isNc = (n) => !!st.nc[ncChiave(n)] || (tipo !== 'rsa' && !!dati(n).nc && !concluso(n));
   const inCorsa = (n) => !!st.starts[n] && !concluso(n) && !isNc(n);
+  // Sprint doppio: indice dello scatto corrente (0 o 1); 2 = entrambi fatti o NC
+  const attS2 = (n) => {
+    const t = dati(n).tempi || [];
+    for (let k = 0; k < (cfg.ripetute || 2); k++) { if (!t[k] && !st.nc[`${k}:${n}`]) return k; }
+    return cfg.ripetute || 2;
+  };
+  const finito = (n) => tipo === 'sprint2' ? attS2(n) >= (cfg.ripetute || 2) : (concluso(n) || isNc(n));
 
   const rank = {};
   righe
@@ -2659,7 +2692,7 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
     const t = Date.now();
     setSt(p => {
       const starts = { ...p.starts };
-      righe.forEach(r => { if (isSel(r.numero) && !concluso(r.numero) && !isNc(r.numero) && !starts[r.numero]) starts[r.numero] = t; });
+      righe.forEach(r => { if (isSel(r.numero) && !finito(r.numero) && !starts[r.numero]) starts[r.numero] = t; });
       return { ...p, starts, repAttiva: tipo === 'rsa' && Object.keys(starts).length > 0 ? true : p.repAttiva };
     });
   };
@@ -2668,6 +2701,11 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
     const ms = Date.now() - st.starts[n];
     if (tipo === 'tempo') onUpdate(n, d => ({ ...d, tempo: formatTempoMs(ms, cfg.decimali), nc: false }));
     else if (tipo === 'sprint') onUpdate(n, d => ({ ...d, t30: secTxt(ms), nc: false }));
+    else if (tipo === 'sprint2') {
+      const k = attS2(n);
+      if (k >= (cfg.ripetute || 2)) return;
+      onUpdate(n, d => { const t = Array.isArray(d.tempi) ? [...d.tempi] : ['', '', '', '', '', '']; t[k] = secTxt(ms); return { ...d, tempi: t }; });
+    }
     else if (tipo === 'rsa') {
       const rep = st.rep;
       onUpdate(n, d => { const t = Array.isArray(d.tempi) ? [...d.tempi] : ['', '', '', '', '', '']; t[rep] = secTxt(ms); return { ...d, tempi: t }; });
@@ -2680,6 +2718,19 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
     onUpdate(n, d => ({ ...d, [chiave]: secTxt(ms) }));
   };
   const annulla = (n) => {
+    if (tipo === 'sprint2') {
+      // annulla l'ultimo scatto registrato (tempo o NC); se non c'è, azzera solo il cronometro in corso
+      const t = dati(n).tempi || [];
+      let k = -1;
+      for (let i = (cfg.ripetute || 2) - 1; i >= 0; i--) { if (t[i] || st.nc[`${i}:${n}`]) { k = i; break; } }
+      if (k >= 0 && !st.starts[n]) {
+        onUpdate(n, d => { const tt = Array.isArray(d.tempi) ? [...d.tempi] : ['', '', '', '', '', '']; tt[k] = ''; return { ...d, tempi: tt }; });
+        setSt(p => ({ ...p, nc: { ...p.nc, [`${k}:${n}`]: false } }));
+      } else {
+        setSt(p => ({ ...p, starts: senzaStart(p, n) }));
+      }
+      return;
+    }
     if (tipo === 'tempo') onUpdate(n, d => { const { tempo, nc, ...r } = d; return r; });
     else if (tipo === 'sprint') onUpdate(n, d => { const { t10, t20, t30, nc, ...r } = d; return r; });
     else if (tipo === 'rsa') {
@@ -2689,6 +2740,11 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
     setSt(p => ({ ...p, starts: senzaStart(p, n), nc: { ...p.nc, [ncChiave(n)]: false } }));
   };
   const segnaNc = (n) => {
+    if (tipo === 'sprint2') {
+      const k = attS2(n);
+      setSt(p => ({ ...p, starts: senzaStart(p, n), nc: { ...p.nc, [`${k}:${n}`]: true } }));
+      return;
+    }
     if (tipo === 'tempo') onUpdate(n, d => ({ ...d, tempo: '', nc: true }));
     else if (tipo === 'sprint') onUpdate(n, d => ({ ...d, t10: '', t20: '', t30: '', nc: true }));
     setSt(p => ({ ...p, starts: senzaStart(p, n), nc: { ...p.nc, [ncChiave(n)]: true } }));
@@ -2801,11 +2857,11 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
 
   const btn = 'min-h-[48px] px-4 rounded-lg font-bold text-base';
   const selezionati = righe.filter(r => isSel(r.numero));
-  const nPartenza = selezionati.filter(r => !concluso(r.numero) && !isNc(r.numero) && !st.starts[r.numero]).length;
+  const nPartenza = selezionati.filter(r => !finito(r.numero) && !st.starts[r.numero]).length;
 
   // ---------- Barra di controllo ----------
   let controlli = null;
-  if (tipo === 'tempo' || tipo === 'sprint' || tipo === 'rsa') {
+  if (tipo === 'tempo' || tipo === 'sprint' || tipo === 'rsa' || tipo === 'sprint2') {
     controlli = (
       <div className="bg-white border rounded-lg p-3 mb-3">
         {tipo === 'rsa' && (
@@ -2837,7 +2893,11 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
           )}
           <button className={`${btn} bg-red-100 text-red-800`} onClick={azzeraPartenza}>Azzera partenza</button>
         </div>
-        <p className="text-xs text-gray-500 mt-2">Spunta chi corre in questa batteria, poi START GENERALE. Oppure usa ▶ Start accanto a un singolo nome.</p>
+        <p className="text-xs text-gray-500 mt-2">
+          {tipo === 'sprint2'
+            ? 'Spunta i 1-2 giocatori che corrono ora, poi START GENERALE (o ▶ Start accanto al nome) e STOP al traguardo. Dopo il recupero ripeti lo START: il programma registra il 2° scatto e calcola la differenza.'
+            : 'Spunta chi corre in questa batteria, poi START GENERALE. Oppure usa ▶ Start accanto a un singolo nome.'}
+        </p>
       </div>
     );
   } else if (tipo === 'cooper') {
@@ -2926,7 +2986,49 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
     let centro = null;
     let azioni = null;
 
-    if (tipo === 'tempo' || tipo === 'sprint' || tipo === 'rsa') {
+    if (tipo === 'sprint2') {
+      const k = attS2(n);
+      const t = d.tempi || [];
+      const r2 = calcolaSprint2Risultato(t);
+      const storico = [0, 1].map(i => t[i] ? `Scatto ${i + 1}: ${t[i]}s` : (st.nc[`${i}:${n}`] ? `Scatto ${i + 1}: NC` : null)).filter(Boolean).join('  ·  ');
+      if (k >= 2) {
+        sfondo = 'bg-green-50 border-green-400';
+        centro = (
+          <div>
+            <div className="text-lg font-mono font-bold text-green-700">{storico}</div>
+            <div className="text-lg font-bold">Differenza: <span className={r2.differenza > 0 ? 'text-orange-700' : 'text-green-700'}>{r2.differenza !== null ? `${formatDiffSec(r2.differenza)} s (${r2.percentuale > 0 ? '+' : ''}${r2.percentuale}%)` : '-'}</span></div>
+          </div>
+        );
+        azioni = <button className={`${btn} bg-gray-200`} onClick={() => annulla(n)}>↩ Annulla ultimo</button>;
+      } else if (st.starts[n]) {
+        sfondo = 'bg-yellow-50 border-yellow-400';
+        centro = (
+          <div>
+            <span className="text-3xl font-mono font-bold">{formatTempoMs(live, 2)}</span>
+            <div className="text-xs text-gray-600">Scatto {k + 1} di 2{storico ? ` · ${storico}` : ''}</div>
+          </div>
+        );
+        azioni = (
+          <>
+            <button className={`${btn} bg-red-600 text-white`} onClick={() => ferma(n)}>⏹ STOP</button>
+            <button className={`${btn} bg-gray-200`} onClick={() => segnaNc(n)}>NC</button>
+          </>
+        );
+      } else {
+        centro = (
+          <div>
+            <span className="text-gray-500 text-lg">Scatto {k + 1} di 2</span>
+            {storico && <div className="text-sm font-mono text-green-700">{storico}</div>}
+          </div>
+        );
+        azioni = (
+          <>
+            <button className={`${btn} bg-green-600 text-white`} onClick={() => avvia(n)}>▶ Start scatto {k + 1}</button>
+            {k > 0 && <button className={`${btn} bg-gray-200`} onClick={() => annulla(n)}>↩</button>}
+          </>
+        );
+      }
+    } else if (tipo === 'tempo' || tipo === 'sprint' || tipo === 'rsa') {
       const valTxt = tipo === 'tempo' ? d.tempo : tipo === 'sprint' ? (d.t30 ? `${d.t30}s` : '') : (d.tempi && d.tempi[st.rep] ? `${d.tempi[st.rep]}s` : '');
       if (concl) {
         centro = <span className="text-2xl font-mono font-bold text-green-700">{valTxt}</span>;
@@ -5407,6 +5509,10 @@ const SoccerTeamTracker = () => {
         return compilato
           ? ['N°', 'Giocatore', 'Rip.1', 'Rip.2', 'Rip.3', 'Rip.4', 'Rip.5', 'Rip.6', 'Migliore', 'Media', '% Decr.']
           : ['N°', 'Giocatore', 'Rip.1', 'Rip.2', 'Rip.3', 'Rip.4', 'Rip.5', 'Rip.6'];
+      case 'sprint2x30':
+        return compilato
+          ? ['N°', 'Giocatore', '1° scatto', '2° scatto', 'Differenza (s)', 'Diff. %', 'Migliore', 'km/h']
+          : ['N°', 'Giocatore', '1° scatto 30m', '2° scatto 30m', 'Differenza'];
       case 'sprintParziali':
         return compilato
           ? ['N°', 'Giocatore', 'T 10m', 'T 20m', 'T 30m', 'km/h 0-10', 'km/h 10-20', 'km/h 20-30']
@@ -5503,6 +5609,10 @@ const SoccerTeamTracker = () => {
           const tempi = Array.isArray(dati.tempi) ? dati.tempi : ['', '', '', '', '', ''];
           const rsa = calcolaRSARisultato(tempi);
           return [numero, nomeGiocatore, ...tempi.map(t => t || '-'), rsa.tempoMigliore != null ? rsa.tempoMigliore : '-', rsa.tempoMedio != null ? rsa.tempoMedio : '-', rsa.percentualeDecremento != null ? rsa.percentualeDecremento + '%' : '-'];
+        }
+        case 'sprint2x30': {
+          const tt = Array.isArray(dati.tempi) ? dati.tempi : [];
+          return [numero, nomeGiocatore, tt[0] || '-', tt[1] || '-', formatDiffSec(calcolo.differenza), calcolo.percentuale != null ? calcolo.percentuale + '%' : '-', calcolo.migliore != null ? calcolo.migliore : '-', calcolo.velocita != null ? calcolo.velocita : '-'];
         }
         case 'sprintParziali':
           return [numero, nomeGiocatore, dati.t10 || '-', dati.t20 || '-', dati.t30 || '-',
@@ -18822,6 +18932,7 @@ const SoccerTeamTracker = () => {
                               {def.schema === 'distanza' && (<><th className="p-2 border">Distanza (m)</th><th className="p-2 border">VO2max stimato</th></>)}
                               {def.schema === 'livelloTratto' && (<><th className="p-2 border">Livello</th><th className="p-2 border">Tratto</th><th className="p-2 border">Distanza (m)</th><th className="p-2 border">VO2max stimato</th></>)}
                               {def.schema === 'ripetute6x20' && (<>{[1, 2, 3, 4, 5, 6].map(i => <th key={i} className="p-2 border">Rip.{i}</th>)}<th className="p-2 border">Migliore</th><th className="p-2 border">Media</th><th className="p-2 border">% Decr.</th></>)}
+                              {def.schema === 'sprint2x30' && (<><th className="p-2 border">1° scatto</th><th className="p-2 border">2° scatto</th><th className="p-2 border">Differenza (s)</th><th className="p-2 border">Diff. %</th><th className="p-2 border">Migliore</th><th className="p-2 border">km/h</th></>)}
                               {def.schema === 'sprintParziali' && (<><th className="p-2 border">10m</th><th className="p-2 border">20m</th><th className="p-2 border">30m</th><th className="p-2 border">km/h 0-10</th><th className="p-2 border">km/h 10-20</th><th className="p-2 border">km/h 20-30</th></>)}
                               {def.schema === 'stepGacon' && (<><th className="p-2 border">Step</th><th className="p-2 border">VAM km/h</th><th className="p-2 border">VO2max stimato</th></>)}
                               {userRole === 'admin' && <th className="p-2 border"></th>}
@@ -18867,6 +18978,19 @@ const SoccerTeamTracker = () => {
                                       <td className="p-2 border text-center">{calcolo.tempoMigliore ?? '-'}</td>
                                       <td className="p-2 border text-center">{calcolo.tempoMedio ?? '-'}</td>
                                       <td className="p-2 border text-center font-semibold text-orange-700">{calcolo.percentualeDecremento != null ? calcolo.percentualeDecremento + '%' : '-'}</td>
+                                    </>
+                                  )}
+                                  {def.schema === 'sprint2x30' && (
+                                    <>
+                                      {[0, 1].map(i => (
+                                        <td key={i} className="p-2 border">
+                                          <input type="number" step="0.01" value={(dati.tempi && dati.tempi[i]) || ''} onChange={(e) => aggiornaRipetutaTestAtletico(sessione.id, numero, i, e.target.value)} disabled={userRole !== 'admin'} className="w-20 p-1 border rounded" />
+                                        </td>
+                                      ))}
+                                      <td className={`p-2 border text-center font-semibold ${calcolo.differenza > 0 ? 'text-orange-700' : 'text-green-700'}`}>{formatDiffSec(calcolo.differenza)}</td>
+                                      <td className="p-2 border text-center">{calcolo.percentuale != null ? (calcolo.percentuale > 0 ? '+' : '') + calcolo.percentuale + '%' : '-'}</td>
+                                      <td className="p-2 border text-center">{calcolo.migliore ?? '-'}</td>
+                                      <td className="p-2 border text-center font-semibold text-blue-700">{calcolo.velocita ?? '-'}</td>
                                     </>
                                   )}
                                   {def.schema === 'sprintParziali' && (
