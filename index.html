@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.8.1'; // Nuovo test: Sprint 30m doppio (1° e 2° scatto, differenza)
+      const APP_VERSION = '2.8.2'; // Calendario: corretto sfasamento di un giorno (fuso orario)
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -4498,7 +4498,8 @@ const SoccerTeamTracker = () => {
   };
   
   const getEventsForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    // Data LOCALE (yyyy-mm-dd): toISOString() converte in UTC e sposta il giorno indietro di uno in Italia
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     const dayTrainings = trainings.filter(t => t.data === dateStr);
     const dayMatches = matches.filter(m => m.data === dateStr);
     return { trainings: dayTrainings, matches: dayMatches };
@@ -21024,7 +21025,6 @@ const SoccerTeamTracker = () => {
                 {Array.from({ length: getDaysInMonth(selectedMonth, selectedYear) }).map((_, idx) => {
                   const day = idx + 1;
                   const date = new Date(selectedYear, selectedMonth, day);
-                  const dateStr = date.toISOString().split('T')[0];
                   const events = getEventsForDate(date);
                   const isToday = new Date().toDateString() === date.toDateString();
                   const hasTrainings = events.trainings.length > 0;
@@ -21092,7 +21092,7 @@ const SoccerTeamTracker = () => {
               <h3 className="text-xl font-bold text-gray-800 mb-4">📋 Prossimi Eventi</h3>
               <div className="space-y-3">
                 {[...trainings, ...matches]
-                  .filter(e => new Date(e.data) >= new Date())
+                  .filter(e => new Date(e.data) >= new Date(new Date().toDateString()))
                   .sort((a, b) => new Date(a.data) - new Date(b.data))
                   .slice(0, 5)
                   .map((event, idx) => {
