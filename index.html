@@ -13,7 +13,7 @@
   <script>
     (function() {
       // 🔢 VERSIONE APP - Incrementa questo numero ad ogni modifica
-      const APP_VERSION = '2.8.2'; // Calendario: corretto sfasamento di un giorno (fuso orario)
+      const APP_VERSION = '2.8.3'; // Test atletici: elenco giocatori sempre A-Z; ordinamento per risultato solo in inserisci/modifica
       
       // Controlla versione salvata
       const savedVersion = localStorage.getItem('app_version');
@@ -2433,6 +2433,40 @@ const calcolaRisultatoGiocatoreTest = (testId, datiGrezzi) => {
   }
 };
 
+// Valore usato per ordinare per risultato: { v: numero|null, minoreMeglio: bool }
+const valoreRisultatoTest = (testId, dati) => {
+  if (!dati) return { v: null, minoreMeglio: true };
+  const num = (x) => { const n = parseFloat(x); return isNaN(n) || n <= 0 ? null : n; };
+  const calcolo = calcolaRisultatoGiocatoreTest(testId, dati);
+  switch (testId) {
+    case 'bronco': case 'illinois': { const t = parseTempoSec(dati.tempo); return { v: isNaN(t) || t <= 0 ? null : t, minoreMeglio: true }; }
+    case 'cooper': return { v: num(dati.distanza), minoreMeglio: false };
+    case 'yoyo': case 'beep': return { v: num(calcolo.distanza), minoreMeglio: false };
+    case 'rsa': return { v: num(calcolo.tempoMigliore), minoreMeglio: true };
+    case 'sprint': return { v: num(dati.t30), minoreMeglio: true };
+    case 'sprint30x2': return { v: num(calcolo.migliore), minoreMeglio: true };
+    case 'gacon': return { v: num(dati.step), minoreMeglio: false };
+    default: return { v: null, minoreMeglio: true };
+  }
+};
+
+// Ordine dei numeri di maglia di una sessione: A-Z per nome (default) oppure per risultato (migliore prima, senza risultato in fondo)
+const ordinaNumeriSessioneTest = (sessione, players, modo) => {
+  const nomeDi = (n) => (players.find(p => p.numero === n) || {}).nome || `#${n}`;
+  const numeri = Object.keys(sessione.risultati).map(n => parseInt(n));
+  const perNome = (a, b) => nomeDi(a).localeCompare(nomeDi(b), 'it', { sensitivity: 'base' });
+  if (modo !== 'risultato') return numeri.sort(perNome);
+  return numeri.sort((a, b) => {
+    const ra = valoreRisultatoTest(sessione.testId, sessione.risultati[a]);
+    const rb = valoreRisultatoTest(sessione.testId, sessione.risultati[b]);
+    if (ra.v === null && rb.v === null) return perNome(a, b);
+    if (ra.v === null) return 1;
+    if (rb.v === null) return -1;
+    if (ra.v === rb.v) return perNome(a, b);
+    return ra.minoreMeglio ? ra.v - rb.v : rb.v - ra.v;
+  });
+};
+
 // ===== CRONO PURE START =====
 // ========== CRONOMETRO TEST ATLETICI: configurazione e funzioni pure ==========
 const CRONO_CONFIG = {
@@ -2654,7 +2688,7 @@ const CronometroTestAtletico = ({ sessione, def, players, onUpdate, onClose }) =
   const righe = Object.keys(sessione.risultati)
     .map(k => parseInt(k))
     .map(n => ({ numero: n, nome: players.find(p => p.numero === n)?.nome || `#${n}` }))
-    .sort((a, b) => a.nome.localeCompare(b.nome));
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }));
   const dati = (n) => sessione.risultati[n] || {};
 
   const valoreFinale = (n) => {
@@ -3671,6 +3705,7 @@ const SoccerTeamTracker = () => {
   const [nuovoTestAtleticoTipo, setNuovoTestAtleticoTipo] = useState('');
   const [nuovoTestAtleticoData, setNuovoTestAtleticoData] = useState(new Date().toISOString().split('T')[0]);
   const [selectedTrainingForTestAtletico, setSelectedTrainingForTestAtletico] = useState('');
+  const [ordineTestAtletico, setOrdineTestAtletico] = useState('nome'); // 'nome' | 'risultato' (solo pagina inserisci/modifica)
   const [viewingTestAtleticoId, setViewingTestAtleticoId] = useState(null); // sessione aperta per inserimento/visualizzazione tempi
   const [showTestAtleticoIstruzioni, setShowTestAtleticoIstruzioni] = useState(null);
   const [cronoSessioneId, setCronoSessioneId] = useState(null); // sessione aperta nel cronometro
@@ -5591,7 +5626,7 @@ const SoccerTeamTracker = () => {
     doc.text(`Data test: ${new Date(sessione.data).toLocaleDateString('it-IT')}`, 15, 30);
 
     const head = getColonneSchemaTest(def.schema, true);
-    const numeriGiocatori = Object.keys(sessione.risultati).map(n => parseInt(n)).sort((a, b) => a - b);
+    const numeriGiocatori = ordinaNumeriSessioneTest(sessione, players, 'nome');
 
     const body = numeriGiocatori.map(numero => {
       const player = players.find(p => p.numero === numero);
@@ -18893,10 +18928,10 @@ const SoccerTeamTracker = () => {
                 const sessione = testAtletici.find(s => s.id === viewingTestAtleticoId);
                 if (!sessione) return null;
                 const def = getTestAtleticoDef(sessione.testId);
-                const numeriInSessione = Object.keys(sessione.risultati).map(n => parseInt(n)).sort((a, b) => a - b);
+                const numeriInSessione = ordinaNumeriSessioneTest(sessione, players, ordineTestAtletico);
                 const giocatoriDisponibili = players
                   .filter(p => p.nome && !p.fuoriRosa && !sessione.risultati.hasOwnProperty(p.numero))
-                  .sort((a, b) => a.numero - b.numero);
+                  .sort((a, b) => a.nome.localeCompare(b.nome, 'it', { sensitivity: 'base' }));
 
                 return (
                   <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -18922,6 +18957,12 @@ const SoccerTeamTracker = () => {
                           </select>
                         </div>
                       )}
+
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span className="text-sm text-gray-600">Ordina per:</span>
+                        <button onClick={() => setOrdineTestAtletico('nome')} className={`px-3 py-1 rounded-lg text-sm font-semibold ${ordineTestAtletico === 'nome' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>Nome (A-Z)</button>
+                        <button onClick={() => setOrdineTestAtletico('risultato')} className={`px-3 py-1 rounded-lg text-sm font-semibold ${ordineTestAtletico === 'risultato' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>Risultato (migliore prima)</button>
+                      </div>
 
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm border-collapse">
